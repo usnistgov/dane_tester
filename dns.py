@@ -12,7 +12,7 @@ CNAME_MAX_DEPTH=20
 TLSA="TLSA"
 from collections import namedtuple
 
-import re
+import re,sys
 
 rr_re = re.compile("(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)")
 
@@ -61,7 +61,9 @@ def dig(host,qtype=None,cdflag=False):
     cmd = ['dig','+dnssec','@8.8.8.8',host]
     if qtype: cmd.append(qtype)
     if cdflag: cmd.append("+cdflag")
-    res = Popen(cmd,stdout=PIPE).communicate()[0].decode('utf-8')
+    res = Popen(cmd,stdout=PIPE).communicate()[0]
+    if sys.version_info.major >= 3: # convert to unicode?
+        res = res.decode('utf-8')
     section = None
     for line in res.split("\n"):
         if not line: continue
@@ -103,6 +105,10 @@ def query(host,qtype=None):
         ret.originalHost = originalHost
         return ret
             
+def test_dnssec():
+    assert False
+    assert query('www.dnssec-failed.org').dnssec == 'bogus'
+
 if __name__=="__main__":
     hosts = [ "www.had-pilot.com",
               "www.mit.edu",
