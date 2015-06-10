@@ -51,9 +51,8 @@ def walk_host_cname(host):
         except getdns.error, e:
             print(str(e))
             sys.exit(1)
-        status = results.status
         found_cname = False
-        if status == getdns.RESPSTATUS_GOOD:
+        if results.status == getdns.RESPSTATUS_GOOD:
             for reply in results.replies_tree:
                 answers = reply['answer']
                 for answer in answers:
@@ -69,14 +68,46 @@ def walk_host_cname(host):
     print("CNAME DEPTH REACHED")
     return None
             
+def get_tlsa(host,port):
+    try:
+        rhost = "_{}._tcp.{}".format(port,host)
+        results = ctx.general(name=rhost,
+                              request_type = getdns.RRTYPE_TLSA,
+                              extensions=extensions)
+    except getdns.error, e:
+        print(str(e))
+        sys.exit(1)
+    
+    def tohex(rdata):
+        def hexnum(v): return "%02X" % ord(v)
+        return ''.join(map(hexnum, rdata))
+
+    if results.status == getdns.RESPSTATUS_GOOD:
+        for reply in results.replies_tree:
+            answers = reply['answer']
+            for answer in answers:
+                if answer['type'] == getdns.RRTYPE_TLSA:
+                    dstat = dnssec_status[reply.get('dnssec_status',None)]
+                    rdata = answer['rdata']
+                    print("{} TLSA usage:{}  selector:{} matching_type:{}  data:{} DNSSEC:{}".format(
+                            rhost,
+                            rdata['certificate_usage'],
+                            rdata['selector'],
+                            rdata['matching_type'],
+                            tohex(rdata['certificate_association_data']),
+                            dstat))
+                    print(rdata.selector)
+                    break
+    
 
 
 
 if __name__=="__main__":
     host = sys.argv[1]
-
-
     ctx = getdns.Context()
+
+    get_tlsa("good.dane.verisignlabs.com",443)
+
     try:
         results = ctx.general(name=host, request_type=getdns.RRTYPE_MX, extensions=extensions)
     except getdns.error, e:
