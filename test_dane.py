@@ -24,10 +24,6 @@ def test_cname():
     n = get_dns_cname("a.nitroba.org.")
     assert n[0].data=="b.nitroba.org."
 
-def test_cname():
-    n = get_dns_cname("a.nitroba.org.")
-    assert n[0].data=="b.nitroba.org."
-
 def test_mx():
     n = get_dns_mx("nist.gov")
     assert n[0].data=="nist-gov.mail.protection.outlook.com."

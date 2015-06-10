@@ -236,7 +236,7 @@ def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
                 ret.append( DaneTestResult(what='DNS CNAME lookup {} = {}'.format(hostname,rdata['cname']),
                                            dnssec=dstat,data=rdata['cname'],rdata=rdata))
             if a['type'] == getdns.RRTYPE_MX == request_type:
-                ret.append( DaneTestResult(what='DNS MX lookup {} = {}'.format(hostname,rdata['exchange']),
+                ret.append( DaneTestResult(what='DNS MX lookup {} = {} {}'.format(hostname,rdata['preference'],rdata['exchange']),
                                            dnssec=dstat,data=rdata['exchange'],rdata=rdata))
             if a['type'] == getdns.RRTYPE_TLSA == request_type:
                 ret.append( DaneTestResult(what='DNS TLSA lookup {} = {}'.format(hostname,tlsa_str(rdata)),
@@ -272,7 +272,6 @@ def chase_dns_cname(hostname):
     
    
    
-
 def tlsa_service_verify(hostname,port,protocol):
     test_results = []
     tlsa_records = get_dns_tlsa(hostname,port)
@@ -309,6 +308,7 @@ def apply_dnssec_test(test_results):
             test_results += [ DaneTestResult(what='Not all DNS lookups secured by DNSSEC',passed=False) ]
             break
 
+
 def tlsa_http_verify(url):
     from urlparse import urlparse
     test_results = []
@@ -323,14 +323,23 @@ def tlsa_http_verify(url):
     return test_results
     
 
-
-def check_dane(hostname,port=None,protocol=None):
-    assert(port!=None)
-    assert(protocol!=None)
-    # Get the list of IP addresses and DNSSEC status associated with hostname
-    tlsa  = get_dns_tlsa_hostname_port(hostname,port)
-    addrs = get_ip_dnssec(hostname)
+def tlsa_smtp_verify(hostname):
+    mx_results = get_dns_mx(hostname)
+    if mx_results:
+        test_results = mx_results
+        hostnamelist = [h.data for h in mx_results]
+    else:
+        test_results = [ DaneTestResult(what='No MX record for {}'.format(hostname))]
+        hostnamelist = [hostname]
+    for hostname in hostnamelist:
+        (hostname,cname_results) = chase_dns_cname(hostname)
+        test_results += cname_results
+        test_results += tlsa_service_verify(hostname,25,'smtp')
+    apply_dane_test(test_results)
+    apply_dnssec_test(test_results)
+    return test_results
     
+
 
 def print_test_results(tests):
     def passed(t):
@@ -349,6 +358,14 @@ def print_test_results(tests):
     
 
 if __name__=="__main__":
+    for domain in ["dougbarton.us",
+                   "jhcloos.com",
+                   "nlnetlabs.nl",
+                   "nlnet.nl",
+                   "spodhuis.org"]:
+        print("=== {} ===".format(domain))
+        print_test_results(tlsa_smtp_verify(domain))
+
     #print_test_results(pem_verify(open("google_chain.pem").read(),open("google.pem").read()))
     for domain in ["https://www.had-pilot.com",
                    "https://bad-sig.dane.verisignlabs.com",
@@ -360,21 +377,4 @@ if __name__=="__main__":
         print_test_results(tlsa_http_verify(domain))
     exit(0)
 
-    print("getdns.DNSSEC_SECURE={}".format(getdns.DNSSEC_SECURE))
-    print("getdns.DNSSEC_INDETERMINATE={}".format(getdns.DNSSEC_INDETERMINATE))
-    print("getdns.DNSSEC_INSECURE={}".format(getdns.DNSSEC_INSECURE))
-    print("getdns.DNSSEC_BOGUS={}".format(getdns.DNSSEC_BOGUS))
-
-    for name in ['fedoraproject.org','simson.net']:
-        check_dane(name,port='443',protocol='http')
-    exit(0)
-
-    # Test hosts for DANE TLSA SMTP
-    for host in ['dougbarton.us','jhcloos.com','nlnetlabs.nl','nlnet.nl','spodhuis.org']:
-        pass
-
-    for domain in ['dnssec-failed.org',"had-pilot.com","dnssectest.sidnlabs.nl","www.simson.net"]:
-        #get_ip(domain,{})
-        #get_ip(domain,{'dnssec_return_status' : getdns.EXTENSION_TRUE })
-        get_ip(domain,{"dnssec_return_validation_chain" : getdns.EXTENSION_TRUE})
 
