@@ -29,11 +29,26 @@ class DaneTestResult:
     def __repr__(self):
         return "%s %s %s %s %s" % (self.passed,self.dnssec,self.what,self.why,self.data)
 
+# Count the number of results in an array
+def count_passed(ret):
+    return len(filter(lambda a:a.passed==True,ret))
+
+def count_failed(ret):
+    return len(filter(lambda a:a.passed==False,ret))
+
+def find_result(ret,what):
+    for r in ret:
+        if r.what==what: return r
+    return None
+
 ################################################################
 ## Simple conversion routines
 def hexdump(str, separator=''):
     return separator.join(x.encode('hex') for x in str)
 
+
+def test_hexdump():
+    assert hexdump("ABC")=="414243"
 
 
 ################################################################
@@ -90,6 +105,10 @@ def pem_verify(cert_chain,ee_cert):
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+# 
+# TLSA Selector:
+# 0 - Full Certificate
+# 1 - Just the public key
 def tlsa_select(s, cert):
     assert s in [0,1]
     if s==0: return cert.as_der()
@@ -101,6 +120,11 @@ def upperhex(s):
 
 
 
+# matching type:
+# 0 - raw certificate in DNS
+# 1 - SHA256 is in the DNS
+# 2 - SHA512 is in the DNS
+
 def tlsa_match(mtype, cert_data, from_dns):
     import hashlib
     assert mtype in [0,1,2]
@@ -110,6 +134,39 @@ def tlsa_match(mtype, cert_data, from_dns):
     if mtype == 2:
         hex_data = hashlib.sha512(cert_data).hexdigest()
     return upperhex(hex_data) == upperhex(from_dns)
+
+
+
+# Verify a certificate chain for a hostname
+def cert_verify(cert_chain,hostname):
+    import M2Crypto,fnmatch
+    certs = split_certs(cert_chain)
+    cert_obj = M2Crypto.X509.load_cert_string(certs[0])
+    cn = cert_obj.get_subject().CN
+    
+    ret = []
+    if pem_verify(cert_chain,certs[0]):
+        ret += [ DaneTestResult(what="EE Certificate '{}' verifies".format(cn)) ]
+    else:
+        ret += [ DaneTestResult(failed=True,what="EE Certificate '{}' does not verify".format(cn)) ]
+
+    # Check the name on the certificates
+    # Use fnmatch to handle wildcard 
+    hostname = hostname.lower()
+    if hostname.endswith("."): hostname = hostname[0:-1]
+    
+    cn = cn.lower()
+    if cn.endswith("."): cn = cn[0:-1]
+
+    if fnmatch.fnmatch(hostname,cn):
+        ret += [ DaneTestResult(what="EE Certificate Common Name '{}' matches hostname '{}'".format(cn,hostname)) ]
+    else:
+        ret += [ DaneTestResult(passed=False,
+                                what="EE Certificate Common Name '{}' does not match hostname '{}'".format(cn,hostname)) ]
+
+    return ret
+
+TLSA_VALIDATES="TLSA Validates"
 
 # CU 0 - Directly specifies the CA certificate or public key used to validate the certificate provided by the End Entity (EE)
 # There must be a valid chain from the EE to the CU 0 trust anchor and the CU 0 trust anchor must be a recognized CA.
@@ -121,45 +178,53 @@ def tlsa_match(mtype, cert_data, from_dns):
 # CU 3 - Directly specifies the EE's certificate or public key, and the certificate need not validate.
 
 
-
-def tlsa_verify(certs,tlsa_rdata,hostname):
+def tlsa_verify(cert_chain,tlsa_rdata,hostname):
     import M2Crypto
     cert_usage = tlsa_rdata['certificate_usage']
     selector   = tlsa_rdata['selector']
     mtype      = tlsa_rdata['matching_type']
     associated_data = tlsa_rdata['certificate_association_data']
+    ret = []
+    certs = split_certs(cert_chain)
+    cert_obj = M2Crypto.X509.load_cert_string(certs[0])
     
     if not (cert_usage in [0,1,2,3] and selector in [0,1] and mtype in [0,1,2]):
         return [ DaneTestResult(passed=False,what="TLSA Parameters bad: {} {} {}".format(cert_usage,selector,mtype)) ]
 
+    # Cert usages 0 and 2 specify a root
+    usage_good = False
     ct = hexdump(tlsa_rdata['certificate_association_data'])
     if cert_usage in [0, 2]: # need to find one trust anchor, loop all
+        count = 0
         for cert in certs:
+            count += 1
             cert_obj = M2Crypto.X509.load_cert_string(cert)
             cert_data = tlsa_select(selector, cert_obj)
             if tlsa_match(mtype, cert_data, ct):
-                return True
+                ret += [ DaneTestResult(what="EE certificate {} matches TLSA usage {}".format(count,cert_usage)) ]
+                usage_good = True
+            else:
+                ret += [ DaneTestResult(passed=False,what="EE certificate {} does not match TLSA usage {}".format(count,cert_usage)) ]
+
+    # Cert usages 1 and 3 specify the EE certificate
     if cert_usage in [1,3]:
-        cert_obj = M2Crypto.X509.load_cert_string(certs[0])
         cert_data = tlsa_select(selector, cert_obj)
         if tlsa_match(mtype, cert_data, ct):
-            ret = [ DaneTestResult(what="TLSA VERIFIED: certificate usage {} matches".format(cert_usage)) ]
-            if cert_usage==1:
-                # Need to validate the certificate
-                if pem_verify("\n".join(certs),certs[0]):
-                    ret += [ DaneTestResult(what="TLSA Certificate Usage 1: Certificates verify") ]
-                # Check the name on the certificates
-                cn = cert_obj.get_subject().CN
-                if hostname.lower() == cn.lower():
-                    ret += [ DaneTestResult(what="TLSA Certificate Usage 1: Certificate Common Name {} matches hostname".format(cn)) ]
-                else:
-                    ret += [ DaneTestResult(passed=False,
-                                            what="TLSA Certificate Usage 1: Certificate Common Name {} does not match hostname {}".format(cn,hostname)) ]
-
-            return ret
+            ret += [ DaneTestResult(what="EE certificate matches TLSA usage {}".format(cert_usage)) ]
+            usage_good = True
         else:
-            return [ DaneTestResult(passed=False,what="TLSA certificate usage {} does not match".format(cert_usage)) ]
-      
+            ret += [ DaneTestResult(passed=False,what="EE certificate does not match TLSA usage {}".format(cert_usage)) ]
+    
+    # Cert usages 0-2 must validate the certificate
+    if cert_usage in [0, 1, 2]:
+        r = cert_verify(cert_chain,hostname)
+        ret += r
+        if count_failed(r) > 0:
+            usage_good = False
+    # If usage is still good, say so
+    if usage_good:
+        ret += [ DaneTestResult(what=TLSA_VALIDATES) ]
+    return ret
 
 
 
@@ -197,8 +262,10 @@ def split_certs(multi_certs):
 ### DNS
 
 
-extensions = {"return_both_v4_and_v6":getdns.EXTENSION_TRUE,
-                       "dnssec_return_validation_chain" : getdns.EXTENSION_TRUE}
+#extensions = {"return_both_v4_and_v6":getdns.EXTENSION_TRUE,
+#                       "dnssec_return_validation_chain" : getdns.EXTENSION_TRUE}
+
+extensions = {"dnssec_return_validation_chain" : getdns.EXTENSION_TRUE}
 
 
 dnssec_status = {getdns.DNSSEC_SECURE:"SECURE",
@@ -268,76 +335,118 @@ def chase_dns_cname(hostname):
             return (hostname,results)
         results += cname_results
         hostname = cname_results[0].data
-    return [ DaneTestResult(passed=False,what='CNAME search for %s reached depth of %d' % (original_hostname,MAX_CNAME_DEPTH))]
+    results += [ DaneTestResult(passed=False,what='CNAME search for %s reached depth of %d' % (original_hostname,MAX_CNAME_DEPTH))]
+    return (None,results)
     
    
+#
+# For a given hostname and port , make sure that there is no 
+# TLSA record (used with CNAMEs)
+def tlsa_noservice_verify(hostname,port):
+    if get_dns_tlsa(hostname,port):
+        return [ DaneTestResult(passed=False,what='TLSA record present for CNAME record {}'.format(tlsa_hostname(hostname,port))) ]
+    else:
+        return [ DaneTestResult(what='no TLSA record present for CNAME') ]
+
    
+#
+# For a given hostname, port, and protocol, get the list
+# of IP addresses and verify the certificate of each.
+
 def tlsa_service_verify(hostname,port,protocol):
-    test_results = []
+    ret = []
     tlsa_records = get_dns_tlsa(hostname,port)
 
-    if not tlsa_records:
-        return [ DaneTestResult(what='NO TLSA records for {}'.format(tlsa_hostname(hostname,port))) ]
+    if tlsa_records:
+        ret += tlsa_records
+    else:
+        ret += [ DaneTestResult(passed=False,what='NO TLSA records for {}'.format(tlsa_hostname(hostname,port))) ]
 
-    test_results += tlsa_records
     ip_results = get_dns_ip(hostname)
 
     # Check each ip address against each tlsa record
     for ip_result in ip_results:
-        test_results += [ip_result]
+        ret += [ip_result]
+
+        # Get the certificate for the IP address
+        cert_results = get_service_certificate_chain(ip_result.data,hostname,port,protocol)
+        ret += cert_results
+        cert_chain = cert_results[0].data
+
+        # Verify against each TLSA record
+        validating_tlsa_records = 0
         for tlsa_record in tlsa_records:
-            cert_results = get_service_certificate_chain(ip_result.data,hostname,port,protocol)
-            test_results += cert_results
-            certs = split_certs(cert_results[0].data)
-            r = tlsa_verify(certs, tlsa_record.rdata, hostname)
-            test_results += r
-    return test_results
+            r = tlsa_verify(cert_chain, tlsa_record.rdata, hostname)
+            ret += r
+            if find_result(r,TLSA_VALIDATES): validating_tlsa_records += 1
+        # Make sure at least one TLSA record validated
+        if tlsa_records:
+            ret += [ DaneTestResult(passed= (validating_tlsa_records>0),
+                                             what='Validating TLSA records for {}: {}'.format(hostname,validating_tlsa_records)) ]
+        else:
+            # If not TLSA records, at least check the EE certificate
+            ret += cert_verify(cert_chain,hostname)
+    return ret
 
         
-def apply_dane_test(test_results):
+def apply_dane_test(ret,desc):
     valid = False
-    for test in test_results:
-        if test.passed and "TLSA VERIFIED" in test.what:
+    for test in ret:
+        if test.passed and test.what.startswith("Validating TLSA"):
             return True
-    test_results += [ DaneTestResult(what='NO TLSA record verifies.',passed=False) ]
+    ret += [ DaneTestResult(what='NO TLSA record verifies '+desc,passed=False) ]
 
-def apply_dnssec_test(test_results):
+def apply_dnssec_test(ret):
     valid = True
-    for test in test_results:
+    for test in ret:
         if test.dnssec not in [None,getdns.DNSSEC_SECURE]:
-            test_results += [ DaneTestResult(what='Not all DNS lookups secured by DNSSEC',passed=False) ]
+            ret += [ DaneTestResult(what='Not all DNS lookups secured by DNSSEC',passed=False) ]
             break
 
 
 def tlsa_http_verify(url):
     from urlparse import urlparse
-    test_results = []
+    ret = []
+
+    # Find the host and port
     o = urlparse(url)
+    original_hostname = o.hostname
     (hostname,cname_results) = chase_dns_cname(o.hostname)
-    port = o.port
-    if not port: port = 443
-    test_results += cname_results
-    test_results += tlsa_service_verify(hostname,port,'https')
-    apply_dane_test(test_results)
-    apply_dnssec_test(test_results)
-    return test_results
+    ret += cname_results
+    
+    if hostname:            # no cname
+        port = o.port
+        if not port: port = 443
+
+        # if first name was a cname, make sure there is no TLSA at the original name
+        if original_hostname != hostname:
+            ret += tlsa_noservice_verify(hostname,port)
+
+        # Verify the service
+        ret += tlsa_service_verify(hostname,port,'https')
+        apply_dane_test(ret,"for HTTP host "+hostname)
+        apply_dnssec_test(ret)
+    return ret
     
 
 def tlsa_smtp_verify(hostname):
+    original_hostname = hostname
     mx_results = get_dns_mx(hostname)
     if mx_results:
-        test_results = mx_results
+        ret = mx_results
         hostnamelist = [h.data for h in mx_results]
     else:
-        test_results = [ DaneTestResult(what='No MX record for {}'.format(hostname))]
+        ret = [ DaneTestResult(what='No MX record for {}'.format(hostname))]
         hostnamelist = [hostname]
     for hostname in hostnamelist:
         (hostname,cname_results) = chase_dns_cname(hostname)
-        test_results += cname_results
-        test_results += tlsa_service_verify(hostname,25,'smtp')
-    apply_dane_test(test_results)
-    apply_dnssec_test(test_results)
-    return test_results
+        ret += cname_results
+        if hostname:
+            tlsa_rets = tlsa_service_verify(hostname,25,'smtp')
+            apply_dane_test(tlsa_rets,"for MX host "+hostname)
+            ret += tlsa_rets
+    apply_dnssec_test(ret)
+    return ret
     
 
 
@@ -358,23 +467,53 @@ def print_test_results(tests):
     
 
 if __name__=="__main__":
-    for domain in ["dougbarton.us",
+    import sys
+
+    if len(sys.argv)>1:
+        for fn in sys.argv[1:]:
+            print_test_results(tlsa_http_verify(fn))
+        exit(0)
+            
+
+    # These test vectors from
+    # http://www.internetsociety.org/deploy360/resources/dane-test-sites/
+    for domain in ["spodhuis.org","dougbarton.us",
                    "jhcloos.com",
                    "nlnetlabs.nl",
-                   "nlnet.nl",
-                   "spodhuis.org"]:
+                   "nlnet.nl"
+                   ]:
         print("=== {} ===".format(domain))
         print_test_results(tlsa_smtp_verify(domain))
 
-    #print_test_results(pem_verify(open("google_chain.pem").read(),open("google.pem").read()))
-    for domain in ["https://www.had-pilot.com",
+
+    print("HTTP - Valid TLSA Record with Valid CA-signed TLSA")
+    for domain in ["https://fedoraproject.org",
+                   "https://www.freebsd.org/",
+                   "https://torproject.org",
+                   'https://jhcloos.com/',
+                   'https://www.kumari.net/',
+                   'https://good.dane.verisignlabs.com',
+                   'https://www.statdns.net/',
+                   'https://dougbarton.us/',
+                   'https://www.huque.com/']:
+        print("=== Valid: {} ===".format(domain))
+        print_test_results(tlsa_http_verify(domain))
+    
+    print("HTTP Valid TLSA")
+    for domain in ["https://rover.secure64.com/"]:
+        print("=== Valid: {} ===".format(domain))
+        print_test_results(tlsa_http_verify(domain))
+
+
+    print("INVALID TLSA")
+    for domain in ["https://rogue.nohats.ca",
                    "https://bad-sig.dane.verisignlabs.com",
                    "https://bad-hash.dane.verisignlabs.com",
-                   "https://www.nist.gov",
-                   "https://www.simson.net"]:
-
-        print("=== {} ===".format(domain))
+                   "https://bad-params.dane.verisignlabs.com",
+                   "https://www.nist.gov"]:
+        print("=== INVALID: {} ===".format(domain))
         print_test_results(tlsa_http_verify(domain))
+    
     exit(0)
 
 
