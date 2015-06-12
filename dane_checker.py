@@ -136,7 +136,11 @@ def tlsa_match(mtype, cert_data, from_dns):
         hex_data = hashlib.sha256(cert_data).hexdigest()
     if mtype == 2:
         hex_data = hashlib.sha512(cert_data).hexdigest()
-    return upperhex(hex_data) == upperhex(from_dns)
+    hex_data = upperhex(hex_data)
+    from_dns = upperhex(from_dns)
+    matches = upperhex(hex_data) == upperhex(from_dns)
+    return [ DaneTestResult(passed=matches,what="TLSA mtype {}:  hex_data={} from_dns={}".format(mtype,hex_data,from_dns)) ]
+    
 
 
 def cert_subject_alternative_names(cert):
@@ -160,27 +164,30 @@ def cert_verify(cert_chain,hostname):
     if pem_verify(cert_chain,certs[0]):
         ret += [ DaneTestResult(what="EE Certificate '{}' verifies".format(cn)) ]
     else:
-        ret += [ DaneTestResult(failed=True,what="EE Certificate '{}' does not verify".format(cn)) ]
+        ret += [ DaneTestResult(passed=False,what="EE Certificate '{}' does not verify".format(cn)) ]
 
-    # Check the name on the certificates
-    # Use fnmatch to handle wildcard 
-    hostname = hostname.lower()
-    if hostname.endswith("."): hostname = hostname[0:-1]
-    
-    cn = cn.lower()
-    if cn.endswith("."): cn = cn[0:-1]
+    def name_clean(n):
+        n = n.lower()
+        if n.endswith("."): n = n[0:-1]
+        return n
+
+    def hostname_match(hn,cn):
+        return fnmatch.fnmatch(name_clean(hn),name_clean(cn))
+        
+    def hostname_desc(which,hostname,name):
+        msg = "EE Certificate {} '{}' matches hostname".format(which,name)
+        if name_clean(hostname)!=name_clean(name): msg += " '{}'".format(hostname)
+        return msg
 
     matched = False
-    if fnmatch.fnmatch(hostname,cn):
-        ret += [ DaneTestResult(what="EE Certificate Common Name '{}' matches hostname '{}'".format(cn,hostname)) ]
+    if hostname_match(hostname,cn):
+        ret += [ DaneTestResult(what=hostname_desc("Common Name",hostname,cn)) ]
         matched = True
     else:
         # Check to see if any subject alternative names
-        for alternativeName in cert_subject_alternative_names(certs[0]):
-            an = alternativeName.lower()
-            if an.endswith("."): an = an[0:-1]
-            if fnmatch.fnmatch(hostname,an):
-                ret += [ DaneTestResult(what="EE Certificate Alternative Name '{}' matches hostname '{}'".format(an,hostname)) ]
+        for an in cert_subject_alternative_names(certs[0]):
+            if hostname_match(hostname,an):
+                ret += [ DaneTestResult(what=hostname_desc("Alternative Name",hostname,an)) ]
                 matched = True
                 break
 
@@ -223,20 +230,26 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname):
             count += 1
             cert_obj = M2Crypto.X509.load_cert_string(cert)
             cert_data = tlsa_select(selector, cert_obj)
-            if tlsa_match(mtype, cert_data, ct):
+            tm = tlsa_match(mtype, cert_data, ct)
+            if tm[0].passed:
+                ret += tm
                 ret += [ DaneTestResult(what="EE certificate {} matches TLSA usage {}".format(count,cert_usage)) ]
                 usage_good = True
             else:
-                ret += [ DaneTestResult(passed=False,what="EE certificate {} does not match TLSA usage {}".format(count,cert_usage)) ]
+                ret += tm
+                ret += [ DaneTestResult(passed=None,what="EE certificate {} does not match TLSA usage {}".format(count,cert_usage)) ]
 
     # Cert usages 1 and 3 specify the EE certificate
     if cert_usage in [1,3]:
         cert_data = tlsa_select(selector, cert_obj)
-        if tlsa_match(mtype, cert_data, ct):
+        tm = tlsa_match(mtype, cert_data, ct)
+        if tm[0].passed:
+            ret += tm
             ret += [ DaneTestResult(what="EE certificate matches TLSA usage {}".format(cert_usage)) ]
             usage_good = True
         else:
-            ret += [ DaneTestResult(passed=False,what="EE certificate does not match TLSA usage {}".format(cert_usage)) ]
+            ret += tm
+            ret += [ DaneTestResult(passed=None,what="EE certificate does not match TLSA usage {}".format(cert_usage)) ]
     
     # Cert usages 0-2 must validate the certificate
     if cert_usage in [0, 1, 2]:
@@ -295,7 +308,7 @@ dnssec_status = {getdns.DNSSEC_SECURE:"SECURE",
                  getdns.DNSSEC_INDETERMINATE:"INDETERMINATE",
                  getdns.DNSSEC_INSECURE:"INSECURE",
                  getdns.DNSSEC_BOGUS:"BOGUS",
-                 None:"n/a"}
+                 None:""}
 
 
 
@@ -392,7 +405,7 @@ def tlsa_service_verify(hostname,port,protocol):
     if tlsa_records:
         ret += tlsa_records
     else:
-        ret += [ DaneTestResult(passed=False,what='NO TLSA records for {}'.format(tlsa_hostname(hostname,port))) ]
+        ret += [ DaneTestResult(passed=False,what='no TLSA records for {}'.format(tlsa_hostname(hostname,port))) ]
 
     ip_results = get_dns_ip(hostname)
 
@@ -426,13 +439,13 @@ def apply_dane_test(ret,desc):
     for test in ret:
         if test.passed and test.what.startswith("Validating TLSA"):
             return True
-    ret += [ DaneTestResult(what='NO TLSA record verifies '+desc,passed=False) ]
+    ret += [ DaneTestResult(what='no TLSA record verifies '+desc,passed=False) ]
 
 def apply_dnssec_test(ret):
     valid = True
     for test in ret:
         if test.dnssec not in [None,getdns.DNSSEC_SECURE]:
-            ret += [ DaneTestResult(what='Not all DNS lookups secured by DNSSEC',passed=False) ]
+            ret += [ DaneTestResult(what='not all DNS lookups secured by DNSSEC',passed=False) ]
             break
 
 
@@ -468,7 +481,7 @@ def tlsa_smtp_verify(hostname):
         ret = mx_results
         hostnamelist = [h.data for h in mx_results]
     else:
-        ret = [ DaneTestResult(what='No MX record for {}'.format(hostname))]
+        ret = [ DaneTestResult(what='no MX record for {}'.format(hostname))]
         hostnamelist = [hostname]
     for hostname in hostnamelist:
         (hostname,cname_results) = chase_dns_cname(hostname)
@@ -484,16 +497,16 @@ def tlsa_smtp_verify(hostname):
 
 def print_test_results(tests):
     def passed(t):
-        return {True:"PASSED",False:"FAILED"}[t.passed]
+        return {True:"PASSED",False:"FAILED",None:"      "}[t.passed]
 
     def dnssec(t):
-        return dnssec_status[t.dnssec]
+        return dnssec_status[t.dnssec]+" " if t.dnssec else ""
 
     print("Tests completed: %d" % len(tests))
-    print("  status  dnssec")
-    print(" -------  ------")
+    print("  status ")
+    print(" ------- ")
     for test in tests:
-        print("  %s  %s :  %s" % (passed(test),dnssec(test),test.what))
+        print("  %s : %s%s" % (passed(test),dnssec(test),test.what))
     print("")
               
     
