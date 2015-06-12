@@ -280,7 +280,7 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
         raise RuntimeError("invalid protocol")
     with timeout(seconds=10):
         multi_certs = Popen(cmd,stdin=open("/dev/null","r"),stdout=PIPE,stderr=PIPE).communicate()[0]
-        return [ DaneTestResult(what="Fetched EE Certificate for {} from {} via {}".format(hostname,ipaddr,protocol),
+        return [ DaneTestResult(what="Fetched EE Certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol),
                                 data=multi_certs) ]
     return []
 
@@ -462,7 +462,6 @@ def tlsa_http_verify(url):
     if hostname:            # no cname
         port = o.port
         if not port: port = 443
-
         # if first name was a cname, make sure there is no TLSA at the original name
         if original_hostname != hostname:
             ret += tlsa_noservice_verify(hostname,port)
