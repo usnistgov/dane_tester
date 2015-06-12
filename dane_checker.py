@@ -4,6 +4,9 @@ import pytest
 
 MAX_CNAME_DEPTH=20
 
+class TimeoutError(RuntimeError):
+    pass
+
 class timeout:
     def __init__(self, seconds=1, error_message='Timeout'):
         self.seconds = seconds
@@ -136,6 +139,15 @@ def tlsa_match(mtype, cert_data, from_dns):
     return upperhex(hex_data) == upperhex(from_dns)
 
 
+def cert_subject_alternative_names(cert):
+    from subprocess import Popen,PIPE
+    cmd = ['openssl','x509','-text','-noout']
+    res = Popen(cmd,stdout=PIPE,stdin=PIPE).communicate(input=cert)[0]
+    for line in res.split("\n"):
+        line = line.strip()
+        if line.startswith("DNS:"):
+            return line.replace("DNS:","").split(", ")
+    return []
 
 # Verify a certificate chain for a hostname
 def cert_verify(cert_chain,hostname):
@@ -158,12 +170,23 @@ def cert_verify(cert_chain,hostname):
     cn = cn.lower()
     if cn.endswith("."): cn = cn[0:-1]
 
+    matched = False
     if fnmatch.fnmatch(hostname,cn):
         ret += [ DaneTestResult(what="EE Certificate Common Name '{}' matches hostname '{}'".format(cn,hostname)) ]
+        matched = True
     else:
+        # Check to see if any subject alternative names
+        for alternativeName in cert_subject_alternative_names(certs[0]):
+            an = alternativeName.lower()
+            if an.endswith("."): an = an[0:-1]
+            if fnmatch.fnmatch(hostname,an):
+                ret += [ DaneTestResult(what="EE Certificate Alternative Name '{}' matches hostname '{}'".format(an,hostname)) ]
+                matched = True
+                break
+
+    if matched == False:
         ret += [ DaneTestResult(passed=False,
                                 what="EE Certificate Common Name '{}' does not match hostname '{}'".format(cn,hostname)) ]
-
     return ret
 
 TLSA_VALIDATES="TLSA Validates"
@@ -287,11 +310,20 @@ def hexdata(rdata):
         return hex(f)[2:]
     return "".join(map(hex2,map(ord,rdata)))
 
+ctx = getdns.Context()
 def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
     ret = []
-    ctx = getdns.Context()
+    #ctx = getdns.Context()
+    #print "hostname=",hostname,"request_type=",request_type,"extensions=",extensions
+    
+    ## BOGUS - If TLSA, do a A query first and ignore the results
+    if request_type==getdns.RRTYPE_TLSA:
+        ctx.general(name=hostname,request_type=getdns.RRTYPE_A,extensions=extensions)
+
+
     results = ctx.general(name=hostname,request_type=request_type,extensions=extensions)
     for reply in results.replies_tree:
+        #print reply
         for a in reply['answer']:
             dstat = reply.get('dnssec_status')
             rdata = a['rdata']
@@ -477,7 +509,7 @@ if __name__=="__main__":
 
     # These test vectors from
     # http://www.internetsociety.org/deploy360/resources/dane-test-sites/
-    for domain in ["spodhuis.org","dougbarton.us",
+    for domain in ["dougbarton.us","spodhuis.org",
                    "jhcloos.com",
                    "nlnetlabs.nl",
                    "nlnet.nl"
