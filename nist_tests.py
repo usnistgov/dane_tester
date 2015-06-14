@@ -8,6 +8,7 @@ if __name__=="__main__":
             print(line)
             continue
         print("\n==== {} ====".format(line))
-        dane_checker.print_test_results(dane_checker.tlsa_http_verify(line))
+        dane_checker.process_http(line)
+    dane_checker.print_stats()
 
             

@@ -70,7 +70,7 @@ def pem_verify(cert_chain,ee_cert):
             eefile.write(ee_cert)
             eefile.flush()
 
-            cmd = ['openssl','verify','-untrusted',chainfile.name,eefile.name]
+            cmd = ['openssl','verify','purpose','sslserver','-untrusted',chainfile.name,eefile.name]
             res = Popen(cmd,stdout=PIPE).communicate()[0]
             res = res.replace("\n"," ")
             if "error" in res:
@@ -232,7 +232,7 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname):
             cert_data = tlsa_select(selector, cert_obj)
             tm = tlsa_match(mtype, cert_data, ct)
             if tm[0].passed:
-                ret += tm
+                #ret += tm
                 ret += [ DaneTestResult(what="EE certificate {} matches TLSA usage {}".format(count,cert_usage)) ]
                 usage_good = True
             else:
@@ -244,7 +244,7 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname):
         cert_data = tlsa_select(selector, cert_obj)
         tm = tlsa_match(mtype, cert_data, ct)
         if tm[0].passed:
-            ret += tm
+            #ret += tm
             ret += [ DaneTestResult(what="EE certificate matches TLSA usage {}".format(cert_usage)) ]
             usage_good = True
         else:
@@ -509,6 +509,30 @@ def print_test_results(tests):
     print("")
               
     
+# Test system
+passed = []
+failed = []
+
+def process_http(domain):
+    r = tlsa_http_verify(domain)
+    print_test_results(r)
+    if r[-1].passed:
+        passed.append(domain)
+    else:
+        failed.append(domain)
+
+def print_stats():
+    if passed:
+        print("\n\n")
+        print("{} Passed URLs:".format(len(passed)))
+        for line in passed:
+            print(line)
+
+    if failed:
+        print("\n\n")
+        print("{} Failed URLs:".format(len(failed)))
+        for line in failed:
+            print(line)
 
 if __name__=="__main__":
     import sys
@@ -541,12 +565,12 @@ if __name__=="__main__":
                    'https://dougbarton.us/',
                    'https://www.huque.com/']:
         print("=== Valid: {} ===".format(domain))
-        print_test_results(tlsa_http_verify(domain))
+        process_http(domain)
     
     print("HTTP Valid TLSA")
     for domain in ["https://rover.secure64.com/"]:
         print("=== Valid: {} ===".format(domain))
-        print_test_results(tlsa_http_verify(domain))
+        process_http(domain)
 
 
     print("INVALID TLSA")
@@ -556,8 +580,9 @@ if __name__=="__main__":
                    "https://bad-params.dane.verisignlabs.com",
                    "https://www.nist.gov"]:
         print("=== INVALID: {} ===".format(domain))
-        print_test_results(tlsa_http_verify(domain))
+        process_http(domain)
     
+    print_stats()
     exit(0)
 
 
