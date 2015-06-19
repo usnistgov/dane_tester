@@ -6,8 +6,11 @@ import M2Crypto
 MAX_CNAME_DEPTH=20
 
 openssl_exe = '/usr/local/ssl/bin/openssl'
+openssl_cafile = '/etc/ssl/certs/ca-bundle.crt'
+openssl_debug = True
 
-import subprocess
+import subprocess,os
+
 
 class TimeoutError(RuntimeError):
     pass
@@ -118,13 +121,12 @@ def test_openssl_version():
 # 
 # Cert usage 1 & 2 do not use provided trust anchors
 #
-debug_verify = False
 def pem_verify(anchor_cert,cert_chain,ee_cert,cert_usage):
     # Verify certificates using openssl
     import tempfile
-    with tempfile.NamedTemporaryFile(delete=not debug_verify) as chainfile:
-        with tempfile.NamedTemporaryFile(delete=not debug_verify) as eefile:
-            with tempfile.NamedTemporaryFile(delete=not debug_verify) as acfile:
+    with tempfile.NamedTemporaryFile(delete=not openssl_debug) as chainfile:
+        with tempfile.NamedTemporaryFile(delete=not openssl_debug) as eefile:
+            with tempfile.NamedTemporaryFile(delete=not openssl_debug) as acfile:
                 eefile.write(ee_cert)
                 eefile.flush()
 
@@ -136,14 +138,16 @@ def pem_verify(anchor_cert,cert_chain,ee_cert,cert_usage):
                     acfile.write(anchor_cert)
                     acfile.flush()
                     cmd += ['-CAfile',acfile.name]
+                else:
+                    cmd += ['-CAfile',openssl_cafile]
 
                 if cert_usage in [1,2]:
                     cmd += ['-CApath','/etc/no-subdir']
                 cmd += ['-untrusted',chainfile.name,eefile.name]
                 try:
-                    if debug_verify:sys.stderr.write("CMD: "+" ".join(cmd)+"\n")
+                    if openssl_debug:sys.stderr.write("CMD: "+" ".join(cmd)+"\n")
                     res = subprocess.check_output(cmd)
-                    if debug_verify:sys.stderr.write("RES:\n"+res)
+                    if openssl_debug:sys.stderr.write("RES:\n"+res)
                     res = res.replace("\n"," ")
                     if "error" not in res:
                         return True
@@ -297,7 +301,7 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,protocol):
         ret += [ DaneTestResult(passed=False,
                                 what="TLSA records for the port 25 SMTP service used by client MTAs "+\
                                     "SHOULD NOT include TLSA RRs with certificate usage PKIX-TA(0) or PKIX-EE(1).") ]
-        return ret
+        #return ret
                  
 
     usage_good    = False
@@ -522,13 +526,18 @@ def tlsa_service_verify(hostname,port,protocol):
                 ret_tlsa_verified += ret_t
                 validating_tlsa_records += 1
             else:
-
                 ret_tlsa_noverify += ret_t
+
         # Make sure at least one TLSA record validated
         if tlsa_records:
-            ret += ret_tlsa_verified
-            ret += [ DaneTestResult(passed= (validating_tlsa_records>0),
-                                             what='Validating TLSA records for {}: {}'.format(hostname,validating_tlsa_records)) ]
+            if validating_tlsa_records>0:
+                ret += ret_tlsa_verified
+                ret += [ DaneTestResult(passed= (validating_tlsa_records>0),
+                                        what='Validating TLSA records for {}: {}'.format(hostname,validating_tlsa_records)) ]
+            else:
+                ret += ret_tlsa_noverify
+                ret += [ DaneTestResult(passed= (validating_tlsa_records>0),
+                                        what='No validating TLSA records for {}'.format(hostname)) ]
         else:
             # If not TLSA records, at least check the EE certificate
             ret += ret_tlsa_noverify
@@ -658,14 +667,27 @@ def print_stats():
             print(line)
 
 if __name__=="__main__":
-    import sys
+    import os,sys
+
+    def check(fn):
+        print("\n==== {} ====".format(fn))
+        if "http" in fn:
+            print_test_results(tlsa_http_verify(fn))
+        else:
+            print_test_results(tlsa_smtp_verify(fn))
 
     if len(sys.argv)>1:
         for fn in sys.argv[1:]:
-            if "http" in fn:
-                print_test_results(tlsa_http_verify(fn))
+            if os.path.exists(fn):
+                for line in open(fn):
+                    line = line.strip()
+                    if line[0]=='#':
+                        print(line)
+                    else:
+                        check(line)
             else:
-                print_test_results(tlsa_smtp_verify(fn))
+                check(fn)
+        print_stats()
         exit(0)
             
 
