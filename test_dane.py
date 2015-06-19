@@ -189,6 +189,8 @@ GEOKUhNxGbmLSVRrmfedg3RpYQFoZmN2ML8YANX3JWwE7lDpWSCRVo0z
 
 
 def test_pem_verify():
-    ret = pem_verify(google_chain,google_cert)
-    assert len(ret)==1
-    assert ret[0].passed==True
+    certs = split_certs(google_chain)
+    assert pem_verify(certs[-1],google_chain,google_cert,0)==True
+
+if __name__=="__main__":
+    test_pem_verify()

@@ -5,6 +5,10 @@ import M2Crypto
 
 MAX_CNAME_DEPTH=20
 
+openssl_exe = '/usr/local/ssl/bin/openssl'
+
+import subprocess
+
 class TimeoutError(RuntimeError):
     pass
 
@@ -26,6 +30,7 @@ class DaneTestResult:
     def __init__(self,passed=True,dnssec=None,what=None,data=None,rdata=None):
         self.passed = passed
         self.dnssec = dnssec
+        self.dnsrelied = True   # by default, assume we rely on this DNS
         self.what   = what
         self.data   = data
         self.rdata   = rdata
@@ -50,33 +55,149 @@ def hexdump(str, separator=''):
     return separator.join(x.encode('hex') for x in str)
 
 
+def is_ldh_hostname(hostname):
+    for ch in hostname.lower():
+        if ch not in "abcdefghijklmnopqrstuvwxyz.1234567890-":
+            return False
+    return True
+
+def is_wild_or_ldh_hostname(hostname):
+    if hostname[0:2]=='*.': return is_ldh_hostname(hostname[2:])
+    return is_ldh_hostname(hostname) 
+
+def name_clean(n):
+    n = n.lower()
+    if n.endswith("."): n = n[0:-1]
+    return n
+
+def hostname_match(hn,cn):
+    hn = name_clean(hn)
+    cn = name_clean(cn)
+    if not is_ldh_hostname(hn): return False
+    if not is_wild_or_ldh_hostname(cn): return False
+    if cn.startswith("*."):
+        return hn.endswith(cn[1:])
+    else:
+        return hn==cn
+
+
+# Tests for above
+
 def test_hexdump():
     assert hexdump("ABC")=="414243"
 
+def test_is_ldh_hostname():
+    assert is_ldh_hostname("foo.bar")==True
+    assert is_ldh_hostname("^foo.bar")==False
+
+def test_is_wild_or_ldh_hostname():
+    assert is_wild_or_ldh_hostname("*.foo.bar")==True
+    assert is_wild_or_ldh_hostname("zorch.*.foo.bar")==False
+
+def test_name_clean():
+    assert name_clean("foo.bar.")=="foo.bar"
+
+def test_hostname_match():
+    assert hostname_match("this.that","this.that.")==True
+    assert hostname_match("this.that","*.that.")==True
+
+
 
 ################################################################
-## Verification routines
+## PEM Verification and manipulation routines
 ##
 ## Verify PEM certificate chain and end entity certificates in PEM format using OpenSSL
 ##
-def pem_verify(cert_chain,ee_cert):
-    # Verify certificates using openssl
-    from subprocess import Popen,PIPE
-    import tempfile
-    with tempfile.NamedTemporaryFile(delete=False) as chainfile:
-        chainfile.write(cert_chain)
-        chainfile.flush()
-        with tempfile.NamedTemporaryFile(delete=False) as eefile:
-            eefile.write(ee_cert)
-            eefile.flush()
+def openssl_version():
+    res = subprocess.check_output([openssl_exe,'version'])
+    return res.strip()
 
-            # need to add -untrusted to below
-            cmd = ['openssl','verify','-purpose','sslserver','-untrusted',chainfile.name,eefile.name]
-            res = Popen(cmd,stdout=PIPE).communicate()[0]
-            res = res.replace("\n"," ")
-            if "error" in res:
-                return [ DaneTestResult(what="Certificate Verification Failed: "+res) ]
-            return [ DaneTestResult(what="Certificate Verified") ]
+def test_openssl_version():
+    assert openssl_version() >= "1.0.2"
+
+# 
+# Cert usage 1 & 2 do not use provided trust anchors
+#
+debug_verify = False
+def pem_verify(anchor_cert,cert_chain,ee_cert,cert_usage):
+    # Verify certificates using openssl
+    import tempfile
+    with tempfile.NamedTemporaryFile(delete=not debug_verify) as chainfile:
+        with tempfile.NamedTemporaryFile(delete=not debug_verify) as eefile:
+            with tempfile.NamedTemporaryFile(delete=not debug_verify) as acfile:
+                eefile.write(ee_cert)
+                eefile.flush()
+
+                chainfile.write(cert_chain)
+                chainfile.flush()
+
+                cmd = [openssl_exe,'verify','-purpose','sslserver','-trusted_first','-partial_chain']
+                if anchor_cert:
+                    acfile.write(anchor_cert)
+                    acfile.flush()
+                    cmd += ['-CAfile',acfile.name]
+
+                if cert_usage in [1,2]:
+                    cmd += ['-CApath','/etc/no-subdir']
+                cmd += ['-untrusted',chainfile.name,eefile.name]
+                try:
+                    if debug_verify:sys.stderr.write("CMD: "+" ".join(cmd)+"\n")
+                    res = subprocess.check_output(cmd)
+                    if debug_verify:sys.stderr.write("RES:\n"+res)
+                    res = res.replace("\n"," ")
+                    if "error" not in res:
+                        return True
+                except subprocess.CalledProcessError:
+                    return False
+
+def cert_subject_alternative_names(cert):
+    cmd = [openssl_exe,'x509','-text','-noout']
+    p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stdin=subprocess.PIPE)
+    res = p.communicate(input=cert)[0]
+    if p.returncode!=0: return [] # error condition
+    for line in res.split("\n"):
+        line = line.strip()
+        if line.startswith("DNS:"):
+            return line.replace("DNS:","").split(", ")
+    return []
+
+# Verify a certificate chain for a hostname
+def cert_verify(anchor_cert,cert_chain,hostname,cert_usage):
+    certs = split_certs(cert_chain)
+
+    if not certs:
+        return [ DaneTestResult(passed=False,what="No EE Certificate presented") ]
+
+    eecert = M2Crypto.X509.load_cert_string(certs[0])
+    cn = eecert.get_subject().CN
+    
+    ret = []
+    if pem_verify(anchor_cert,cert_chain,certs[0],cert_usage):
+        ret += [ DaneTestResult(what="EE Certificate '{}' verifies".format(cn)) ]
+    else:
+        ret += [ DaneTestResult(passed=False,what="EE Certificate '{}' does not verify".format(cn)) ]
+
+    def hostname_desc(which,hostname,name):
+        msg = "EE Certificate {} '{}' matches hostname".format(which,name)
+        if name_clean(hostname)!=name_clean(name): msg += " '{}'".format(hostname)
+        return msg
+
+    matched = False
+    if hostname_match(hostname,cn):
+        ret += [ DaneTestResult(what=hostname_desc("Common Name",hostname,cn)) ]
+        matched = True
+    else:
+        # Check to see if any subject alternative names
+        for an in cert_subject_alternative_names(certs[0]):
+            if hostname_match(hostname,an):
+                ret += [ DaneTestResult(what=hostname_desc("Alternative Name",hostname,an)) ]
+                matched = True
+                break
+
+    if matched == False:
+        ret += [ DaneTestResult(passed=False,
+                                what="EE Certificate Common Name '{}' does not match hostname '{}'".format(cn,hostname)) ]
+    return ret
 
 ################################################################
 ## TLSA Verification
@@ -144,63 +265,6 @@ def tlsa_match(mtype, cert_data, from_dns):
     
 
 
-def cert_subject_alternative_names(cert):
-    from subprocess import Popen,PIPE
-    cmd = ['openssl','x509','-text','-noout']
-    res = Popen(cmd,stdout=PIPE,stdin=PIPE).communicate(input=cert)[0]
-    for line in res.split("\n"):
-        line = line.strip()
-        if line.startswith("DNS:"):
-            return line.replace("DNS:","").split(", ")
-    return []
-
-# Verify a certificate chain for a hostname
-def cert_verify(cert_chain,hostname):
-    certs = split_certs(cert_chain)
-
-    if not certs:
-        return [ DaneTestResult(passed=False,what="No EE Certificate presented") ]
-
-    cert_obj = M2Crypto.X509.load_cert_string(certs[0])
-    cn = cert_obj.get_subject().CN
-    
-    ret = []
-    if pem_verify(cert_chain,certs[0]):
-        ret += [ DaneTestResult(what="EE Certificate '{}' verifies".format(cn)) ]
-    else:
-        ret += [ DaneTestResult(passed=False,what="EE Certificate '{}' does not verify".format(cn)) ]
-
-    def name_clean(n):
-        n = n.lower()
-        if n.endswith("."): n = n[0:-1]
-        return n
-
-    def hostname_match(hn,cn):
-        import fnmatch
-        return fnmatch.fnmatch(name_clean(hn),name_clean(cn))
-        
-    def hostname_desc(which,hostname,name):
-        msg = "EE Certificate {} '{}' matches hostname".format(which,name)
-        if name_clean(hostname)!=name_clean(name): msg += " '{}'".format(hostname)
-        return msg
-
-    matched = False
-    if hostname_match(hostname,cn):
-        ret += [ DaneTestResult(what=hostname_desc("Common Name",hostname,cn)) ]
-        matched = True
-    else:
-        # Check to see if any subject alternative names
-        for an in cert_subject_alternative_names(certs[0]):
-            if hostname_match(hostname,an):
-                ret += [ DaneTestResult(what=hostname_desc("Alternative Name",hostname,an)) ]
-                matched = True
-                break
-
-    if matched == False:
-        ret += [ DaneTestResult(passed=False,
-                                what="EE Certificate Common Name '{}' does not match hostname '{}'".format(cn,hostname)) ]
-    return ret
-
 TLSA_VALIDATES="TLSA Validates"
 
 # CU 0 - Directly specifies the CA certificate or public key used to validate the certificate provided by the End Entity (EE)
@@ -225,47 +289,51 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,protocol):
         print "cert_chain:",cert_chain
         return [ DaneTestResult(passed=False,what="No certificate to verify in cert-chain") ]
 
-    cert_obj = M2Crypto.X509.load_cert_string(certs[0])
-    
     if not (cert_usage in [0,1,2,3] and selector in [0,1] and mtype in [0,1,2]):
         return [ DaneTestResult(passed=False,what="TLSA Parameters bad: {} {} {}".format(cert_usage,selector,mtype)) ]
 
     # Cert Usage 0-1 SHOULD NOT be used with SMTP
     if cert_usage in [0,1] and protocol=='smtp':
         ret += [ DaneTestResult(passed=False,
-                                what="TLSA records for the port 25 SMTP service used by client MTAs SHOULD NOT include TLSA RRs with certificate usage PKIX-TA(0) or PKIX-EE(1).") ]
+                                what="TLSA records for the port 25 SMTP service used by client MTAs "+\
+                                    "SHOULD NOT include TLSA RRs with certificate usage PKIX-TA(0) or PKIX-EE(1).") ]
         return ret
                  
 
-    # Cert usages 0 and 2 specify a root
-    usage_good = False
+    usage_good    = False
+    anchor_cert = None
     ct = hexdump(tlsa_rdata['certificate_association_data'])
-    if cert_usage in [0, 2]: # need to find one trust anchor, loop all
+
+    # Cert usages 0 and 2 specify a root in the chain. Find it.
+    if cert_usage in [0, 2]: 
+        ret_not_matching = []
         for count in range(len(certs)):
             cert = certs[count]
+            cert_name = "EE certificate" if count==0 else "Chain certificate {}".format(count)
             cert_obj = M2Crypto.X509.load_cert_string(cert)
             cert_data = tlsa_select(selector, cert_obj)
-            cert_name = "EE certificate" if count==0 else "Chain certificate {}".format(count)
             tm = tlsa_match(mtype, cert_data, ct)
             if tm[0].passed:
-                #ret += tm
                 ret += [ DaneTestResult(what="{} matches TLSA usage {}".format(cert_name,cert_usage)) ]
                 if cert==certs[0]:
                     ret += [ DaneTestResult(what="NOTE: TLSA RR is not supposed to match leaf with usage {}".format(cert_usage)) ]
-                if count<len(certs)-1:
-                    ret += [ DaneTestResult(passed=None,what="Skipping last {} certificates in certificate chain".format((len(certs)-1)-count)) ]
-                usage_good = True
-                break
+                anchor_cert = cert
+                usage_good    = True
             else:
-                ret += tm
-                ret += [ DaneTestResult(passed=None,what="{} does not match TLSA usage {}".format(cert_name,cert_usage)) ]
+                ret_not_matching += tm
+                ret_not_matching += [ DaneTestResult(passed=None,what="{} does not match TLSA usage {}".format(cert_name,cert_usage)) ]
+        if not anchor_cert:
+            # No matching certs. This is an error condition
+            ret += ret_not_matching
+            ret += [ DaneTestResult(passed=None,what="No certificates in chain match") ]
+
 
     # Cert usages 1 and 3 specify the EE certificate
     if cert_usage in [1,3]:
-        cert_data = tlsa_select(selector, cert_obj)
+        eecert = M2Crypto.X509.load_cert_string(certs[0])
+        cert_data = tlsa_select(selector, eecert)
         tm = tlsa_match(mtype, cert_data, ct)
         if tm[0].passed:
-            #ret += tm
             ret += [ DaneTestResult(what="EE certificate matches TLSA usage {}".format(cert_usage)) ]
             usage_good = True
         else:
@@ -274,7 +342,7 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,protocol):
     
     # Cert usages 0-2 must validate the certificate
     if cert_usage in [0, 1, 2]:
-        r = cert_verify(cert_chain,hostname)
+        r = cert_verify(anchor_cert,cert_chain,hostname,cert_usage)
         ret += r
         if count_failed(r) > 0:
             usage_good = False
@@ -293,10 +361,10 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
     cmd = None
     if protocol.lower()=="https":
         if not port: port = 443
-        cmd = ['openssl','s_client','-host',ipaddr,'-port',str(port),'-servername',hostname,'-showcerts']
+        cmd = [openssl_exe,'s_client','-host',ipaddr,'-port',str(port),'-servername',hostname,'-showcerts']
     if protocol.lower()=="smtp":
         if not port: port = 25
-        cmd = ['openssl','s_client','-host',ipaddr,'-port',str(port),'-starttls','smtp','-showcerts']
+        cmd = [openssl_exe,'s_client','-host',ipaddr,'-port',str(port),'-starttls','smtp','-showcerts']
     if not cmd:
         raise RuntimeError("invalid protocol")
     with timeout(seconds=10):
@@ -347,10 +415,9 @@ def hexdata(rdata):
 ctx = getdns.Context()
 def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
     ret = []
-    #ctx = getdns.Context()
-    #print "hostname=",hostname,"request_type=",request_type,"extensions=",extensions
     
     ## BOGUS - If TLSA, do a A query first and ignore the results
+    ## Not sure why, but this seems required for the NIST DNS server
     if request_type==getdns.RRTYPE_TLSA:
         ctx.general(name=hostname,request_type=getdns.RRTYPE_A,extensions=extensions)
 
@@ -399,6 +466,8 @@ def get_dns_tlsa(host,port):
     return ret
 
 
+# If hostname is a cname, return (canonical name,results)
+# Otherwise return (hostname,[])
 def chase_dns_cname(hostname):
     original_hostname = hostname
     results = []
@@ -442,18 +511,28 @@ def tlsa_service_verify(hostname,port,protocol):
         cert_chain = cert_results[0].data
 
         # Verify against each TLSA record
+        # If we find a matching TLSA record, report the success.
+        # If we do not find a matching TLSA record, report all of the failures.
+        ret_tlsa_noverify = []
+        ret_tlsa_verified = []
         validating_tlsa_records = 0
         for tlsa_record in tlsa_records:
-            r = tlsa_verify(cert_chain, tlsa_record.rdata, hostname,protocol)
-            ret += r
-            if find_result(r,TLSA_VALIDATES): validating_tlsa_records += 1
+            ret_t = tlsa_verify(cert_chain, tlsa_record.rdata, hostname,protocol)
+            if find_result(ret_t,TLSA_VALIDATES):
+                ret_tlsa_verified += ret_t
+                validating_tlsa_records += 1
+            else:
+
+                ret_tlsa_noverify += ret_t
         # Make sure at least one TLSA record validated
         if tlsa_records:
+            ret += ret_tlsa_verified
             ret += [ DaneTestResult(passed= (validating_tlsa_records>0),
                                              what='Validating TLSA records for {}: {}'.format(hostname,validating_tlsa_records)) ]
         else:
             # If not TLSA records, at least check the EE certificate
-            ret += cert_verify(cert_chain,hostname)
+            ret += ret_tlsa_noverify
+            ret += cert_verify(None,cert_chain,hostname,0)
     return ret
 
         
@@ -463,11 +542,12 @@ def apply_dane_test(ret,desc):
         if test.passed and test.what.startswith("Validating TLSA"):
             return True
     ret += [ DaneTestResult(what='no TLSA record verifies '+desc,passed=False) ]
+    return False
 
 def apply_dnssec_test(ret):
     valid = True
     for test in ret:
-        if test.dnssec not in [None,getdns.DNSSEC_SECURE]:
+        if test.dnsrelied and (test.dnssec not in [None,getdns.DNSSEC_SECURE]):
             ret += [ DaneTestResult(what='not all DNS lookups secured by DNSSEC',passed=False) ]
             break
 
@@ -505,16 +585,26 @@ def tlsa_smtp_verify(hostname):
     else:
         ret = [ DaneTestResult(what='no MX record for {}'.format(hostname))]
         hostnamelist = [hostname]
+    apply_dnssec_test(ret)
     for hostname in hostnamelist:
         if mx_results:
+            host_type = "MX"
             ret += [ DaneTestResult(passed=None,what='=== Checking MX host {} ==='.format(hostname)) ]
+        else:
+            host_type = "non-MX"
         (hostname,cname_results) = chase_dns_cname(hostname)
         ret += cname_results
         if hostname:
             tlsa_rets = tlsa_service_verify(hostname,25,'smtp')
-            apply_dane_test(tlsa_rets,"for MX host "+hostname)
+            r = apply_dane_test(tlsa_rets,"for {} host {}".format(host_type,hostname))
+            if r==False and host_type=="MX":
+                # if the DANE test fails and this is not an MX host
+                # then we do not need to rely on it for DNSSEC
+                for t in tlsa_rets:
+                    t.dnsrelied=False
+            if r==True:
+                apply_dnssec_test(tlsa_rets)
             ret += tlsa_rets
-    apply_dnssec_test(ret)
     return ret
     
 
