@@ -5,9 +5,10 @@ import M2Crypto
 
 MAX_CNAME_DEPTH=20
 
+get_altnames_exe = './get_altnames'
 openssl_exe = '/usr/local/ssl/bin/openssl'
 openssl_cafile = '/etc/ssl/certs/ca-bundle.crt'
-openssl_debug = True
+openssl_debug = False
 
 import subprocess,os
 
@@ -73,6 +74,10 @@ def name_clean(n):
     if n.endswith("."): n = n[0:-1]
     return n
 
+# In this code "foo.bar.example.com" (hn) matches
+# "*.example.com" (cn).  That's too permissive per
+# RFC 6125, the "*" should match just one label.
+#
 def hostname_match(hn,cn):
     hn = name_clean(hn)
     cn = name_clean(cn)
@@ -118,8 +123,12 @@ def openssl_version():
 def test_openssl_version():
     assert openssl_version() >= "1.0.2"
 
-# 
-# Cert usage 1 & 2 do not use provided trust anchors
+# Cert usage 2 does not use the system trust anchors
+# With usage 0, must verify *twice*, once with the
+# anchor cert, and again with the system certs.
+# With usage, verify with just the system certs.
+#
+# XXX: Update code accordingly.
 #
 def pem_verify(anchor_cert,cert_chain,ee_cert,cert_usage):
     # Verify certificates using openssl
@@ -134,6 +143,7 @@ def pem_verify(anchor_cert,cert_chain,ee_cert,cert_usage):
                 chainfile.flush()
 
                 cmd = [openssl_exe,'verify','-purpose','sslserver','-trusted_first','-partial_chain']
+                cmd += ['-CApath','/etc/no-subdir']
                 if anchor_cert:
                     acfile.write(anchor_cert)
                     acfile.flush()
@@ -141,31 +151,28 @@ def pem_verify(anchor_cert,cert_chain,ee_cert,cert_usage):
                 else:
                     cmd += ['-CAfile',openssl_cafile]
 
-                if cert_usage in [1,2]:
-                    cmd += ['-CApath','/etc/no-subdir']
                 cmd += ['-untrusted',chainfile.name,eefile.name]
                 try:
                     if openssl_debug:sys.stderr.write("CMD: "+" ".join(cmd)+"\n")
-                    res = subprocess.check_output(cmd)
-                    if openssl_debug:sys.stderr.write("RES:\n"+res)
-                    res = res.replace("\n"," ")
-                    if "error" not in res:
+                    p = subprocess.Popen(cmd,stdout=subprocess.PIPE)
+                    res = p.communicate()[0]
+                    if openssl_debug:sys.stderr.write("return code={} RES: {}\n".format(p.returncode,res))
+                    if p.returncode==0:
                         return True
                 except subprocess.CalledProcessError:
                     return False
 
+# XXX: This is too fragile and needs a rewrite.
+#
 def cert_subject_alternative_names(cert):
-    cmd = [openssl_exe,'x509','-text','-noout']
+    cmd = [get_altnames_exe,'/dev/stdin']
     p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stdin=subprocess.PIPE)
     res = p.communicate(input=cert)[0]
     if p.returncode!=0: return [] # error condition
-    for line in res.split("\n"):
-        line = line.strip()
-        if line.startswith("DNS:"):
-            return line.replace("DNS:","").split(", ")
-    return []
+    return res.split("\n")
 
 # Verify a certificate chain for a hostname
+#
 def cert_verify(anchor_cert,cert_chain,hostname,cert_usage):
     certs = split_certs(cert_chain)
 
@@ -301,11 +308,11 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,protocol):
         ret += [ DaneTestResult(passed=False,
                                 what="TLSA records for the port 25 SMTP service used by client MTAs "+\
                                     "SHOULD NOT include TLSA RRs with certificate usage PKIX-TA(0) or PKIX-EE(1).") ]
-        #return ret
+        return ret
                  
 
     usage_good    = False
-    anchor_cert = None
+    trust_anchors = ""
     ct = hexdump(tlsa_rdata['certificate_association_data'])
 
     # Cert usages 0 and 2 specify a root in the chain. Find it.
@@ -321,12 +328,12 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,protocol):
                 ret += [ DaneTestResult(what="{} matches TLSA usage {}".format(cert_name,cert_usage)) ]
                 if cert==certs[0]:
                     ret += [ DaneTestResult(what="NOTE: TLSA RR is not supposed to match leaf with usage {}".format(cert_usage)) ]
-                anchor_cert = cert
+                trust_anchors += cert
                 usage_good    = True
             else:
                 ret_not_matching += tm
                 ret_not_matching += [ DaneTestResult(passed=None,what="{} does not match TLSA usage {}".format(cert_name,cert_usage)) ]
-        if not anchor_cert:
+        if not trust_anchors:
             # No matching certs. This is an error condition
             ret += ret_not_matching
             ret += [ DaneTestResult(passed=None,what="No certificates in chain match") ]
@@ -345,8 +352,12 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,protocol):
             ret += [ DaneTestResult(passed=None,what="EE certificate does not match TLSA usage {}".format(cert_usage)) ]
     
     # Cert usages 0-2 must validate the certificate
+    # With usage 1 just against the system cert store (we already matched the EE cert).
+    # With usage 2 just against the peer's TLSA-matching anchor
+    # With usage 0 against both!
+    #
     if cert_usage in [0, 1, 2]:
-        r = cert_verify(anchor_cert,cert_chain,hostname,cert_usage)
+        r = cert_verify(trust_anchors,cert_chain,hostname,cert_usage)
         ret += r
         if count_failed(r) > 0:
             usage_good = False
@@ -372,9 +383,13 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
     if not cmd:
         raise RuntimeError("invalid protocol")
     with timeout(seconds=10):
-        multi_certs = Popen(cmd,stdin=open("/dev/null","r"),stdout=PIPE,stderr=PIPE).communicate()[0]
-        return [ DaneTestResult(what="Fetched EE Certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol),
-                                data=multi_certs) ]
+        try:
+            multi_certs = Popen(cmd,stdin=open("/dev/null","r"),stdout=PIPE,stderr=PIPE).communicate()[0]
+            return [ DaneTestResult(what="Fetched EE Certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol),
+                                    data=multi_certs) ]
+        except TimeoutError:
+            return [ DaneTestResult(passed=False,data="",
+                                    what="Timeout fetching certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)) ]
     return []
 
 def split_certs(multi_certs):
@@ -693,10 +708,7 @@ if __name__=="__main__":
 
     # These test vectors from
     # http://www.internetsociety.org/deploy360/resources/dane-test-sites/
-    for domain in ["dougbarton.us","spodhuis.org",
-                   "jhcloos.com",
-                   "nlnetlabs.nl",
-                   "nlnet.nl"
+    for domain in ["dougbarton.us","spodhuis.org", "jhcloos.com", "nlnetlabs.nl", "nlnet.nl"
                    ]:
         print("=== {} ===".format(domain))
         print_test_results(tlsa_smtp_verify(domain))
