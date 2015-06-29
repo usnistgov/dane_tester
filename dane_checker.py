@@ -7,7 +7,7 @@ MAX_CNAME_DEPTH=20
 
 get_altnames_exe = './get_altnames'
 openssl_exe = '/usr/local/ssl/bin/openssl'
-openssl_cafile = '/etc/ssl/certs/ca-bundle.crt'
+openssl_cafile = 'ca-bundle.crt'
 openssl_debug = False
 
 import subprocess,os
@@ -123,14 +123,7 @@ def openssl_version():
 def test_openssl_version():
     assert openssl_version() >= "1.0.2"
 
-# Cert usage 2 does not use the system trust anchors
-# With usage 0, must verify *twice*, once with the
-# anchor cert, and again with the system certs.
-# With usage, verify with just the system certs.
-#
-# XXX: Update code accordingly.
-#
-def pem_verify(anchor_cert,cert_chain,ee_cert,cert_usage):
+def pem_verify(anchor_cert,cert_chain,ee_cert):
     # Verify certificates using openssl
     import tempfile
     with tempfile.NamedTemporaryFile(delete=not openssl_debug) as chainfile:
@@ -162,8 +155,7 @@ def pem_verify(anchor_cert,cert_chain,ee_cert,cert_usage):
                 except subprocess.CalledProcessError:
                     return False
 
-# XXX: This is too fragile and needs a rewrite.
-#
+# Uses external program to extract AltNames
 def cert_subject_alternative_names(cert):
     cmd = [get_altnames_exe,'/dev/stdin']
     p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stdin=subprocess.PIPE)
@@ -175,15 +167,14 @@ def cert_subject_alternative_names(cert):
 #
 def cert_verify(anchor_cert,cert_chain,hostname,cert_usage):
     certs = split_certs(cert_chain)
-
     if not certs:
         return [ DaneTestResult(passed=False,what="No EE Certificate presented") ]
 
     eecert = M2Crypto.X509.load_cert_string(certs[0])
     cn = eecert.get_subject().CN
-    
+
     ret = []
-    if pem_verify(anchor_cert,cert_chain,certs[0],cert_usage):
+    if pem_verify(anchor_cert,cert_chain,certs[0]):
         ret += [ DaneTestResult(what="EE Certificate '{}' verifies".format(cn)) ]
     else:
         ret += [ DaneTestResult(passed=False,what="EE Certificate '{}' does not verify".format(cn)) ]
@@ -287,6 +278,14 @@ TLSA_VALIDATES="TLSA Validates"
 #
 # CU 3 - Directly specifies the EE's certificate or public key, and the certificate need not validate.
 
+# Cert usage 2 does not use the system trust anchors
+# With usage 0, must verify *twice*, once with the
+# anchor cert, and again with the system certs.
+# With usage, verify with just the system certs.
+#
+# XXX: Update code accordingly.
+#
+
 
 def tlsa_verify(cert_chain,tlsa_rdata,hostname,protocol):
     cert_usage = tlsa_rdata['certificate_usage']
@@ -315,7 +314,8 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,protocol):
     trust_anchors = ""
     ct = hexdump(tlsa_rdata['certificate_association_data'])
 
-    # Cert usages 0 and 2 specify a root in the chain. Find it.
+    # Cert usages 0 and 2 specify trust anchors in the chain.
+    # Examine the chain and extract the trust anchors
     if cert_usage in [0, 2]: 
         ret_not_matching = []
         for count in range(len(certs)):
@@ -336,7 +336,7 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,protocol):
         if not trust_anchors:
             # No matching certs. This is an error condition
             ret += ret_not_matching
-            ret += [ DaneTestResult(passed=None,what="No certificates in chain match") ]
+            ret += [ DaneTestResult(passed=None,what="No certificates in chain match TLSA-specified trust anchor") ]
 
 
     # Cert usages 1 and 3 specify the EE certificate
@@ -351,16 +351,22 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,protocol):
             ret += tm
             ret += [ DaneTestResult(passed=None,what="EE certificate does not match TLSA usage {}".format(cert_usage)) ]
     
-    # Cert usages 0-2 must validate the certificate
-    # With usage 1 just against the system cert store (we already matched the EE cert).
-    # With usage 2 just against the peer's TLSA-matching anchor
-    # With usage 0 against both!
-    #
+    # Cert usage 0 must validate against system trust anchors
+    if cert_usage==0:
+        r = cert_verify(None,cert_chain,hostname,cert_usage)
+        ret += r
+        if count_failed(r) > 0:
+            usage_good = False
+
+    # Cert usage 0, 1 and 2 must verify against specified trust anchor
     if cert_usage in [0, 1, 2]:
         r = cert_verify(trust_anchors,cert_chain,hostname,cert_usage)
         ret += r
         if count_failed(r) > 0:
             usage_good = False
+
+
+
     # If usage is still good, say so
     if usage_good:
         ret += [ DaneTestResult(what=TLSA_VALIDATES) ]
