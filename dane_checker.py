@@ -6,12 +6,15 @@ import M2Crypto
 MAX_CNAME_DEPTH=20
 
 get_altnames_exe = './get_altnames'
-openssl_exe = '/usr/local/ssl/bin/openssl'
+openssl_exe = 'openssl' 
 openssl_cafile = 'ca-bundle.crt'
 openssl_debug = False
 
 import subprocess,os
 
+# See if a better openssl exists
+if os.path.exists("/usr/local/ssl/bin/openssl"):
+    openssl_exe = "/usr/local/ssl/bin/openssl"
 
 valid_tests = {}
 class MakeTest:
