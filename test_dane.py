@@ -11,6 +11,10 @@ def test_get_certificate_chain():
     assert len(certs)==3
     assert "CN=mail.protection.outlook.com" in certs[0]
 
+def test_smtp_works():
+    nist_smtp = get_service_certificate_chain("mail.schildbach.de","mail.schildbach.de",25,'smtp')
+    print(nist_smtp)
+
     
 def test_get_tlsa():
     n = get_dns_tlsa("www.had-pilot.com",443)
@@ -193,4 +197,4 @@ def test_pem_verify():
     assert pem_verify(certs[-1],google_chain,google_cert)==True
 
 if __name__=="__main__":
-    test_pem_verify()
+    test_smtp_works()
