@@ -42,6 +42,7 @@ TEST_TLSA_RR_LEAF    = MakeTest(301,"TLSA RR is not supposed to match leaf with 
 TEST_MX_ALL_PASS     = MakeTest(302,"All DANE-related tests must pass for MX host")
 TEST_DNSSEC_ALL      = MakeTest(303,"All relied upon DNS lookups must be secured by DNSSEC")
 TEST_TLSA_HTTP_NO_FAIL = MakeTest(400,"No HTTP DANE tests may be a hard fail")
+TEST_MX_PRIORITY    = MakeTest(401,"Highest priority MX server most be DANE protected")
 
     
 
@@ -737,39 +738,51 @@ def tlsa_http_verify(url):
 
 def tlsa_smtp_verify(hostname):
     original_hostname = hostname
-    mx_results = get_dns_mx(hostname)
-    if mx_results:
-        ret = mx_results
-        hostnamelist = [h.data for h in mx_results]
+
+    # Get a list of hosts from either the MX list or the hostname
+    mx_data  = get_dns_mx(hostname)
+    if mx_data:
+        host_type = "MX"
+        ret       = mx_data
+        # Construct a list of the MX priorities, and then take the hostname list sorted
+        mx_hosts = sorted([(h.rdata['preference'],h.rdata['exchange']) for h in mx_data])
+        hostnamelist = [h[1] for h in mx_hosts]
+        mx_test_results = []
     else:
+        host_type = "non-MX"
         ret = [ DaneTestResult(what='no MX record for {}'.format(hostname))]
         hostnamelist = [hostname]
     apply_dnssec_test(ret)
     for hostname in hostnamelist:
-        if mx_results:
-            host_type = "MX"
-            ret += [ DaneTestResult(passed=INFO,what='=== Checking MX host {} ==='.format(hostname)) ]
-        else:
-            host_type = "non-MX"
-        (hostname,cname_results) = chase_dns_cname(hostname)
-        ret += cname_results
+        this_ret = []
+        if mx_data:
+            this_ret += [ DaneTestResult(passed=INFO,what='=== Checking MX host {} ==='.format(hostname)) ]
         if hostname:
-            tlsa_rets = tlsa_service_verify(host_type,hostname,25,'smtp')
-            r = find_first_test(tlsa_rets,TEST_TLSA_ALL_IP)
+            this_ret = tlsa_service_verify(host_type,hostname,25,'smtp')
+            r = find_first_test(this_ret,TEST_TLSA_ALL_IP)
             if r.passed==False and host_type=="MX":
-                # if the DANE test fails and this is not an MX host
+                # if the DANE test fails and this is an MX host
                 # then we do not need to rely on it for DNSSEC
-                for t in tlsa_rets:
+                for t in this_ret:
                     t.dnsrelied=False
-            if r.passed==True:
-                apply_dnssec_test(tlsa_rets)
+            apply_dnssec_test(this_ret)
 
-            all_tests_pass = True if count_passed(tlsa_rets,True)>0 and count_passed(tlsa_rets,False)==0 else None
-            tlsa_rets += [ DaneTestResult(passed=all_tests_pass,
+            all_tests_pass = True if count_passed(this_ret,True)>0 and count_passed(this_ret,False)==0 else None
+            this_ret += [ DaneTestResult(passed=all_tests_pass,
                                           test=TEST_MX_ALL_PASS,
                                           hostname=hostname,
                                           what="Do all tests pass for MX host?")]
-            ret += tlsa_rets
+            mx_test_results.append(all_tests_pass)
+            ret += this_ret
+    if host_type=="MX":
+        def find_lowest():
+            for i in mx_test_results:
+                if i in [True,False]: return i
+            return False
+        ret += [DaneTestResult(passed=find_lowest(),
+                               test=TEST_MX_PRIORITY,
+                               hostname=original_hostname,
+                               what="Highest priority MX server that is operational must be DANE protected")]
     return ret
     
 
