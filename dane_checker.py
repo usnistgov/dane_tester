@@ -35,11 +35,13 @@ TEST_SMTP_CU         = MakeTest(200,"TLSA records for port 25 SMTP service used 
 TEST_TLSA_PRESENT    = MakeTest(201,"Service hostname must have matching TLSA record")
 TEST_TLSA_DNSSEC     = MakeTest(202,"TLSA records must be secured by DNSSEC")
 TEST_TLSA_ATLEAST1   = MakeTest(203,"There must be at least 1 validating TLSA record for a service name")
-TEST_TLSA_CU_VALIDATES = MakeTest(204,"At least one TLSA record must have a certificate usage and associated data that validates at leat one EE cetficiate")
+TEST_TLSA_CU_VALIDATES = MakeTest(204,"At least one TLSA record must have a certificate usage and associated data that validates at least one EE cetficiate")
 TEST_TLSA_CU02_TP_FOUND = MakeTest(205,"TLSA certificate usage 0 and 2 specifies a trust point that is found in the server's certificate chain")
 TEST_TLSA_PARMS      = MakeTest(300,"TLSA Certificate Usage must be in the range 0..3, Selector in the range 0--1, and matching type in the range 0--2")
 TEST_TLSA_RR_LEAF    = MakeTest(301,"TLSA RR is not supposed to match leaf with usage 0 or 2")
 TEST_MX_ALL_PASS     = MakeTest(302,"All DANE-related tests pass for MX host")
+TEST_DNSSEC_ALL      = MakeTest(303,"All relied upon DNS lookups must be secured by DNSSEC")
+
     
 
 
@@ -605,6 +607,7 @@ def get_tlsa_records(retlist):
 
 def tlsa_service_verify(desc,hostname,port,protocol):
     ret = []
+
     ret += get_dns_tlsa(hostname,port)
     tlsa_records = get_tlsa_records(ret)
 
@@ -619,7 +622,11 @@ def tlsa_service_verify(desc,hostname,port,protocol):
                                 test = TEST_TLSA_DNSSEC,
                                 hostname = hostname) ]
 
-    ip_results = get_dns_ip(hostname)
+    # Chase the CNAME if possible
+    (chased_hostname,cname_results) = chase_dns_cname(hostname)
+    ret += cname_results
+
+    ip_results = get_dns_ip(chased_hostname)
 
     # Check each ip address against each tlsa record
     tlsa_verified_ip_addresses = 0
@@ -675,8 +682,11 @@ def apply_dnssec_test(ret):
     valid = True
     for test in ret:
         if test.dnsrelied and (test.dnssec not in [None,getdns.DNSSEC_SECURE]):
-            ret += [ DaneTestResult(what='not all DNS lookups secured by DNSSEC',passed=False) ]
+            valid = False
             break
+    ret += [ DaneTestResult(test=TEST_DNSSEC_ALL,
+                            what='not all DNS lookups secured by DNSSEC',
+                            passed=valid) ]
 
 
 def tlsa_http_verify(url):
@@ -685,20 +695,11 @@ def tlsa_http_verify(url):
 
     # Find the host and port
     o = urlparse(url)
-    original_hostname = o.hostname
-    (hostname,cname_results) = chase_dns_cname(o.hostname)
-    ret += cname_results
     
-    if hostname:            # no cname
-        port = o.port
-        if not port: port = 443
-        # if first name was a cname, make sure there is no TLSA at the original name
-        if original_hostname != hostname:
-            # Not sure what to do here at the moment...
-            # [ DaneTestResult(passed=False,what='TLSA record present for CNAME record {}'.format(tlsa_hostname(hostname,port))) ]
-            pass
-        ret += tlsa_service_verify("HTTP",hostname,port,'https')
-        apply_dnssec_test(ret)
+    port = o.port
+    if not port: port = 443
+    ret += tlsa_service_verify("HTTP",o.hostname,port,'https')
+    apply_dnssec_test(ret)
     return ret
     
 
