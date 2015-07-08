@@ -39,7 +39,7 @@ TEST_TLSA_CU_VALIDATES = MakeTest(204,"At least one TLSA record must have a cert
 TEST_TLSA_CU02_TP_FOUND = MakeTest(205,"TLSA certificate usage 0 and 2 specifies a trust point that is found in the server's certificate chain")
 TEST_TLSA_PARMS      = MakeTest(300,"TLSA Certificate Usage must be in the range 0..3, Selector in the range 0--1, and matching type in the range 0--2")
 TEST_TLSA_RR_LEAF    = MakeTest(301,"TLSA RR is not supposed to match leaf with usage 0 or 2")
-TEST_MX_ALL_PASS     = MakeTest(302,"All DANE-related tests pass for MX host")
+TEST_MX_ALL_PASS     = MakeTest(302,"All DANE-related tests must pass for MX host")
 TEST_DNSSEC_ALL      = MakeTest(303,"All relied upon DNS lookups must be secured by DNSSEC")
 
     
@@ -92,7 +92,8 @@ def find_result(ret,what):
         if r.what==what: return r
     return None
 
-def find_test(ret,test):
+# Return all of the results that have a certain test.
+def find_first_test(ret,test):
     for r in ret:
         if r.test==test: return r
     return None
@@ -365,8 +366,12 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,ipaddr, protocol):
 
     # Cert Usage 0-1 SHOULD NOT be used with SMTP
     if protocol=='smtp':
-        cu_valid = cert_usage in [0,1]
-        ret += [ DaneTestResult(passed=cu_valid, hostname=hostname, ipaddr=ipaddr, what="Checking Certificate Usage",test=TEST_SMTP_CU) ]
+        cu_valid = cert_usage not in [0,1]
+        ret += [ DaneTestResult(passed=cu_valid,
+                                hostname=hostname,
+                                ipaddr=ipaddr,
+                                what="Certificate Usage is {}".format(cert_usage),
+                                test=TEST_SMTP_CU) ]
         if not cu_valid: return ret
                  
     usage_good    = False
@@ -625,6 +630,8 @@ def tlsa_service_verify(desc,hostname,port,protocol):
     # Chase the CNAME if possible
     (chased_hostname,cname_results) = chase_dns_cname(hostname)
     ret += cname_results
+    if not chased_hostname:
+        return ret              # CNAME recursion failed
 
     ip_results = get_dns_ip(chased_hostname)
 
@@ -648,7 +655,7 @@ def tlsa_service_verify(desc,hostname,port,protocol):
         validating_tlsa_records = 0
         for tlsa_record in tlsa_records:
             ret_t = tlsa_verify(cert_chain, tlsa_record.rdata, hostname, ipaddr, protocol)
-            if find_test(ret_t,TEST_TLSA_CU_VALIDATES) and find_test(ret_t,TEST_TLSA_CU_VALIDATES).passed:
+            if find_first_test(ret_t,TEST_TLSA_CU_VALIDATES) and find_first_test(ret_t,TEST_TLSA_CU_VALIDATES).passed:
                 ret_tlsa_verified += ret_t
                 validating_tlsa_records += 1
             else:
@@ -666,7 +673,7 @@ def tlsa_service_verify(desc,hostname,port,protocol):
                                     test=TEST_TLSA_ATLEAST1,
                                     ipaddr=ipaddr,
                                     hostname=hostname,
-                                    what='Validating TLSA records for {} host {}: {}'.format(desc,hostname,validating_tlsa_records)) ]
+                                    what='Total validating TLSA records for {} host {} ipaddr: {}'.format(desc,hostname,ipaddr,validating_tlsa_records)) ]
         else:
             # If not TLSA records, at least check the EE certificate
             ret += ret_tlsa_noverify
@@ -675,6 +682,8 @@ def tlsa_service_verify(desc,hostname,port,protocol):
                             test=TEST_TLSA_ALL_IP,
                             hostname=hostname,
                             what="Validating TLSA records for {} out of {} IP addresses for host {}".format(tlsa_verified_ip_addresses,len(ip_results),hostname)) ]
+
+    # TK: We need to indicate that it works for ALL IP addresses.
     return ret
 
         
@@ -685,7 +694,7 @@ def apply_dnssec_test(ret):
             valid = False
             break
     ret += [ DaneTestResult(test=TEST_DNSSEC_ALL,
-                            what='not all DNS lookups secured by DNSSEC',
+                            what='Check that all DNS lookups secured by DNSSEC',
                             passed=valid) ]
 
 
@@ -723,7 +732,7 @@ def tlsa_smtp_verify(hostname):
         ret += cname_results
         if hostname:
             tlsa_rets = tlsa_service_verify(host_type,hostname,25,'smtp')
-            r = find_test(tlsa_rets,TEST_TLSA_ATLEAST1)
+            r = find_first_test(tlsa_rets,TEST_TLSA_ALL_IP)
             if r.passed==False and host_type=="MX":
                 # if the DANE test fails and this is not an MX host
                 # then we do not need to rely on it for DNSSEC
@@ -747,7 +756,7 @@ def print_test_results(results):
         return dnssec_status[t.dnssec]+" " if t.dnssec else ""
 
     def passed(t):
-        return {True:"PASSED: ",False:"FAILED: ",None:""}[t]
+        return {True:"PASSED: ",False:"FAILED: ",None:"Soft Fail: "}[t]
 
     import textwrap
     w = textwrap.TextWrapper()
