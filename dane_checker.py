@@ -41,6 +41,7 @@ TEST_TLSA_PARMS      = MakeTest(300,"TLSA Certificate Usage must be in the range
 TEST_TLSA_RR_LEAF    = MakeTest(301,"TLSA RR is not supposed to match leaf with usage 0 or 2")
 TEST_MX_ALL_PASS     = MakeTest(302,"All DANE-related tests must pass for MX host")
 TEST_DNSSEC_ALL      = MakeTest(303,"All relied upon DNS lookups must be secured by DNSSEC")
+TEST_TLSA_HTTP_NO_FAIL = MakeTest(400,"No HTTP DANE tests may be a hard fail")
 
     
 
@@ -200,6 +201,12 @@ def pem_verify(anchor_cert,cert_chain,ee_cert):
                 except subprocess.CalledProcessError:
                     return False
 
+def hex_der_to_pem(val):
+    from M2Crypto import X509
+    val = val.replace(" ","").replace("\r","").replace("\n","").replace("\t","")
+    x509 = X509.load_cert_string(val.decode("hex"),X509.FORMAT_DER)
+    return x509.as_pem()
+
 # Uses external program to extract AltNames
 def cert_subject_alternative_names(cert):
     cmd = [get_altnames_exe,'/dev/stdin']
@@ -350,10 +357,6 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,ipaddr, protocol):
     mtype      = tlsa_rdata['matching_type']
     associated_data = tlsa_rdata['certificate_association_data']
     ret = []
-    certs = split_certs(cert_chain)
-
-    if len(certs)==0:           # nothing to verify???
-        return ret
 
     tlsa_params_valid = (cert_usage in [0,1,2,3]) and (selector in [0,1]) and (mtype in [0,1,2])
     ret += [ DaneTestResult(passed=tlsa_params_valid,
@@ -377,6 +380,19 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,ipaddr, protocol):
     usage_good    = False
     trust_anchors = ""
     ct = hexdump(tlsa_rdata['certificate_association_data'])
+
+    # NOTE: For certificate usage 2, selector 0, matching 0,
+    # the certificate in the TLSA record should be added to the certificate chain
+    if cert_usage==2 and selector==0 and mtype==0:
+        from M2Crypto import X509
+        der = ct.replace(" ","").decode("hex")
+        x509 = X509.load_cert_string(der,X509.FORMAT_DER)
+        cert_chain += x509.as_pem()
+
+    certs = split_certs(cert_chain)
+    if len(certs)==0:           # nothing to verify???
+        return ret
+
 
     # Cert usages 0 and 2 specify trust anchors in the chain.
     # Examine the chain and extract the trust anchors
@@ -488,11 +504,13 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
             p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
             multi_certs = p.communicate(inbuf)[0]
             what="Fetched EE Certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
+            passed="END CERTIFICATE" in multi_certs
         except TimeoutError:
             what="Timeout fetching certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
-            multi_certs = None
+            multi_certs = ""
+            passed = False
         return [ DaneTestResult(test=TEST_EECERT_HAVE,
-                                passed="END CERTIFICATE" in multi_certs,
+                                passed=passed,
                                 what=what,
                                 ipaddr=ipaddr,
                                 hostname=hostname,
@@ -709,6 +727,11 @@ def tlsa_http_verify(url):
     if not port: port = 443
     ret += tlsa_service_verify("HTTP",o.hostname,port,'https')
     apply_dnssec_test(ret)
+    # Make sure that none of the DANE tests were a hard fail
+    valid = count_passed(ret,True) > 0 and count_passed(ret,False)==0
+    ret += [ DaneTestResult(test=TEST_TLSA_HTTP_NO_FAIL,
+                            what="Were any DANE HTTP tests a hard fail?",
+                            passed=valid) ]
     return ret
     
 
@@ -745,7 +768,7 @@ def tlsa_smtp_verify(hostname):
             tlsa_rets += [ DaneTestResult(passed=all_tests_pass,
                                           test=TEST_MX_ALL_PASS,
                                           hostname=hostname,
-                                          what="Do all tests pass for MX hosts?")]
+                                          what="Do all tests pass for MX host?")]
             ret += tlsa_rets
     return ret
     
