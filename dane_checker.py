@@ -22,7 +22,7 @@ os.environ["SSL_CERT_FILE"]="/nonexistant"
 html_style = """
 <style>
 .passed { background-color: lightgreen }
-.failed { background-color: lightred }
+.failed { background-color: red }
 .softfail { background-color: yellow }
 table { border-collapse: collapse }
 table, th, td { border: 1px solid black }
@@ -55,9 +55,14 @@ TEST_TLSA_CU02_TP_FOUND = MakeTest(205,"TLSA certificate usage 0 and 2 specifies
 TEST_TLSA_PARMS      = MakeTest(300,"TLSA Certificate Usage must be in the range 0..3, Selector in the range 0--1, and matching type in the range 0--2")
 TEST_TLSA_RR_LEAF    = MakeTest(301,"TLSA RR is not supposed to match leaf with usage 0 or 2")
 TEST_MX_ALL_PASS     = MakeTest(302,"All DANE-related tests must pass for MX host")
-TEST_DNSSEC_ALL      = MakeTest(303,"All relied upon DNS lookups must be secured by DNSSEC")
+TEST_NONMX_ALL_PASS  = MakeTest(303,"All DANE-related tests must pass for a non-MX host")
+TEST_DNSSEC_ALL      = MakeTest(304,"All relied upon DNS lookups must be secured by DNSSEC")
 TEST_TLSA_HTTP_NO_FAIL = MakeTest(400,"No HTTP DANE tests may hard fail")
 TEST_MX_PRIORITY    = MakeTest(401,"Highest priority MX server must be DANE protected")
+TEST_SMTP_CONNECT   = MakeTest(106,"Server must have working SMTP server on IP address")
+TEST_SMTP_STARTTLS  = MakeTest(107,"SMTP Server must offer STARTTLS")
+TEST_SMTP_TLS       = MakeTest(108,"SMTP Server must enter TLS mode")
+TEST_SMTP_QUIT       = MakeTest(109,"SMTP Server must work after TLS entered")
 
     
 
@@ -534,6 +539,47 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
     return []
 
         
+################################################################
+### Verify remote SMTP server is working properly
+def validate_remote_smtp(ipaddr,hostname):
+    ret = []
+    import smtplib
+    try:
+        c = smtplib.SMTP(hostname)
+        p = True
+    except Exception as e:
+        c = None
+        p = None
+    ret += [ DaneTestResult(test=TEST_SMTP_CONNECT,
+                            passed = p,
+                            hostname=hostname,
+                            ipaddr=ipaddr,
+                            what="Checking for SMTP server on IPaddr {}".format(ipaddr)) ]
+    if c:
+        (code,resp) = c.ehlo("THERE")
+        ret += [ DaneTestResult(test=TEST_SMTP_STARTTLS,
+                                passed="\nSTARTTLS\n" in resp,
+                                hostname=hostname,
+                                ipaddr=ipaddr,
+                                what="Checking for STARTTLS") ]
+        try:
+            (code,resp) = c.starttls()
+            ret += [ DaneTestResult(test=TEST_SMTP_TLS,
+                                    passed=code==220,
+                                    hostname=hostname,
+                                    ipaddr=ipaddr,
+                                    what="Executing STARTTLS") ]
+            (code,resp) = c.quit()
+            ret += [ DaneTestResult(test=TEST_SMTP_QUIT,
+                                    passed=code==221,
+                                    hostname=hostname,
+                                    ipaddr=ipaddr,
+                                    what="Executing QUIT") ]
+        except smtplib.SMTPException:
+            pass
+    return ret
+        
+        
 
 ################################################################
 ### DNS
@@ -681,6 +727,10 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",extra_tlsa=[]):
         
         ipaddr = ip_result.data
 
+        # If protocol is SMTP, make sure starttls works
+        if protocol=="smtp":
+            ret += validate_remote_smtp(ipaddr,hostname)
+
         # Get the certificate for the IP address
         cert_results = get_service_certificate_chain(ipaddr,hostname,port,protocol)
         ret += cert_results
@@ -795,13 +845,21 @@ def tlsa_smtp_verify(hostname):
             apply_dnssec_test(this_ret)
 
             all_tests_pass = True if count_passed(this_ret,True)>0 and count_passed(this_ret,False)==0 else None
-            this_ret += [ DaneTestResult(passed=all_tests_pass,
-                                          test=TEST_MX_ALL_PASS,
-                                          hostname=hostname,
-                                          what="Do all tests pass for MX host?")]
-            mx_test_results.append(all_tests_pass)
+            if mx_data:
+                mx_test_results.append(all_tests_pass)
+                this_ret += [ DaneTestResult(passed=all_tests_pass,
+                                             test=TEST_MX_ALL_PASS,
+                                             hostname=hostname,
+                                             what="Do all tests pass for MX host?")]
+            else:
+                all_tests_pass = (all_tests_pass==True)
+                this_ret += [ DaneTestResult(passed=all_tests_pass,
+                                             test=TEST_NONMX_ALL_PASS,
+                                             hostname=hostname,
+                                             what="Do all tests pass for a non-MX host?")]
+                
             ret += this_ret
-    if host_type=="MX":
+    if mx_data:
         def find_lowest():
             for i in mx_test_results:
                 if i in [True,False]: return i
