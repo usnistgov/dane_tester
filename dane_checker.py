@@ -12,9 +12,24 @@ openssl_debug = False
 
 import subprocess,os
 
-# See if a better openssl exists
+# See if a better openssl exists; remove OpenSSL defaults
 if os.path.exists("/usr/local/ssl/bin/openssl"):
     openssl_exe = "/usr/local/ssl/bin/openssl"
+os.environ["SSL_CERT_DIR"]="/nonexistant"
+os.environ["SSL_CERT_FILE"]="/nonexistant"
+
+
+html_style = """
+<style>
+.passed { background-color: lightgreen }
+.failed { background-color: lightred }
+.softfail { background-color: yellow }
+table { border-collapse: collapse }
+table, th, td { border: 1px solid black }
+td { vertical-align: top }
+th, td { padding: 3px }
+</style>
+"""
 
 valid_tests = {}
 class MakeTest:
@@ -41,8 +56,8 @@ TEST_TLSA_PARMS      = MakeTest(300,"TLSA Certificate Usage must be in the range
 TEST_TLSA_RR_LEAF    = MakeTest(301,"TLSA RR is not supposed to match leaf with usage 0 or 2")
 TEST_MX_ALL_PASS     = MakeTest(302,"All DANE-related tests must pass for MX host")
 TEST_DNSSEC_ALL      = MakeTest(303,"All relied upon DNS lookups must be secured by DNSSEC")
-TEST_TLSA_HTTP_NO_FAIL = MakeTest(400,"No HTTP DANE tests may be a hard fail")
-TEST_MX_PRIORITY    = MakeTest(401,"Highest priority MX server most be DANE protected")
+TEST_TLSA_HTTP_NO_FAIL = MakeTest(400,"No HTTP DANE tests may hard fail")
+TEST_MX_PRIORITY    = MakeTest(401,"Highest priority MX server must be DANE protected")
 
     
 
@@ -539,7 +554,8 @@ dnssec_status = {getdns.DNSSEC_SECURE:"SECURE",
 
 
 def tlsa_str(rdata):
-    return "%s %s %s %s" % (rdata['certificate_usage'],rdata['selector'],rdata['matching_type'],hexdump(rdata['certificate_association_data']))
+    return "%s %s %s %s" % (rdata['certificate_usage'],rdata['selector'],
+                            rdata['matching_type'],hexdump(rdata['certificate_association_data']))
 
 def v(bin_addr):
     return '.'.join(map(str, map(ord, bin_addr)))
@@ -559,6 +575,7 @@ def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
         ctx.general(name=hostname,request_type=getdns.RRTYPE_A,extensions=extensions)
 
 
+    SUCCESS=""
     results = ctx.general(name=hostname,request_type=request_type,extensions=extensions)
     for reply in results.replies_tree:
         #print reply
@@ -567,16 +584,19 @@ def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
             rdata = a['rdata']
             if a['type'] == getdns.RRTYPE_A == request_type:
                 ipv4 = v(rdata['ipv4_address'])
-                ret.append( DaneTestResult(what='DNS A lookup {} = {}'.format(hostname,ipv4),
+                ret.append( DaneTestResult(passed=SUCCESS,
+                                           what='DNS A lookup {} = {}'.format(hostname,ipv4),
                                            dnssec=dstat,data=ipv4, rdata=rdata) )
             if a['type'] == getdns.RRTYPE_CNAME == request_type:
-                ret.append( DaneTestResult(what='DNS CNAME lookup {} = {}'.format(hostname,rdata['cname']),
+                ret.append( DaneTestResult(passed=SUCCESS,
+                                           what='DNS CNAME lookup {} = {}'.format(hostname,rdata['cname']),
                                            dnssec=dstat,data=rdata['cname'],rdata=rdata))
             if a['type'] == getdns.RRTYPE_MX == request_type:
-                ret.append( DaneTestResult(what='DNS MX lookup {} = {} {}'.format(hostname,rdata['preference'],rdata['exchange']),
+                ret.append( DaneTestResult(passed=SUCCESS,
+                                           what='DNS MX lookup {} = {} {}'.format(hostname,rdata['preference'],rdata['exchange']),
                                            dnssec=dstat,data=rdata['exchange'],rdata=rdata))
             if a['type'] == getdns.RRTYPE_TLSA == request_type:
-                ret.append( DaneTestResult(what='DNS TLSA lookup {} = {}'.format(hostname,tlsa_str(rdata)),
+                ret.append( DaneTestResult(passed=SUCCESS,what='DNS TLSA lookup {} = {}'.format(hostname,tlsa_str(rdata)),
                                            dnssec=dstat,rdata=rdata))
     return ret
 
@@ -620,7 +640,8 @@ def chase_dns_cname(hostname):
     return (None,results)
     
 def get_tlsa_records(retlist):
-    return list(filter(lambda r:hasattr(r,"rdata") and "certificate_usage" in r.rdata,retlist))
+    return list(filter(lambda r:"certificate_usage" in str(r.rdata),retlist))
+
 
    
 
@@ -629,11 +650,10 @@ def get_tlsa_records(retlist):
 # For a given hostname, port, and protocol, get the list
 # of IP addresses and verify the certificate of each.
 
-def tlsa_service_verify(desc,hostname,port,protocol):
+def tlsa_service_verify(desc="",hostname="",port=0,protocol="",extra_tlsa=[]):
     ret = []
-
     ret += get_dns_tlsa(hostname,port)
-    tlsa_records = get_tlsa_records(ret)
+    tlsa_records = get_tlsa_records(ret) + extra_tlsa
 
     what = "Checking TLSA records for {}".format(tlsa_hostname(hostname,port))
     ret += [ DaneTestResult(passed = (len(tlsa_records)>0),
@@ -692,7 +712,7 @@ def tlsa_service_verify(desc,hostname,port,protocol):
                                     test=TEST_TLSA_ATLEAST1,
                                     ipaddr=ipaddr,
                                     hostname=hostname,
-                                    what='Total validating TLSA records for {} host {} ipaddr: {}'.format(desc,hostname,ipaddr,validating_tlsa_records)) ]
+                                    what='Total validating TLSA records for {} host {} ipaddr {}: {}'.format(desc,hostname,ipaddr,validating_tlsa_records)) ]
         else:
             # If not TLSA records, at least check the EE certificate
             ret += ret_tlsa_noverify
@@ -720,13 +740,14 @@ def apply_dnssec_test(ret):
 def tlsa_http_verify(url):
     from urlparse import urlparse
     ret = []
+    ret += [ DaneTestResult(passed=INFO,what="tlsa_http_verify Using OpenSSL Version {}".format(openssl_version())) ]
 
     # Find the host and port
     o = urlparse(url)
     
     port = o.port
     if not port: port = 443
-    ret += tlsa_service_verify("HTTP",o.hostname,port,'https')
+    ret += tlsa_service_verify(desc="HTTP",hostname=o.hostname,port=port,protocol='https')
     apply_dnssec_test(ret)
     # Make sure that none of the DANE tests were a hard fail
     valid = count_passed(ret,True) > 0 and count_passed(ret,False)==0
@@ -740,25 +761,31 @@ def tlsa_smtp_verify(hostname):
     original_hostname = hostname
 
     # Get a list of hosts from either the MX list or the hostname
+    ret = []
+    ret += [ DaneTestResult(passed=INFO,what="tlsa_smtp_verify Using OpenSSL Version {}".format(openssl_version())) ]
+    extra_tlsa = []
     mx_data  = get_dns_mx(hostname)
     if mx_data:
         host_type = "MX"
-        ret       = mx_data
+        tlsa_ret  = get_dns_tlsa(hostname,25) # add TLSA records for
+        extra_tlsa= get_tlsa_records(tlsa_ret)
+        ret       += tlsa_ret + mx_data
         # Construct a list of the MX priorities, and then take the hostname list sorted
         mx_hosts = sorted([(h.rdata['preference'],h.rdata['exchange']) for h in mx_data])
         hostnamelist = [h[1] for h in mx_hosts]
         mx_test_results = []
     else:
         host_type = "non-MX"
-        ret = [ DaneTestResult(what='no MX record for {}'.format(hostname))]
+        ret += [ DaneTestResult(what='no MX record for {}'.format(hostname))]
         hostnamelist = [hostname]
     apply_dnssec_test(ret)
     for hostname in hostnamelist:
         this_ret = []
-        if mx_data:
+        if mx_data:             # called for just MX records
             this_ret += [ DaneTestResult(passed=INFO,what='=== Checking MX host {} ==='.format(hostname)) ]
-        if hostname:
-            this_ret = tlsa_service_verify(host_type,hostname,25,'smtp')
+        if hostname:            # called for MX and non-MX
+            this_ret = tlsa_service_verify(desc=host_type,hostname=hostname,port=25,protocol='smtp',
+                                           extra_tlsa=extra_tlsa)
             r = find_first_test(this_ret,TEST_TLSA_ALL_IP)
             if r.passed==False and host_type=="MX":
                 # if the DANE test fails and this is an MX host
@@ -787,12 +814,16 @@ def tlsa_smtp_verify(hostname):
     
 
 
-def print_test_results(results):
+def print_test_results(results,format="text"):
     def dnssec(t):
         return dnssec_status[t.dnssec]+" " if t.dnssec else ""
 
     def passed(t):
-        return {True:"PASSED: ",False:"FAILED: ",None:"Soft Fail: "}[t]
+        return {True:"PASSED: ",
+                False:"FAILED: ",
+                "":"",
+                INFO:"INFO: ",
+                None:"Soft Fail: "}[t]
 
     import textwrap
     w = textwrap.TextWrapper()
@@ -800,9 +831,35 @@ def print_test_results(results):
     w.subsequent_indent = "{:<20}".format("")
 
     print("Tests completed: %d" % len(results))
-    print("  status ")
-    print(" ------- ")
+    
+    if format=="text":
+        print("  status ")
+        print(" ------- ")
+    if format=="html":
+        print(html_style)
+        print("<p>")
+        print("<table>")
+        print("<tr><th>Test #</th><th>Host</th><th>IP</th><th>Status</th><th>Description</th></tr>")
     for result in results:
+        if format=="html":
+            passed_text  = passed(result.passed).replace(":","").replace(" ","")
+            passed_class = passed_text.lower()
+            print("<tr class={}>".format(passed_class))
+            if result.passed==INFO:
+                print("<td colspan=5>{}</td></tr>".format(result.what))
+                continue
+            num  = result.test.num if result.test else ""
+            desc = result.test.desc if result.test else ""
+            desc += "<br>" if len(desc)>0 and len(result.what)>0 else ""
+            print("<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>".format(
+                    num,
+                    result.hostname,
+                    result.ipaddr,
+                    passed_text,
+                    desc + "<b>" + dnssec(result) + "</b>" + "(" + result.what + ")"))
+            continue
+                        
+
         if result.passed==INFO:
             print("")
             print("  {}".format(result.what))
@@ -820,18 +877,20 @@ def print_test_results(results):
             print(w.fill(res))
         print("")
     print("")
+    if format=="html":
+        print("</table>")
               
     
 # Test system
 passed = []
 failed = []
 
-def process(domain):
+def process(domain,format="text"):
     if "http" in domain:
         r = tlsa_http_verify(domain)
     else:
         r = tlsa_smtp_verify(domain)
-    print_test_results(r)
+    print_test_results(r,format=format)
     if r[-1].passed==True:
         passed.append(domain)
     else:
@@ -855,8 +914,12 @@ if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description="Test one or more DANE servers")
     parser.add_argument("--list",help="List tests",action='store_true')
+    parser.add_argument("--html",help="output in HTML",action='store_true')
     parser.add_argument("names",nargs="*")
     args = parser.parse_args()
+
+    format = 'text' if args.html==False else 'html'
+
 
     if args.list:
         import textwrap
@@ -871,7 +934,7 @@ if __name__=="__main__":
 
     def check(fn):
         print("\n==== {} ====".format(fn))
-        process(fn)
+        process(fn,format=format)
 
     if args.names:
         for name in args.names:
@@ -893,7 +956,7 @@ if __name__=="__main__":
     for domain in ["dougbarton.us","spodhuis.org", "jhcloos.com", "nlnetlabs.nl", "nlnet.nl"
                    ]:
         print("=== {} ===".format(domain))
-        print_test_results(tlsa_smtp_verify(domain))
+        process(domain,format=format)
 
 
     print("HTTP - Valid TLSA Record with Valid CA-signed TLSA")
@@ -907,12 +970,12 @@ if __name__=="__main__":
                    'https://dougbarton.us/',
                    'https://www.huque.com/']:
         print("=== Valid: {} ===".format(domain))
-        process(domain)
+        process(domain,format=format)
     
     print("HTTP Valid TLSA")
     for domain in ["https://rover.secure64.com/"]:
         print("=== Valid: {} ===".format(domain))
-        process(domain)
+        process(domain,format=format)
 
 
     print("INVALID TLSA")
@@ -922,7 +985,7 @@ if __name__=="__main__":
                    "https://bad-params.dane.verisignlabs.com",
                    "https://www.nist.gov"]:
         print("=== INVALID: {} ===".format(domain))
-        process(domain)
+        process(domain,format=format)
     
     print_stats()
     exit(0)

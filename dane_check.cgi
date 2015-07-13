@@ -15,11 +15,10 @@ if __name__=="__main__":
    if "host" in form:
       host = form['host'].value
       print "Checking <b>{0}</b>::<br>".format(host)
-      print "<pre>"
       sys.stdout.flush()
-      dane_checker.process(host)
+      dane_checker.process(host,format='html')
       sys.stdout.flush()
-      print "</pre>"
+
 
 
    print "<form>"
