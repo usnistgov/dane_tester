@@ -909,12 +909,16 @@ def print_test_results(results,format="text"):
             num  = result.test.num if result.test else ""
             desc = result.test.desc if result.test else ""
             desc += "<br>" if len(desc)>0 and len(result.what)>0 else ""
+
+            def fixnone(x):
+                return x if x!=None else ""
+
             print("<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>".format(
                     num,
-                    result.hostname,
-                    result.ipaddr,
+                    fixnone(result.hostname),
+                    fixnone(result.ipaddr),
                     passed_text,
-                    desc + "<b>" + dnssec(result) + "</b>" + "(" + result.what + ")"))
+                    desc + "<b>" + dnssec(result) + "</b>" + "<i>" + result.what + "</i>"))
             continue
                         
 
