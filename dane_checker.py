@@ -543,16 +543,14 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
 ### Verify remote SMTP server is working properly
 def validate_remote_smtp(ipaddr,hostname):
     ret = []
-    import smtplib
+    import smtplib,ssl
     p = False
     c = None
     with timeout(seconds=10):
         try:
             c = smtplib.SMTP(hostname)
             p = True
-        except TimeoutError:
-            pass
-        except Exception as e:
+        except (TimeoutError,Exception) as e:
             pass
     ret += [ DaneTestResult(test=TEST_SMTP_CONNECT,
                             passed = p,
@@ -567,20 +565,25 @@ def validate_remote_smtp(ipaddr,hostname):
                                 ipaddr=ipaddr,
                                 what="Checking for STARTTLS") ]
         try:
+            p = False
             (code,resp) = c.starttls()
-            ret += [ DaneTestResult(test=TEST_SMTP_TLS,
-                                    passed=code==220,
-                                    hostname=hostname,
-                                    ipaddr=ipaddr,
-                                    what="Executing STARTTLS") ]
-            (code,resp) = c.quit()
-            ret += [ DaneTestResult(test=TEST_SMTP_QUIT,
-                                    passed=code==221,
-                                    hostname=hostname,
-                                    ipaddr=ipaddr,
-                                    what="Executing QUIT") ]
-        except smtplib.SMTPException:
+            c = False
+            p = True
+        except (smtplib.SMTPException,ssl.SSLError,Exception) as e:
             pass
+
+        ret += [ DaneTestResult(test=TEST_SMTP_TLS,
+                                passed=code==220,
+                                hostname=hostname,
+                                ipaddr=ipaddr,
+                                what="Executing STARTTLS") ]
+    if c:
+        (code,resp) = c.quit()
+        ret += [ DaneTestResult(test=TEST_SMTP_QUIT,
+                                passed=code==221,
+                                hostname=hostname,
+                                ipaddr=ipaddr,
+                                what="Executing QUIT") ]
     return ret
         
         
