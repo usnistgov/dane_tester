@@ -544,12 +544,16 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
 def validate_remote_smtp(ipaddr,hostname):
     ret = []
     import smtplib
-    try:
-        c = smtplib.SMTP(hostname)
-        p = True
-    except Exception as e:
-        c = None
-        p = None
+    p = False
+    c = None
+    with timeout(seconds=10):
+        try:
+            c = smtplib.SMTP(hostname)
+            p = True
+        except TimeoutError:
+            pass
+        except Exception as e:
+            pass
     ret += [ DaneTestResult(test=TEST_SMTP_CONNECT,
                             passed = p,
                             hostname=hostname,
@@ -730,6 +734,9 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",extra_tlsa=[]):
         # If protocol is SMTP, make sure starttls works
         if protocol=="smtp":
             ret += validate_remote_smtp(ipaddr,hostname)
+            if find_first_test(ret,TEST_SMTP_CONNECT).passed==False:
+                # No valid SMTP server
+                continue
 
         # Get the certificate for the IP address
         cert_results = get_service_certificate_chain(ipaddr,hostname,port,protocol)
