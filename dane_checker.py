@@ -21,7 +21,7 @@ os.environ["SSL_CERT_FILE"]="/nonexistant"
 
 html_style = """
 <style>
-.passed { background-color: lightgreen }
+.passed { background-color: #80FF80 }
 .failed { background-color: red }
 .softfail { background-color: yellow }
 table { border-collapse: collapse }
@@ -154,7 +154,6 @@ def hostname_match(hn,cn):
         return hn.endswith(cn[1:])
     else:
         return hn==cn
-
 
 # Tests for above
 
@@ -371,6 +370,10 @@ def tlsa_match(mtype, cert_data, from_dns):
 # XXX: Update code accordingly.
 #
 
+# tlsa_verify:
+# @param cert_chain - a PEM-encoded chain of certificates
+# @param tlsa_rdata - the particular TLSA record being verified
+# @param hostname   - the hostname being verified
 
 def tlsa_verify(cert_chain,tlsa_rdata,hostname,ipaddr, protocol):
     cert_usage = tlsa_rdata['certificate_usage']
@@ -490,7 +493,9 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,ipaddr, protocol):
 
     # If usage is still good, say so
     if usage_good:
-        ret += [ DaneTestResult(passed=True,what="Verifying TLSA record against certificate chain",test=TEST_TLSA_CU_VALIDATES) ]
+        ret += [ DaneTestResult(passed=True,
+                                what="Verifying TLSA record against certificate chain",
+                                test=TEST_TLSA_CU_VALIDATES) ]
     return ret
 
 
@@ -842,9 +847,9 @@ def tlsa_smtp_verify(hostname):
     for hostname in hostnamelist:
         this_ret = []
         if mx_data:             # called for just MX records
-            this_ret += [ DaneTestResult(passed=INFO,what='=== Checking MX host {} ==='.format(hostname)) ]
+            this_ret += [ DaneTestResult(passed=INFO,what='Checking MX host {}'.format(hostname)) ]
         if hostname:            # called for MX and non-MX
-            this_ret = tlsa_service_verify(desc=host_type,hostname=hostname,port=25,protocol='smtp',
+            this_ret += tlsa_service_verify(desc=host_type,hostname=hostname,port=25,protocol='smtp',
                                            extra_tlsa=extra_tlsa)
             r = find_first_test(this_ret,TEST_TLSA_ALL_IP)
             if r.passed==False and host_type=="MX":
@@ -932,9 +937,10 @@ def print_test_results(results,format="text"):
             continue
                         
 
+        # Text
         if result.passed==INFO:
             print("")
-            print("  {}".format(result.what))
+            print("  === {} ===".format(result.what))
             continue
         res = "  "
         res += dnssec(result) + result.what
