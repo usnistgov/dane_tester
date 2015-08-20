@@ -33,11 +33,19 @@ th, td { padding: 3px }
 
 valid_tests = {}
 class MakeTest:
-    def __init__(self,num,desc):
+    def __init__(self,num,desc,section=""):
         assert num not in valid_tests
         self.num  = num
         self.desc = desc
+        self.section = section
         valid_tests[num] = self
+
+TEST_CNAME_NOERROR     = MakeTest(50,"""If at any stage of CNAME expansion an error is detected, the lookup of the original requested records MUST be considered to have failed.""","2.1.3")
+TEST_CNAME_SECURE      = MakeTest(51,"""if at
+   any stage of recursive expansion an "insecure" CNAME record is
+   encountered, then it and all subsequent results (in particular, the
+   final result) MUST be considered "insecure" regardless of whether any
+   earlier CNAME records leading to the "insecure" record were "secure".""","2.1.3")
 
 TEST_EECERT_HAVE     = MakeTest(100,"Server must have End Entity Certificate")
 TEST_EECERT_CN_MATCH = MakeTest(101,"Service name matches EE Certificate Common Name")
@@ -58,10 +66,10 @@ TEST_MX_ALL_PASS     = MakeTest(302,"All DANE-related tests must pass for MX hos
 TEST_NONMX_ALL_PASS  = MakeTest(303,"All DANE-related tests must pass for a non-MX host")
 TEST_DNSSEC_ALL      = MakeTest(304,"All relied upon DNS lookups must be secured by DNSSEC")
 TEST_TLSA_HTTP_NO_FAIL = MakeTest(400,"No HTTP DANE tests may hard fail")
-TEST_MX_PRIORITY    = MakeTest(401,"Highest priority MX server must be DANE protected")
-TEST_SMTP_CONNECT   = MakeTest(106,"Server must have working SMTP server on IP address")
-TEST_SMTP_STARTTLS  = MakeTest(107,"SMTP Server must offer STARTTLS")
-TEST_SMTP_TLS       = MakeTest(108,"SMTP Server must enter TLS mode")
+TEST_MX_PRIORITY     = MakeTest(401,"Highest priority MX server must be DANE protected")
+TEST_SMTP_CONNECT    = MakeTest(106,"Server must have working SMTP server on IP address")
+TEST_SMTP_STARTTLS   = MakeTest(107,"SMTP Server must offer STARTTLS")
+TEST_SMTP_TLS        = MakeTest(108,"SMTP Server must enter TLS mode")
 TEST_SMTP_QUIT       = MakeTest(109,"SMTP Server must work after TLS entered")
 
     
@@ -676,8 +684,6 @@ def get_dns_tlsa(host,port):
     (tlsa_name,cname_ret) = chase_dns_cname(tlsa_name)
     ret += cname_ret
     ret += get_dns_ip(tlsa_name,request_type=getdns.RRTYPE_TLSA)
-    #print('ret=',ret)
-    #print("tlsa_records=",get_tlsa_records(ret))
     return ret
 
 
@@ -694,7 +700,8 @@ def chase_dns_cname(hostname):
         results += cname_results
         hostname = cname_results[0].data
     results += [ DaneTestResult(passed=False,
-                                what='CNAME search for {} reached depth of {}'.format(original_hostname,MAX_CNAME_DEPTH))]
+                                what='CNAME search for {} reached depth of {}'.
+                                format(original_hostname,MAX_CNAME_DEPTH))]
     return (None,results)
     
 def get_tlsa_records(retlist):
