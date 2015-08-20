@@ -5,3 +5,5 @@ pub:
 	cp *.py *.cgi /var/www/html/ 
 	cp *.cgi ../public_html/
 
+zip:
+	zip dane_checker.zip *.py *.cgi
