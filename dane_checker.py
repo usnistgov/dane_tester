@@ -826,7 +826,6 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",final_hostname=No
         # If protocol is SMTP, make sure starttls works
         if protocol=="smtp":
             ret += validate_remote_smtp(ipaddr,hostname)
-            print(ret)
             if find_first_test(ret,TEST_SMTP_CONNECT).passed==False:
                 # No valid SMTP server
                 continue
