@@ -25,15 +25,13 @@ if __name__=="__main__":
       host = "https://" + m.group(1) + "/"
 
    if host:
+      host = host.strip()
       sys.stdout.flush()
       print "Checking ok <b>{0}</b>:<br>".format(host)
       dane_checker.process(host,format='html')
    sys.stdout.flush()
 
-
-
    print "<p>"
-
    print "<form>"
    print "<input type='text' name='host'><br>"
    print "<input type='submit' value='Submit'>"

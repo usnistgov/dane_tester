@@ -26,7 +26,7 @@ html_style = """
 <style>
 .passed { background-color: #80FF80 }
 .failed { background-color: red }
-.softfail { background-color: yellow }
+.warning { background-color: yellow }
 table { border-collapse: collapse }
 th, td { border: 1px solid black }
 th { color: gray }
@@ -41,12 +41,13 @@ th, td { padding: 3px }
 
 valid_tests = {}
 class MakeTest:
-    def __init__(self,num,desc,section="",failed_desc=None):
+    def __init__(self,num,desc,section="",failed_desc=None,recommendation=False):
         assert num not in valid_tests
         self.num  = num
         self.desc = desc
         self.section = section
         self.failed_desc = failed_desc
+        self.recommendation = recommendation
         valid_tests[num] = self
 
 ## 100 series - DNS queries ##
@@ -70,9 +71,9 @@ TEST_EECERT_HAVE     = MakeTest(205,"Server must have End Entity Certificate")
 TEST_SMTP_CU         = MakeTest(301,"TLSA records for port 25 SMTP service used by client MTAs SHOULD "\
                                     "NOT include TLSA RRs with certificate usage PKIX-TA(0) or PKIX-EE(1)","3.1.3")
 TEST_TLSA_CU02_TP_FOUND = MakeTest(302,"TLSA certificate usage 0 and 2 specifies a trust point that is found in the server's certificate chain")
-TEST_TLSA_PARMS      = MakeTest(303,"TLSA Certificate Usage must be in the range 0..3, Selector in the range 0--1, and matching type in the range 0--2")
+TEST_TLSA_PARMS      = MakeTest(303,"TLSA Certificate Usage must be in the range 0..3, Selector in the range 0..1, and matching type in the range 0..2")
 TEST_TLSA_RR_LEAF    = MakeTest(304,"TLSA RR is not supposed to match leaf with usage 0 or 2")
-TEST_DANE_SMTP_RECOMMEND  = MakeTest(305,"""Internet-Draft RECOMMEND[s] the use of "DANE-EE(3) SPKI(1) SHA2-256(1)" with "DANE-TA(2) Cert(0) SHA2-256(1)" TLSA records as a second choice, depending on site needs.""","3.1")
+TEST_DANE_SMTP_RECOMMEND  = MakeTest(305,"""Internet-Draft RECOMMEND[s] the use of "DANE-EE(3) SPKI(1) SHA2-256(1)" with "DANE-TA(2) Cert(0) SHA2-256(1)" TLSA records as a second choice, depending on site needs.""","3.1",recommendation=True)
 TEST_EECERT_VERIFY   = MakeTest(306,"Server EE Certificate must PKIX Verify",failed_desc="Server EE Certificate does not PKIX Verify")
 TEST_EECERT_NAME_CHECK = MakeTest(307,"""When name checks are applicable (certificate usage DANE-TA(2)), if
    the server certificate contains a Subject Alternative Name extension
@@ -118,6 +119,7 @@ class timeout:
 ################################################################
 
 INFO="INFO"
+WARNING="WARNING"
 
 
 class DaneTestResult:
@@ -215,7 +217,7 @@ def test_hostname_match():
 ##
 def openssl_version():
     res = subprocess.check_output([openssl_exe,'version'])
-    return res.strip()
+    return res.strip().replace("OpenSSL ","")
 
 def test_openssl_version():
     assert openssl_version() >= "1.0.2"
@@ -428,11 +430,16 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,ipaddr, protocol):
 
     # Check for following recommendation
     if protocol=='smtp':
-        ret += [ DaneTestResult(passed=(cert_usage==3 and selector==1 and mtype==1) or (cert_usage==2 and selector==0 and mtype==1),
+        if (cert_usage==3 and selector==1 and mtype==1) or (cert_usage==2 and selector==0 and mtype==1):
+            follows_recommendation = True
+        else:
+            follows_recommendation = WARNING
+        ret += [ DaneTestResult(passed=follows_recommendation,
                                 test=TEST_DANE_SMTP_RECOMMEND,
                                 hostname=hostname,
                                 ipaddr=ipaddr,
-                                what="Checking TLSA Parameters against Internet-Draft Recommendation: {} {} {}".format(cert_usage,selector,mtype)) ]
+                                what="Checking TLSA Parameters against Internet-Draft Recommendation: {} {} {}"
+                                .format(cert_usage,selector,mtype)) ]
                                 
 
 
@@ -599,41 +606,64 @@ def validate_remote_smtp(ipaddr,hostname):
     with timeout(seconds=10):
         try:
             c = smtplib.SMTP(hostname)
-            p = True
-        except (TimeoutError,Exception) as e:
-            pass
-    ret += [ DaneTestResult(test=TEST_SMTP_CONNECT,
-                            passed = p,
-                            hostname=hostname,
-                            ipaddr=ipaddr,
-                            what="Checking for SMTP server on IPaddr {}".format(ipaddr)) ]
-    if c:
-        (code,resp) = c.ehlo("THERE")
-        ret += [ DaneTestResult(test=TEST_SMTP_STARTTLS,
-                                passed="STARTTLS" in resp,
-                                hostname=hostname,
-                                ipaddr=ipaddr,
-                                what="Checking for STARTTLS") ]
-        try:
-            p = False
+            ret += [ DaneTestResult(test=TEST_SMTP_CONNECT,
+                                    passed=True if c else False,
+                                    hostname=hostname,
+                                    ipaddr=ipaddr,
+                                    what="Checking for SMTP server on IPaddr {}".format(ipaddr)) ]
+            if not c:
+                return ret
+            (code,resp) = c.ehlo("THERE")
+            ret += [ DaneTestResult(test=TEST_SMTP_STARTTLS,
+                                    passed="STARTTLS" in resp,
+                                    hostname=hostname,
+                                    ipaddr=ipaddr,
+                                    what="Checking for STARTTLS") ]
             (code,resp) = c.starttls()
-            c = False
-            p = True
-        except (smtplib.SMTPException,ssl.SSLError,Exception) as e:
-            pass
+            ret += [ DaneTestResult(test=TEST_SMTP_TLS,
+                                    passed=code==220,
+                                    hostname=hostname,
+                                    ipaddr=ipaddr,
+                                    what="Executing STARTTLS") ]
+            (code,resp) = c.quit()
+            ret += [ DaneTestResult(test=TEST_SMTP_QUIT,
+                                    passed=code==221,
+                                    hostname=hostname,
+                                    ipaddr=ipaddr,
+                                    what="Executing QUIT") ]
+        except (TimeoutError) as e:
+            ret += [ DaneTestResult(test=TEST_SMTP_CONNECT,
+                                    passed = False,
+                                    hostname=hostname,
+                                    ipaddr=ipaddr,
+                                    what="Timeout while checking for SMTP server on IPaddr {}".format(ipaddr)) ]
+        except (smtplib.SMTPException) as e:
+            ret += [ DaneTestResult(test=TEST_SMTP_CONNECT,
+                                    passed = False,
+                                    hostname=hostname,
+                                    ipaddr=ipaddr,
+                                    what="SMTPExecption while checking for SMTP server on IPaddr {}".format(ipaddr)) ]
+        except (ssl.SSLError) as e:
+            ret += [ DaneTestResult(test=TEST_SMTP_TLS,
+                                    passed = False,
+                                    hostname=hostname,
+                                    ipaddr=ipaddr,
+                                    what="SMTPExecption while checking for SMTP server on IPaddr {}".format(ipaddr)) ]
+        except (smtplib.SMTPServerDisconnected) as e:
+            ret += [ DaneTestResult(test=TEST_SMTP_CONNECT,
+                                    passed = False,
+                                    hostname=hostname,
+                                    ipaddr=ipaddr,
+                                    what="SMTPServerDisconnected while connected to SMTP server on IPaddr {}".format(ipaddr)) ]
+        except (Exception) as e:
+            ret += [ DaneTestResult(test=TEST_SMTP_CONNECT,
+                                    passed = False,
+                                    hostname=hostname,
+                                    ipaddr=ipaddr,
+                                    what="Unexpected SMTP Error {} while connected to SMTP server on IPaddr {}".
+                                    format(str(e),ipaddr)) ]
+            
 
-        ret += [ DaneTestResult(test=TEST_SMTP_TLS,
-                                passed=code==220,
-                                hostname=hostname,
-                                ipaddr=ipaddr,
-                                what="Executing STARTTLS") ]
-    if c:
-        (code,resp) = c.quit()
-        ret += [ DaneTestResult(test=TEST_SMTP_QUIT,
-                                passed=code==221,
-                                hostname=hostname,
-                                ipaddr=ipaddr,
-                                what="Executing QUIT") ]
     return ret
         
         
@@ -761,7 +791,9 @@ def get_tlsa_records(retlist):
 def tlsa_service_verify(desc="",hostname="",port=0,protocol="",final_hostname=None,final_tlsa=[]):
     ret = []
     ret += get_dns_tlsa(hostname,port)
-    tlsa_records = get_tlsa_records(ret) + final_tlsa
+    tlsa_records = get_tlsa_records(ret)
+    if final_tlsa:
+        tlsa_records += final_tlsa
 
     what = "Resolving TLSA records for hostname {}".format(tlsa_hostname(hostname,port))
     if final_hostname:
@@ -794,6 +826,7 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",final_hostname=No
         # If protocol is SMTP, make sure starttls works
         if protocol=="smtp":
             ret += validate_remote_smtp(ipaddr,hostname)
+            print(ret)
             if find_first_test(ret,TEST_SMTP_CONNECT).passed==False:
                 # No valid SMTP server
                 continue
@@ -876,19 +909,20 @@ def tlsa_http_verify(url):
 # @param final_tlsa_records - additional TLSA records if hostname is not the final deliery
 def tlsa_smtp_host_verify(hostname,final_hostname,final_tlsa_records,host_type):
     ret = [ DaneTestResult(passed=INFO,what='Detail for {} host {}:'.format(host_type,hostname)) ]
-    ret += tlsa_service_verify(desc=host_type,hostname=hostname,port=25,protocol='smtp', final_hostname=final_hostname,final_tlsa=final_tlsa_records)
+    ret += tlsa_service_verify(desc=host_type,hostname=hostname,port=25,protocol='smtp',
+                               final_hostname=final_hostname,final_tlsa=final_tlsa_records)
     apply_dnssec_test(ret)
     return ret
     
 
 def tlsa_smtp_verify(destination_hostname):
-
     # Get a list of hosts from either the MX list or the hostname
     ret = []
     final_tlsa = []
     mx_data  = get_dns_mx(destination_hostname)
     if not mx_data:
-        ret += [ DaneTestResult(what='no MX record for {}'.format(hostname))]
+        ret += [ DaneTestResult(what='no MX record for {}'.
+                                format(destination_hostname))]
         ret += tlsa_smtp_host_verify(destination_hostname,None,None,'non-MX')
         return ret
     
@@ -939,8 +973,6 @@ def tlsa_smtp_verify(destination_hostname):
     ret += mx_rets
     return ret
     
-
-
 def print_test_results(results,format="text"):
     def dnssec(t):
         return dnssec_status[t.dnssec]+" " if t.dnssec else ""
@@ -950,6 +982,7 @@ def print_test_results(results,format="text"):
                 False:"FAILED: ",
                 "":"",
                 INFO:"INFO: ",
+                WARNING:"WARNING: ",
                 None:""}[t]
 
     import textwrap
@@ -986,7 +1019,7 @@ def print_test_results(results,format="text"):
                 if not result.passed and result.test.failed_desc:
                     desc = result.test.failed_desc
                 if result.test.section:
-                    desc += " (§" + result.test.section + ") "
+                    desc = '"{}" (§{})'.format(desc,result.test.section)
             else:
                 num = ""
                 desc = ""
@@ -1003,7 +1036,6 @@ def print_test_results(results,format="text"):
                     passed_text,
                     desc ))
             continue
-                        
 
         # Text
         if result.passed==INFO:
@@ -1026,7 +1058,6 @@ def print_test_results(results,format="text"):
     if format=="html":
         print("</table>")
               
-    
 # Test system
 passed = []
 failed = []
@@ -1136,5 +1167,3 @@ if __name__=="__main__":
     
     print_stats()
     exit(0)
-
-
