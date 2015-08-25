@@ -25,9 +25,14 @@ html_style = """
 .failed { background-color: red }
 .softfail { background-color: yellow }
 table { border-collapse: collapse }
-table, th, td { border: 1px solid black }
+th, td { border: 1px solid black }
+th { color: gray }
 td { vertical-align: top }
 th, td { padding: 3px }
+.info { border-left: 1px solid white;
+        border-right: 1px solid white;
+        line-height: 200%;
+      }
 </style>
 """
 
@@ -57,21 +62,25 @@ TEST_SMTP_CU         = MakeTest(200,"TLSA records for port 25 SMTP service used 
                                     "NOT include TLSA RRs with certificate usage PKIX-TA(0) or PKIX-EE(1)")
 TEST_TLSA_PRESENT    = MakeTest(201,"Service hostname must have matching TLSA record")
 TEST_TLSA_DNSSEC     = MakeTest(202,"TLSA records must be secured by DNSSEC")
-TEST_TLSA_ATLEAST1   = MakeTest(203,"There must be at least 1 validating TLSA record for a service name")
+TEST_TLSA_ATLEAST1   = MakeTest(203,"There must be at least 1 usable TLSA record for a host name")
 TEST_TLSA_CU_VALIDATES = MakeTest(204,"At least one TLSA record must have a certificate usage and associated data that validates at least one EE cetficiate")
 TEST_TLSA_CU02_TP_FOUND = MakeTest(205,"TLSA certificate usage 0 and 2 specifies a trust point that is found in the server's certificate chain")
 TEST_TLSA_PARMS      = MakeTest(300,"TLSA Certificate Usage must be in the range 0..3, Selector in the range 0--1, and matching type in the range 0--2")
 TEST_TLSA_RR_LEAF    = MakeTest(301,"TLSA RR is not supposed to match leaf with usage 0 or 2")
-TEST_MX_ALL_PASS     = MakeTest(302,"All DANE-related tests must pass for MX host")
-TEST_NONMX_ALL_PASS  = MakeTest(303,"All DANE-related tests must pass for a non-MX host")
-TEST_DNSSEC_ALL      = MakeTest(304,"All relied upon DNS lookups must be secured by DNSSEC")
+TEST_ALL_SMTP_PASS  = MakeTest(303,"All DANE-related tests must pass for a SMTP host")
+TEST_DNSSEC_ALL      = MakeTest(304,"All DNS lookups must be secured by DNSSEC")
 TEST_TLSA_HTTP_NO_FAIL = MakeTest(400,"No HTTP DANE tests may hard fail")
-TEST_MX_PRIORITY     = MakeTest(401,"Highest priority MX server must be DANE protected")
+
+TEST_MX_PREEMPTION   = MakeTest(401,"""an MX hostname with a worse (numerically higher) MX preference that has TLSA records MUST NOT preempt an MX hostname with a better (numerically lower) preference that has no TLSA records.""","2.2.1")
+
 TEST_SMTP_CONNECT    = MakeTest(106,"Server must have working SMTP server on IP address")
 TEST_SMTP_STARTTLS   = MakeTest(107,"SMTP Server must offer STARTTLS")
 TEST_SMTP_TLS        = MakeTest(108,"SMTP Server must enter TLS mode")
 TEST_SMTP_QUIT       = MakeTest(109,"SMTP Server must work after TLS entered")
 
+TEST_DANE_RECOMMEND  = MakeTest(500,"""Internet-Draft RECOMMEND[s] the use of "DANE-EE(3) SPKI(1) SHA2-256(1)" with "DANE-TA(2) Cert(0) SHA2-256(1)" TLSA records as a second choice, depending on site needs.""","3.1")
+
+TEST_DANE2_CHAIN     = MakeTest(501,"""SMTP servers that rely on certificate usage DANE-TA(2) TLSA records for TLS authentication MUST include the TA certificate as part of the certificate chain presented in the TLS handshake server certificate message even when it is a self-signed root certificate.""","3.2.1")
     
 
 
@@ -98,8 +107,7 @@ INFO="INFO"
 
 
 class DaneTestResult:
-    def __init__(self,passed=None,test=None,dnssec=None,what=None,data=None,rdata=None,hostname=None,ipaddr=None,testnumber=None):
-        assert(what!=None)
+    def __init__(self,passed=None,test=None,dnssec=None,what='',data=None,rdata=None,hostname=None,ipaddr=None,testnumber=None,key=0):
         self.passed = passed
         self.dnssec = dnssec
         self.dnsrelied = True   # by default, assume we rely on this DNS
@@ -110,6 +118,7 @@ class DaneTestResult:
         self.what   = what
         self.data   = data
         self.rdata  = rdata
+        self.key    = key
     def __repr__(self):
         return "%s %s %s %s" % (self.passed,self.dnssec,self.what,self.data)
 
@@ -644,7 +653,6 @@ def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
     SUCCESS=""
     results = ctx.general(name=hostname,request_type=request_type,extensions=extensions)
     for reply in results.replies_tree:
-        #print reply
         for a in reply['answer']:
             dstat = reply.get('dnssec_status')
             rdata = a['rdata']
@@ -652,18 +660,19 @@ def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
                 ipv4 = v(rdata['ipv4_address'])
                 ret.append( DaneTestResult(passed=SUCCESS,
                                            what='DNS A lookup {} = {}'.format(hostname,ipv4),
-                                           dnssec=dstat,data=ipv4, rdata=rdata) )
+                                           dnssec=dstat,data=ipv4, rdata=rdata, key=ipv4) )
             if a['type'] == getdns.RRTYPE_CNAME == request_type:
                 ret.append( DaneTestResult(passed=SUCCESS,
                                            what='DNS CNAME lookup {} = {}'.format(hostname,rdata['cname']),
-                                           dnssec=dstat,data=rdata['cname'],rdata=rdata))
+                                           dnssec=dstat,data=rdata['cname'],rdata=rdata,key=rdata['cname']))
             if a['type'] == getdns.RRTYPE_MX == request_type:
                 ret.append( DaneTestResult(passed=SUCCESS,
                                            what='DNS MX lookup {} = {} {}'.format(hostname,rdata['preference'],rdata['exchange']),
-                                           dnssec=dstat,data=rdata['exchange'],rdata=rdata))
+                                           dnssec=dstat,data=rdata['exchange'],rdata=rdata,key=rdata['preference']))
             if a['type'] == getdns.RRTYPE_TLSA == request_type:
                 ret.append( DaneTestResult(passed=SUCCESS,what='DNS TLSA lookup {} = {}'.format(hostname,tlsa_str(rdata)),
-                                           dnssec=dstat,rdata=rdata))
+                                           dnssec=dstat,rdata=rdata,key=tlsa_str(rdata)))
+    ret.sort(key=lambda x:x.key)
     return ret
 
 
@@ -708,17 +717,14 @@ def get_tlsa_records(retlist):
     return list(filter(lambda r:"certificate_usage" in str(r.rdata),retlist))
 
 
-   
-
-   
 #
 # For a given hostname, port, and protocol, get the list
 # of IP addresses and verify the certificate of each.
 
-def tlsa_service_verify(desc="",hostname="",port=0,protocol="",extra_tlsa=[]):
+def tlsa_service_verify(desc="",hostname="",port=0,protocol="",final_tlsa=[]):
     ret = []
     ret += get_dns_tlsa(hostname,port)
-    tlsa_records = get_tlsa_records(ret) + extra_tlsa
+    tlsa_records = get_tlsa_records(ret) + final_tlsa
 
     what = "Checking TLSA records for {}".format(tlsa_hostname(hostname,port))
     ret += [ DaneTestResult(passed = (len(tlsa_records)>0),
@@ -805,7 +811,6 @@ def apply_dnssec_test(ret):
             valid = False
             break
     ret += [ DaneTestResult(test=TEST_DNSSEC_ALL,
-                            what='Check that all DNS lookups secured by DNSSEC',
                             passed=valid) ]
 
 
@@ -829,67 +834,56 @@ def tlsa_http_verify(url):
     return ret
     
 
-def tlsa_smtp_verify(hostname):
-    original_hostname = hostname
+# Check to see if the TLSA record for an SMTP host is okay.
+# @param final_tlsa_records - additional TLSA records if hostname is not the final deliery
+def tlsa_smtp_host_verify(hostname,final_tlsa_records,host_type):
+    ret = [ DaneTestResult(passed=INFO,what='Checking {} host {}:'.format(host_type,hostname)) ]
+    ret += tlsa_service_verify(desc=host_type,hostname=hostname,port=25,protocol='smtp', final_tlsa=final_tlsa_records)
+    apply_dnssec_test(ret)
+    return ret
+    
+
+def tlsa_smtp_verify(destination_hostname):
 
     # Get a list of hosts from either the MX list or the hostname
     ret = []
     ret += [ DaneTestResult(passed=INFO,what="tlsa_smtp_verify Using OpenSSL Version {}".format(openssl_version())) ]
-    extra_tlsa = []
-    mx_data  = get_dns_mx(hostname)
-    if mx_data:
-        host_type = "MX"
-        tlsa_ret  = get_dns_tlsa(hostname,25) # add TLSA records for
-        extra_tlsa= get_tlsa_records(tlsa_ret)
-        ret       += tlsa_ret + mx_data
-        # Construct a list of the MX priorities, and then take the hostname list sorted
-        mx_hosts = sorted([(h.rdata['preference'],h.rdata['exchange']) for h in mx_data])
-        hostnamelist = [h[1] for h in mx_hosts]
-        mx_test_results = []
-    else:
-        host_type = "non-MX"
+    final_tlsa = []
+    mx_data  = get_dns_mx(destination_hostname)
+    if not mx_data:
         ret += [ DaneTestResult(what='no MX record for {}'.format(hostname))]
-        hostnamelist = [hostname]
-    apply_dnssec_test(ret)
-    for hostname in hostnamelist:
-        this_ret = []
-        if mx_data:             # called for just MX records
-            this_ret += [ DaneTestResult(passed=INFO,what='Checking MX host {}'.format(hostname)) ]
-        if hostname:            # called for MX and non-MX
-            this_ret += tlsa_service_verify(desc=host_type,hostname=hostname,port=25,protocol='smtp',
-                                           extra_tlsa=extra_tlsa)
-            r = find_first_test(this_ret,TEST_TLSA_ALL_IP)
-            if r.passed==False and host_type=="MX":
-                # if the DANE test fails and this is an MX host
-                # then we do not need to rely on it for DNSSEC
-                for t in this_ret:
-                    t.dnsrelied=False
-            apply_dnssec_test(this_ret)
+        ret += tlsa_smtp_host_verify(destination_hostname,None,'non-MX')
+        return ret
+    
 
-            all_tests_pass = True if count_passed(this_ret,True)>0 and count_passed(this_ret,False)==0 else None
-            if mx_data:
-                mx_test_results.append(all_tests_pass)
-                this_ret += [ DaneTestResult(passed=all_tests_pass,
-                                             test=TEST_MX_ALL_PASS,
-                                             hostname=hostname,
-                                             what="Do all tests pass for MX host?")]
-            else:
-                all_tests_pass = (all_tests_pass==True)
-                this_ret += [ DaneTestResult(passed=all_tests_pass,
-                                             test=TEST_NONMX_ALL_PASS,
-                                             hostname=hostname,
-                                             what="Do all tests pass for a non-MX host?")]
-                
-            ret += this_ret
-    if mx_data:
-        def find_lowest():
-            for i in mx_test_results:
-                if i in [True,False]: return i
-            return False
-        ret += [DaneTestResult(passed=find_lowest(),
-                               test=TEST_MX_PRIORITY,
-                               hostname=original_hostname,
-                               what="Highest priority MX server that is operational must be DANE protected")]
+    # Get the TLSA record for the final destination
+    destination_tlsa_ret = get_dns_tlsa(destination_hostname,25)
+    final_tlsa_records   = get_tlsa_records(destination_tlsa_ret)
+    ret += destination_tlsa_ret + mx_data
+
+    # Get the MX hosts
+    first = True
+    mx_rets = []
+    for hostname in [h.rdata['exchange'] for h in mx_data]:
+        this_ret       = tlsa_smtp_host_verify(hostname,final_tlsa_records,'MX')
+        all_tests_pass = True if count_passed(this_ret,True)>0 and count_passed(this_ret,False)==0 else None
+        if first:
+            # If this is the first host and TEST_SMTP_CONNECT succeded,
+            # make sure it is DANE protected.
+            r = find_first_test(this_ret,TEST_SMTP_CONNECT)
+            if r and r.passed:
+                # we found the first working SMTP
+                # Now verify if it is DANE-protected or not.
+                first = False   
+                ret += [DaneTestResult(passed=all_tests_pass,
+                                       test=TEST_MX_PREEMPTION,
+                                       hostname=destination_hostname,
+                                       what="Highest priority MX server that is operational must be DANE protected")]
+        this_ret += [ DaneTestResult(passed=all_tests_pass,
+                                     test=TEST_ALL_SMTP_PASS,
+                                     hostname=hostname)]
+        mx_rets += this_ret
+    ret += mx_rets
     return ret
     
 
@@ -912,6 +906,7 @@ def print_test_results(results,format="text"):
 
     print("Tests completed: %d" % len(results))
     
+    needs_header = True
     if format=="text":
         print("  status ")
         print(" ------- ")
@@ -919,15 +914,19 @@ def print_test_results(results,format="text"):
         print(html_style)
         print("<p>")
         print("<table>")
-        print("<tr><th>Test #</th><th>Host</th><th>IP</th><th>Status</th><th>Description</th></tr>")
     for result in results:
         if format=="html":
             passed_text  = passed(result.passed).replace(":","").replace(" ","")
             passed_class = passed_text.lower()
-            print("<tr class={}>".format(passed_class))
             if result.passed==INFO:
-                print("<td colspan=5>{}</td></tr>".format(result.what))
+                print("<tr class={}>".format(passed_class))
+                print("<td colspan=5 class=info>{}</td></tr>".format(result.what))
+                needs_header = True
                 continue
+            if needs_header:
+                print("<tr><th>Test #</th><th>Host</th><th>IP</th><th>Status</th><th>Description</th></tr>")
+                needs_header = False
+            print("<tr class={}>".format(passed_class))
             num  = result.test.num if result.test else ""
             desc = result.test.desc if result.test else ""
             desc += "<br>" if len(desc)>0 and len(result.what)>0 else ""
