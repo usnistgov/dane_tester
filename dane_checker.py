@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 import getdns
 import sys
 import pytest
@@ -38,47 +41,59 @@ th, td { padding: 3px }
 
 valid_tests = {}
 class MakeTest:
-    def __init__(self,num,desc,section=""):
+    def __init__(self,num,desc,section="",failed_desc=None):
         assert num not in valid_tests
         self.num  = num
         self.desc = desc
         self.section = section
+        self.failed_desc = failed_desc
         valid_tests[num] = self
 
-TEST_CNAME_NOERROR     = MakeTest(50,"""If at any stage of CNAME expansion an error is detected, the lookup of the original requested records MUST be considered to have failed.""","2.1.3")
-TEST_CNAME_SECURE      = MakeTest(51,"""if at
+## 100 series - DNS queries ##
+TEST_TLSA_PRESENT    = MakeTest(101,"Service hostname must have matching TLSA record")
+TEST_TLSA_DNSSEC     = MakeTest(102,"TLSA records must be secured by DNSSEC")
+TEST_TLSA_ATLEAST1   = MakeTest(103,"There must be at least 1 usable TLSA record for a host name")
+TEST_TLSA_CU_VALIDATES = MakeTest(104,"At least one TLSA record must have a certificate usage and associated data that validates at least one EE cetficiate")
+TEST_CNAME_NOERROR     = MakeTest(105,"""If at any stage of CNAME expansion an error is detected, the lookup of the original requested records MUST be considered to have failed.""","2.1.3")
+TEST_CNAME_SECURE      = MakeTest(106,"""if at
    any stage of recursive expansion an "insecure" CNAME record is
    encountered, then it and all subsequent results (in particular, the
    final result) MUST be considered "insecure" regardless of whether any
    earlier CNAME records leading to the "insecure" record were "secure".""","2.1.3")
+TEST_DNSSEC_ALL      = MakeTest(107,"All DNS lookups must be secured by DNSSEC")
 
-TEST_EECERT_HAVE     = MakeTest(100,"Server must have End Entity Certificate")
-TEST_EECERT_CN_MATCH = MakeTest(101,"Service name matches EE Certificate Common Name")
-TEST_EECERT_AN_MATCH = MakeTest(102,"Service name matches EE Certificate Alt Name")
-TEST_EECERT_VERIFY   = MakeTest(103,"Server EE Certificate must PKIX Verify")
-TEST_EECERT_MATCH    = MakeTest(104,"Service name must match EE Certificate Common Name or Alt Name")
-TEST_TLSA_ALL_IP     = MakeTest(105,"All IP addresses for a domain name that is TLSA protected must TLSA verify")
-TEST_SMTP_CU         = MakeTest(200,"TLSA records for port 25 SMTP service used by client MTAs SHOULD "\
+## 200 series - Certificate verification
+TEST_TLSA_CU02_TP_FOUND = MakeTest(201,"TLSA certificate usage 0 and 2 specifies a trust point that is found in the server's certificate chain")
+TEST_SMTP_CU         = MakeTest(202,"TLSA records for port 25 SMTP service used by client MTAs SHOULD "\
                                     "NOT include TLSA RRs with certificate usage PKIX-TA(0) or PKIX-EE(1)")
-TEST_TLSA_PRESENT    = MakeTest(201,"Service hostname must have matching TLSA record")
-TEST_TLSA_DNSSEC     = MakeTest(202,"TLSA records must be secured by DNSSEC")
-TEST_TLSA_ATLEAST1   = MakeTest(203,"There must be at least 1 usable TLSA record for a host name")
-TEST_TLSA_CU_VALIDATES = MakeTest(204,"At least one TLSA record must have a certificate usage and associated data that validates at least one EE cetficiate")
-TEST_TLSA_CU02_TP_FOUND = MakeTest(205,"TLSA certificate usage 0 and 2 specifies a trust point that is found in the server's certificate chain")
-TEST_TLSA_PARMS      = MakeTest(300,"TLSA Certificate Usage must be in the range 0..3, Selector in the range 0--1, and matching type in the range 0--2")
-TEST_TLSA_RR_LEAF    = MakeTest(301,"TLSA RR is not supposed to match leaf with usage 0 or 2")
-TEST_ALL_SMTP_PASS  = MakeTest(303,"All DANE-related tests must pass for a SMTP host")
-TEST_DNSSEC_ALL      = MakeTest(304,"All DNS lookups must be secured by DNSSEC")
-TEST_TLSA_HTTP_NO_FAIL = MakeTest(400,"No HTTP DANE tests may hard fail")
+TEST_TLSA_PARMS      = MakeTest(203,"TLSA Certificate Usage must be in the range 0..3, Selector in the range 0--1, and matching type in the range 0--2")
+TEST_TLSA_RR_LEAF    = MakeTest(204,"TLSA RR is not supposed to match leaf with usage 0 or 2")
+TEST_DANE_RECOMMEND  = MakeTest(205,"""Internet-Draft RECOMMEND[s] the use of "DANE-EE(3) SPKI(1) SHA2-256(1)" with "DANE-TA(2) Cert(0) SHA2-256(1)" TLSA records as a second choice, depending on site needs.""","3.1")
 
-TEST_MX_PREEMPTION   = MakeTest(401,"""an MX hostname with a worse (numerically higher) MX preference that has TLSA records MUST NOT preempt an MX hostname with a better (numerically lower) preference that has no TLSA records.""","2.2.1")
+## 300 Series - Server Verification
+TEST_SMTP_CONNECT    = MakeTest(301,"Server must have working SMTP server on IP address")
+TEST_SMTP_STARTTLS   = MakeTest(302,"SMTP Server must offer STARTTLS")
+TEST_SMTP_TLS        = MakeTest(303,"SMTP Server must enter TLS mode")
+TEST_SMTP_QUIT       = MakeTest(304,"SMTP Server must work after TLS entered")
+TEST_EECERT_HAVE     = MakeTest(305,"Server must have End Entity Certificate")
+TEST_EECERT_VERIFY   = MakeTest(306,"Server EE Certificate must PKIX Verify",failed_desc="Server EE Certificate does not PKIX Verify")
+TEST_EECERT_NAME_CHECK = MakeTest(307,"""When name checks are applicable (certificate usage DANE-TA(2)), if
+   the server certificate contains a Subject Alternative Name extension
+   ([RFC5280]), with at least one DNS-ID ([RFC6125]) then only the DNS-
+   IDs are matched against the client's reference identifiers.... The
+   server certificate is considered matched when one of its presented
+   identifiers ([RFC5280]) matches any of the client's reference
+   identifiers.""","3.2.3")
 
-TEST_SMTP_CONNECT    = MakeTest(106,"Server must have working SMTP server on IP address")
-TEST_SMTP_STARTTLS   = MakeTest(107,"SMTP Server must offer STARTTLS")
-TEST_SMTP_TLS        = MakeTest(108,"SMTP Server must enter TLS mode")
-TEST_SMTP_QUIT       = MakeTest(109,"SMTP Server must work after TLS entered")
 
-TEST_DANE_RECOMMEND  = MakeTest(500,"""Internet-Draft RECOMMEND[s] the use of "DANE-EE(3) SPKI(1) SHA2-256(1)" with "DANE-TA(2) Cert(0) SHA2-256(1)" TLSA records as a second choice, depending on site needs.""","3.1")
+
+### 400 series
+TEST_TLSA_ALL_IP     = MakeTest(401,"All IP addresses for a host that is TLSA protected must TLSA verify")
+TEST_ALL_SMTP_PASS   = MakeTest(402,"All DANE-related tests must pass for a SMTP host")
+TEST_TLSA_HTTP_NO_FAIL = MakeTest(403,"No HTTP DANE test may fail")
+
+TEST_MX_PREEMPTION   = MakeTest(404,"""an MX hostname with a worse (numerically higher) MX preference that has TLSA records MUST NOT preempt an MX hostname with a better (numerically lower) preference that has no TLSA records.""","2.2.1")
+
 
 TEST_DANE2_CHAIN     = MakeTest(501,"""SMTP servers that rely on certificate usage DANE-TA(2) TLSA records for TLS authentication MUST include the TA certificate as part of the certificate chain presented in the TLS handshake server certificate message even when it is a self-signed root certificate.""","3.2.1")
     
@@ -250,7 +265,9 @@ def cert_subject_alternative_names(cert):
     p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stdin=subprocess.PIPE)
     res = p.communicate(input=cert)[0]
     if p.returncode!=0: return [] # error condition
-    return set(res.split("\n"))
+    r = set(res.split("\n"))
+    r.remove("")
+    return r
 
 # Verify a certificate chain for a hostname
 # The result should be all passed=True, no passed=False
@@ -268,11 +285,11 @@ def cert_verify(anchor_cert,cert_chain,hostname,ipaddr,cert_usage):
     ret = []
     against = "TLSA-provided anchors"  if anchor_cert else "system anchors"
     r = pem_verify(anchor_cert,cert_chain,certs[0])
-    ret += [ DaneTestResult(passed=r if True else None,
+    ret += [ DaneTestResult(passed=r,
                             test=TEST_EECERT_VERIFY,
                             hostname=hostname,ipaddr=ipaddr,
                             what="Checking EE Certificate '{}' against {}".format(cn,against)) ]
-
+    
 
     def hostname_desc(which,hostname,name):
         msg = "EE Certificate {} '{}' matches hostname".format(which,name)
@@ -284,24 +301,27 @@ def cert_verify(anchor_cert,cert_chain,hostname,ipaddr,cert_usage):
         ret += [ DaneTestResult(passed=True,
                                 what=hostname_desc("Common Name",hostname,cn),
                                 hostname=hostname,ipaddr=ipaddr,
-                                test=TEST_EECERT_CN_MATCH) ]
+                                test=TEST_EECERT_NAME_CHECK) ]
         matched = True
     else:
         # Check to see if any subject alternative names
+        extra = ""
         for an in cert_subject_alternative_names(certs[0]):
             if hostname_match(hostname,an):
                 ret += [ DaneTestResult(passed=True,
                                         hostname=hostname,ipaddr=ipaddr,
                                         what=hostname_desc("Alternative Name",hostname,an),
-                                        test=TEST_EECERT_AN_MATCH) ]
+                                        test=TEST_EECERT_NAME_CHECK) ]
                 matched = True
                 break
+            extra += " or alternative name " + an
+        extra += "."
 
     if matched == False:
-        ret += [ DaneTestResult(passed=None,
+        ret += [ DaneTestResult(passed=False,
                                 hostname=hostname,ipaddr=ipaddr,
-                                test=TEST_EECERT_MATCH,
-                                what="EE Certificate Common Name '{}' does not match hostname '{}'".format(cn,hostname)) ]
+                                test=TEST_EECERT_NAME_CHECK,
+                                what="EE Certificate Common Name '{}' does not match hostname '{}' {}".format(cn,hostname,extra)) ]
     return ret
 
 ################################################################
@@ -404,8 +424,16 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,ipaddr, protocol):
                             test=TEST_TLSA_PARMS,
                             hostname=hostname,
                             ipaddr=ipaddr,
-                            what="Check TLSA Parameters: {} {} {}".format(cert_usage,selector,mtype)) ]
+                            what="Checking TLSA Parameters: {} {} {}".format(cert_usage,selector,mtype)) ]
     if not tlsa_params_valid: return ret
+
+    # Check for following recommendation
+    if protocol=='smtp':
+        ret += [ DaneTestResult(passed=(cert_usage==3 and selector==1 and mtype==1) or (cert_usage==2 and selector==0 and mtype==1),
+                                hostname=hostname,
+                                ipaddr=ipaddr,
+                                what="Checking TLSA Parameters against Internet-Draft Recommendation: {} {} {}".format(cert_usage,selector,mtype)) ]
+                                
 
 
     # Cert Usage 0-1 SHOULD NOT be used with SMTP
@@ -414,7 +442,7 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,ipaddr, protocol):
         ret += [ DaneTestResult(passed=cu_valid,
                                 hostname=hostname,
                                 ipaddr=ipaddr,
-                                what="Certificate Usage is {}".format(cert_usage),
+                                what="Checking certificate usage: {}".format(cert_usage),
                                 test=TEST_SMTP_CU) ]
         if not cu_valid: return ret
                  
@@ -546,7 +574,7 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
         try:
             p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
             multi_certs = p.communicate(inbuf)[0]
-            what="Fetched EE Certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
+            what="Fetching EE Certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
             passed="END CERTIFICATE" in multi_certs
         except TimeoutError:
             what="Timeout fetching certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
@@ -582,7 +610,7 @@ def validate_remote_smtp(ipaddr,hostname):
     if c:
         (code,resp) = c.ehlo("THERE")
         ret += [ DaneTestResult(test=TEST_SMTP_STARTTLS,
-                                passed="\nSTARTTLS\n" in resp,
+                                passed="STARTTLS" in resp,
                                 hostname=hostname,
                                 ipaddr=ipaddr,
                                 what="Checking for STARTTLS") ]
@@ -726,7 +754,7 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",final_tlsa=[]):
     ret += get_dns_tlsa(hostname,port)
     tlsa_records = get_tlsa_records(ret) + final_tlsa
 
-    what = "Checking TLSA records for {}".format(tlsa_hostname(hostname,port))
+    what = "Resolving TLSA records for {}".format(tlsa_hostname(hostname,port))
     ret += [ DaneTestResult(passed = (len(tlsa_records)>0),
                             test = TEST_TLSA_PRESENT,
                             hostname = hostname,
@@ -765,8 +793,8 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",final_tlsa=[]):
         cert_chain = cert_results[0].data
 
         # Verify against each TLSA record
-        # If we find a matching TLSA record, report the success.
-        # If we do not find a matching TLSA record, report all of the failures.
+        # If we find a usable TLSA record, report the success.
+        # If we do not find a usable TLSA record, report all of the records failures.
         ret_tlsa_noverify = []
         ret_tlsa_verified = []
         validating_tlsa_records = 0
@@ -790,7 +818,7 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",final_tlsa=[]):
                                     test=TEST_TLSA_ATLEAST1,
                                     ipaddr=ipaddr,
                                     hostname=hostname,
-                                    what='Total validating TLSA records for {} host {} ipaddr {}: {}'.format(desc,hostname,ipaddr,validating_tlsa_records)) ]
+                                    what='Counting usable TLSA records for {} host {} ipaddr {}. Total found: {}'.format(desc,hostname,ipaddr,validating_tlsa_records)) ]
         else:
             # If not TLSA records, at least check the EE certificate
             ret += ret_tlsa_noverify
@@ -817,7 +845,6 @@ def apply_dnssec_test(ret):
 def tlsa_http_verify(url):
     from urlparse import urlparse
     ret = []
-    ret += [ DaneTestResult(passed=INFO,what="tlsa_http_verify Using OpenSSL Version {}".format(openssl_version())) ]
 
     # Find the host and port
     o = urlparse(url)
@@ -837,7 +864,7 @@ def tlsa_http_verify(url):
 # Check to see if the TLSA record for an SMTP host is okay.
 # @param final_tlsa_records - additional TLSA records if hostname is not the final deliery
 def tlsa_smtp_host_verify(hostname,final_tlsa_records,host_type):
-    ret = [ DaneTestResult(passed=INFO,what='Checking {} host {}:'.format(host_type,hostname)) ]
+    ret = [ DaneTestResult(passed=INFO,what='Detail for {} host {}:'.format(host_type,hostname)) ]
     ret += tlsa_service_verify(desc=host_type,hostname=hostname,port=25,protocol='smtp', final_tlsa=final_tlsa_records)
     apply_dnssec_test(ret)
     return ret
@@ -847,7 +874,6 @@ def tlsa_smtp_verify(destination_hostname):
 
     # Get a list of hosts from either the MX list or the hostname
     ret = []
-    ret += [ DaneTestResult(passed=INFO,what="tlsa_smtp_verify Using OpenSSL Version {}".format(openssl_version())) ]
     final_tlsa = []
     mx_data  = get_dns_mx(destination_hostname)
     if not mx_data:
@@ -864,9 +890,10 @@ def tlsa_smtp_verify(destination_hostname):
     # Get the MX hosts
     first = True
     mx_rets = []
+    smtp_tlsa_status = None
     for hostname in [h.rdata['exchange'] for h in mx_data]:
         this_ret       = tlsa_smtp_host_verify(hostname,final_tlsa_records,'MX')
-        all_tests_pass = True if count_passed(this_ret,True)>0 and count_passed(this_ret,False)==0 else None
+        all_tests_pass = True if count_passed(this_ret,True)>0 and count_passed(this_ret,False)==0 else False
         if first:
             # If this is the first host and TEST_SMTP_CONNECT succeded,
             # make sure it is DANE protected.
@@ -875,14 +902,29 @@ def tlsa_smtp_verify(destination_hostname):
                 # we found the first working SMTP
                 # Now verify if it is DANE-protected or not.
                 first = False   
-                ret += [DaneTestResult(passed=all_tests_pass,
-                                       test=TEST_MX_PREEMPTION,
-                                       hostname=destination_hostname,
-                                       what="Highest priority MX server that is operational must be DANE protected")]
+                smtp_tlsa_status = all_tests_pass
+
         this_ret += [ DaneTestResult(passed=all_tests_pass,
+                                     what='Scanning DANE tests for MX host {}'.format(hostname),
                                      test=TEST_ALL_SMTP_PASS,
                                      hostname=hostname)]
         mx_rets += this_ret
+        # If this MX hosts pasts, add success to destination_hostname
+        if all_tests_pass:
+            ret += [ DaneTestResult(passed=all_tests_pass,
+                                    what='Scanning DANE tests for MX host {}'.format(hostname),
+                                    test=TEST_ALL_SMTP_PASS,
+                                    hostname=hostname)]
+
+    ret += [DaneTestResult(passed=smtp_tlsa_status,
+                           test=TEST_MX_PREEMPTION,
+                           hostname=destination_hostname,
+                           what="Highest priority MX server that is operational must be DANE protected")]
+    ret += [DaneTestResult(passed=INFO,
+                           what='Conclusion: {} {} receive DANE-secured EMAIL'.format(destination_hostname,
+                                                                                      'can' if smtp_tlsa_status else 'cannot'),
+                           hostname=destination_hostname)]
+    ret += [DaneTestResult(passed=INFO,what='')] # blank line
     ret += mx_rets
     return ret
     
@@ -897,7 +939,7 @@ def print_test_results(results,format="text"):
                 False:"FAILED: ",
                 "":"",
                 INFO:"INFO: ",
-                None:"Soft Fail: "}[t]
+                None:""}[t]
 
     import textwrap
     w = textwrap.TextWrapper()
@@ -924,12 +966,21 @@ def print_test_results(results,format="text"):
                 needs_header = True
                 continue
             if needs_header:
-                print("<tr><th>Test #</th><th>Host</th><th>IP</th><th>Status</th><th>Description</th></tr>")
+                print("<tr><th>Test #</th><th>Host</th><th>IP</th><th>Status</th><th>Test Description (§ Section)</th></tr>")
                 needs_header = False
             print("<tr class={}>".format(passed_class))
-            num  = result.test.num if result.test else ""
-            desc = result.test.desc if result.test else ""
+            if result.test:
+                num  = result.test.num
+                desc = result.test.desc
+                if not result.passed and result.test.failed_desc:
+                    desc = result.test.failed_desc
+                if result.test.section:
+                    desc += "<br> §" + result.test.section
+            else:
+                num = ""
+                desc = ""
             desc += "<br>" if len(desc)>0 and len(result.what)>0 else ""
+            desc += "<b>" + dnssec(result) + "</b>" + "<i>" + result.what + "</i>"
 
             def fixnone(x):
                 return x if x!=None else ""
@@ -939,7 +990,7 @@ def print_test_results(results,format="text"):
                     fixnone(result.hostname),
                     fixnone(result.ipaddr),
                     passed_text,
-                    desc + "<b>" + dnssec(result) + "</b>" + "<i>" + result.what + "</i>"))
+                    desc ))
             continue
                         
 
@@ -971,14 +1022,15 @@ failed = []
 
 def process(domain,format="text"):
     if "http" in domain:
-        r = tlsa_http_verify(domain)
+        ret = tlsa_http_verify(domain)
     else:
-        r = tlsa_smtp_verify(domain)
-    print_test_results(r,format=format)
-    if r[-1].passed==True:
+        ret = tlsa_smtp_verify(domain)
+    if ret[-1].passed==True:
         passed.append(domain)
     else:
         failed.append(domain)
+    ret += [ DaneTestResult(passed=INFO,what="Using OpenSSL Version {}".format(openssl_version())) ]
+    print_test_results(ret,format=format)
 
 def print_stats():
     if passed:

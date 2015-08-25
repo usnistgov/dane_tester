@@ -24,9 +24,9 @@ if __name__=="__main__":
    if m:
       host = "https://" + m.group(1) + "/"
 
-   sys.stdout.flush()
    if host:
-      print "Checking <b>{0}</b>:<br>".format(host)
+      sys.stdout.flush()
+      print "Checking ok <b>{0}</b>:<br>".format(host)
       dane_checker.process(host,format='html')
    sys.stdout.flush()
 
