@@ -7,6 +7,7 @@ import pytest
 import M2Crypto
 
 MAX_CNAME_DEPTH=20
+MAX_TIMEOUT=30
 
 get_altnames_exe = './get_altnames'
 openssl_exe = 'openssl' 
@@ -577,7 +578,7 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
         cmd = [openssl_exe,'s_client','-host',ipaddr,'-port',str(port),'-starttls','smtp','-showcerts']
     if not cmd:
         raise RuntimeError("invalid protocol")
-    with timeout(seconds=10):
+    with timeout(seconds=MAX_TIMEOUT):
         try:
             p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
             multi_certs = p.communicate(inbuf)[0]
@@ -603,9 +604,9 @@ def validate_remote_smtp(ipaddr,hostname):
     import smtplib,ssl
     p = False
     c = None
-    with timeout(seconds=10):
+    with timeout(seconds=MAX_TIMEOUT):
         try:
-            c = smtplib.SMTP(hostname)
+            c = smtplib.SMTP(ipaddr)
             ret += [ DaneTestResult(test=TEST_SMTP_CONNECT,
                                     passed=True if c else False,
                                     hostname=hostname,
