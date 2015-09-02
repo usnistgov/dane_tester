@@ -6,13 +6,13 @@
 
 // https://github.com/iSECPartners/ssl-conservatory
 
-static void dump_alt_names(const X509 *server_cert) {
+static void dump_alt_names(const X509 *server_cert,int nid,const char *prefix) {
     int i=0;
     int san_names_nb = -1;
     STACK_OF(GENERAL_NAME) *san_names = NULL;
 
     // Try to extract the names within the SAN extension from the certificate
-    san_names = X509_get_ext_d2i((X509 *) server_cert, NID_subject_alt_name, NULL, NULL);
+    san_names = X509_get_ext_d2i((X509 *) server_cert, nid, NULL, NULL);
     if (san_names == NULL) {
         return ;
     }
@@ -28,7 +28,7 @@ static void dump_alt_names(const X509 *server_cert) {
 
             // Make sure there isn't an embedded NUL character in the DNS name
             if (ASN1_STRING_length(current_name->d.dNSName) == strlen(dns_name)) {
-                puts(dns_name);
+                printf("%s%s\n",prefix,dns_name);
             }
         }
     }
@@ -52,7 +52,8 @@ int main(int argc,const char **argv)
         return EXIT_FAILURE;
     }
     
-    dump_alt_names(cert);
+    dump_alt_names(cert,NID_dNSDomain,"");
+    dump_alt_names(cert,NID_subject_alt_name,"");
 
     // any additional processing would go here..
 

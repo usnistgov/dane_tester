@@ -95,7 +95,7 @@ TEST_TLSA_ALL_IP     = MakeTest(403,"All IP addresses for a host that is TLSA pr
 TEST_TLSA_HTTP_NO_FAIL = MakeTest(404,"No HTTP DANE test may fail")
 TEST_DNSSEC_ALL      = MakeTest(405,"All DNS lookups must be secured by DNSSEC")
 TEST_ALL_SMTP_PASS   = MakeTest(406,"All DANE-related tests must pass for a SMTP host")
-TEST_MX_PREEMPTION   = MakeTest(407,"""an MX hostname with a worse (numerically higher) MX preference that has TLSA records MUST NOT preempt an MX hostname with a better (numerically lower) preference that has no TLSA records.""","2.2.1")
+TEST_MX_PREEMPTION   = MakeTest(407,""" "Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly." Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.""","2.2.1")
 
     
 
@@ -121,6 +121,7 @@ class timeout:
 
 INFO="INFO"
 WARNING="WARNING"
+PROGRESS="PROGRESS"
 
 
 class DaneTestResult:
@@ -298,17 +299,11 @@ def cert_verify(anchor_cert,cert_chain,hostname,ipaddr,cert_usage):
         if name_clean(hostname)!=name_clean(name): msg += " '{}'".format(hostname)
         return msg
 
-    matched = False
-    if hostname_match(hostname,cn):
-        ret += [ DaneTestResult(passed=True,
-                                what=hostname_desc("Common Name",hostname,cn),
-                                hostname=hostname,ipaddr=ipaddr,
-                                test=TEST_EECERT_NAME_CHECK) ]
-        matched = True
-    else:
-        # Check to see if any subject alternative names
-        extra = ""
-        for an in cert_subject_alternative_names(certs[0]):
+
+    alt_names = cert_subject_alternative_names(certs[0])
+    if alt_names:
+        matched = False
+        for an in alt_names:
             if hostname_match(hostname,an):
                 ret += [ DaneTestResult(passed=True,
                                         hostname=hostname,ipaddr=ipaddr,
@@ -316,14 +311,25 @@ def cert_verify(anchor_cert,cert_chain,hostname,ipaddr,cert_usage):
                                         test=TEST_EECERT_NAME_CHECK) ]
                 matched = True
                 break
-            extra += " or alternative name " + an
-        extra += "."
-
-    if matched == False:
         ret += [ DaneTestResult(passed=False,
                                 hostname=hostname,ipaddr=ipaddr,
                                 test=TEST_EECERT_NAME_CHECK,
-                                what="EE Certificate Common Name '{}' does not match hostname '{}' {}".format(cn,hostname,extra)) ]
+                                what="Hostname '{}' does not match EE Certificate AltNames {}.".
+                                format(hostname,", ".join(alt_names)))]
+
+
+
+    else:
+        matched = hostname_match(hostname,cn)
+        if matched:
+            what="Hostname '{}' matches EE Certificate Common Name '{}'".format(hostname,cn)
+        else:
+            what="Hostname '{}' does not match EE Certificate Common Name '{}'".format(hostname,cn)
+        ret += [ DaneTestResult(passed=matched,
+                                what=what,
+                                hostname=hostname,ipaddr=ipaddr,
+                                test=TEST_EECERT_NAME_CHECK) ]
+                 
     return ret
 
 ################################################################
@@ -420,6 +426,9 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,ipaddr, protocol):
     mtype      = tlsa_rdata['matching_type']
     associated_data = tlsa_rdata['certificate_association_data']
     ret = []
+
+    ret += [ DaneTestResult(passed=PROGRESS,
+                            what='Checking TLSA record {} {} {} {}'.format(cert_usage,selector,mtype,hexdump(associated_data))) ]
 
     tlsa_params_valid = (cert_usage in [0,1,2,3]) and (selector in [0,1]) and (mtype in [0,1,2])
     ret += [ DaneTestResult(passed=tlsa_params_valid,
@@ -544,11 +553,14 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostname,ipaddr, protocol):
         if count_passed(r,False) > 0:
             usage_good = False
 
-    # If usage is still good, say so
+    # If usage is still good, say so. Otherwise leave a blank line...
     if usage_good:
         ret += [ DaneTestResult(passed=True,
                                 what="Verifying TLSA record against certificate chain",
                                 test=TEST_TLSA_CU_VALIDATES) ]
+
+    ret += [ DaneTestResult(passed=PROGRESS,
+                            what='End of TLSA record test') ]
     return ret
 
 
@@ -796,7 +808,7 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",final_hostname=No
     if final_tlsa:
         tlsa_records += final_tlsa
 
-    what = "Resolving TLSA records for hostname {}".format(tlsa_hostname(hostname,port))
+    what = "Resolving TLSA records for hostname '{}'".format(tlsa_hostname(hostname,port))
     if final_hostname:
         what += " and hostname " + tlsa_hostname(final_hostname,port)
     ret += [ DaneTestResult(passed = (len(tlsa_records)>0),
@@ -983,6 +995,7 @@ def print_test_results(results,format="text"):
                 "":"",
                 INFO:"INFO: ",
                 WARNING:"WARNING: ",
+                PROGRESS:"",
                 None:""}[t]
 
     import textwrap
@@ -1019,7 +1032,10 @@ def print_test_results(results,format="text"):
                 if not result.passed and result.test.failed_desc:
                     desc = result.test.failed_desc
                 if result.test.section:
-                    desc = '"{}" (§{})'.format(desc,result.test.section)
+                    if '"' in desc:
+                        desc = '{} (§{})'.format(desc,result.test.section)
+                    else:
+                        desc = '"{}" (§{})'.format(desc,result.test.section)
             else:
                 num = ""
                 desc = ""

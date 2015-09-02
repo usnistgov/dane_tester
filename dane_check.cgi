@@ -30,7 +30,7 @@ if __name__=="__main__":
       print "Checking ok <b>{0}</b>:<br>".format(host)
       dane_checker.process(host,format='html')
       print "<p>"
-      print "Compare with <a href='https://dane.sys4.de/smpt/{}'>dane.sys4.de</a>".format(host)
+      print "Compare with <a href='https://dane.sys4.de/smtp/{}'>dane.sys4.de</a>".format(host)
    sys.stdout.flush()
 
    print "<p>"
