@@ -4,9 +4,7 @@
 #include <openssl/x509v3.h>
 #include <string.h>
 
-// https://github.com/iSECPartners/ssl-conservatory
 
-static void dump_alt_names(const X509 *server_cert,int nid,const char *prefix) {
     int i=0;
     int san_names_nb = -1;
     STACK_OF(GENERAL_NAME) *san_names = NULL;
