@@ -5,6 +5,9 @@
 #include <string.h>
 
 
+// https://github.com/iSECPartners/ssl-conservatory
+ 
+static void dump_alt_names(const X509 *server_cert,int nid,const char *prefix) {
     int i=0;
     int san_names_nb = -1;
     STACK_OF(GENERAL_NAME) *san_names = NULL;
@@ -22,6 +25,16 @@
 
         if (current_name->type == GEN_DNS) {
             // Current name is a DNS name, let's check it
+
+            /*
+             * We expect the OpenSSL library to construct GEN_DNS extesion objects as
+             * ASN1_IA5STRING values. Check we got the right union member.
+             */
+            if (ASN1_STRING_type(current_name->d.ia5) != V_ASN1_IA5STRING) {
+                fprintf(stderr,"invalid ASN1 value type in subjectAltName");
+                return;
+            }
+
             char *dns_name = (char *) ASN1_STRING_data(current_name->d.dNSName);
 
             // Make sure there isn't an embedded NUL character in the DNS name
@@ -50,7 +63,6 @@ int main(int argc,const char **argv)
         return EXIT_FAILURE;
     }
     
-    dump_alt_names(cert,NID_dNSDomain,"");
     dump_alt_names(cert,NID_subject_alt_name,"");
 
     // any additional processing would go here..

@@ -295,11 +295,6 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
                             what="Checking EE Certificate '{}' against {}".format(cn,against)) ]
     
 
-    def hostname_desc(which,hostname,name):
-        msg = "EE Certificate {} '{}' matches hostname".format(which,name)
-        if name_clean(hostname)!=name_clean(name): msg += " '{}'".format(hostname)
-        return msg
-
 
     alt_names = cert_subject_alternative_names(certs[0])
     if alt_names:
@@ -307,9 +302,10 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
         for hostname in hostnames:
             for an in alt_names:
                 if hostname_match(hostname,an):
+                    msg = "EE Certificate Alternative Name '{}' matches hostname '{}'".format(an,hostname)
                     ret += [ DaneTestResult(passed=True,
                                             hostname=hostname0,ipaddr=ipaddr,
-                                            what=hostname_desc("Alternative Name",hostname,an),
+                                            what=msg,
                                             test=TEST_EECERT_NAME_CHECK) ]
                     matched = True
                     break
@@ -317,17 +313,17 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
             ret += [ DaneTestResult(passed=False,
                                     hostname=hostname0,ipaddr=ipaddr,
                                     test=TEST_EECERT_NAME_CHECK,
-                                    what="Hostname '{}' does not match EE Certificate AltNames {}.".
-                                    format(hostname,", ".join(alt_names)))]
+                                    what="Hostname {} does not match EE Certificate AltNames {}.".
+                                    format(hostnames,", ".join(alt_names)))]
 
 
 
     else:
         matched = hostname_match(hostname,cn)
         if matched:
-            what="Hostname '{}' matches EE Certificate Common Name '{}'".format(hostname,cn)
+            what="Hostname {} matches EE Certificate Common Name '{}'".format(hostnames,cn)
         else:
-            what="Hostname '{}' does not match EE Certificate Common Name '{}'".format(hostname,cn)
+            what="Hostname {} does not match EE Certificate Common Name '{}'".format(hostnames,cn)
         ret += [ DaneTestResult(passed=matched,
                                 what=what,
                                 hostname=hostname0,ipaddr=ipaddr,
@@ -823,8 +819,6 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
     if delivery_tlsa:
         tlsa_records += delivery_tlsa
 
-    print("delivery_hostname:",delivery_hostname,"delivery_tlsa:",delivery_tlsa) # TK
-
     what = "Resolving TLSA records for hostname '{}'".format(tlsa_hostname(hostname,port))
     if delivery_hostname:
         what += " and hostname " + tlsa_hostname(delivery_hostname,port)
@@ -872,6 +866,8 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
         ret_tlsa_verified = []
         validating_tlsa_records = 0
         hostnames         = [hostname]
+        if chased_hostname and hostname!=chased_hostname:
+            hostnames.append(chased_hostname)
         if delivery_hostname:
             hostnames.append(delivery_hostname)
         for tlsa_record in tlsa_records:

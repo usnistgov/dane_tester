@@ -7,3 +7,8 @@ pub:
 
 zip:
 	zip dane_checker.zip *.py *.cgi
+
+
+centos-install:
+	echo target for installing necessary packages on a centos build
+	yum install -y gcc-c++
