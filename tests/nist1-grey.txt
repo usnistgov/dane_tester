@@ -1,0 +1,13 @@
+https://300rk.tlsa.grey.test.had-pilot.biz/
+https://301rk.tlsa.grey.test.had-pilot.biz/
+https://310rk.tlsa.grey.test.had-pilot.biz/
+https://300expSS.tlsa.grey.test.had-pilot.biz/
+https://301expSS.tlsa.grey.test.had-pilot.biz/
+https://310expSS.tlsa.grey.test.had-pilot.biz/
+https://200exp.tlsa.grey.test.had-pilot.biz/
+https://201exp.tlsa.grey.test.had-pilot.biz/
+https://210exp.tlsa.grey.test.had-pilot.biz/
+https://000ee.tlsa.grey.test.had-pilot.biz/
+https://001ee.tlsa.grey.test.had-pilot.biz/
+https://302targnametarg.dns.grey.test.had-pilot.biz/
+https://302targnamehost.dns.grey.test.had-pilot.biz/
