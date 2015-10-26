@@ -37,15 +37,17 @@
 import cgi,cgitb,subprocess,sys,os,re
 import dane_check
 
-times = 0
-
 if __name__=="__main__":
     print "Content-type: text/html\r\n\r\n"
 
+    try:
+        script = os.environ["SCRIPT_NAME"]
+    except KeyError:
+        script = ""
     cgitb.enable()
     form = cgi.FieldStorage()
-    host = None
-    proto = ''
+    host = ''
+    proto = 'smtp'
     if "host" in form:
         host = form['host'].value
         
@@ -63,24 +65,32 @@ if __name__=="__main__":
         hostname=host.replace("https:","").replace("/","")
         print "<html><title>{} | DANE Checker</title>".format(hostname)
         host = host.strip()
-        print "Checking ok <b>{0}</b>:<br>".format(host)
+        print "Checking <b>{}</b> for DANE {}:<br>".format(host,proto)
         sys.stdout.flush()
         dane_check.process(host,format='html')
         sys.stdout.flush()
         print "<p>"
+        print "<ul>"
         if proto=='smtp':
-            print "Compare with <a href='https://dane.sys4.de/smtp/{}'>dane.sys4.de</a>".format(hostname)
+            print "<li><a href='{}/https/{}'>Check https://{} for HTTPS DANE</a>".format(script,hostname,hostname)
+            print "<li>Compare with <a href='https://dane.sys4.de/smtp/{}'>dane.sys4.de</a>".format(hostname)
+        if proto=='https':
+            print "<li><a href='{}/smtp/{}'>Check <b>{}</b> for SMTP DANE</a>".format(script,hostname,hostname)
+        print "</ul>"
+        
     else:
         print "<html><title>DANE Checker</title>"
 
     print "<p>"
+    print "<hr>"
+    print "Test another host:<p>"
     print "<form>"
     print "<input type='text' name='host'><br>"
     print "<input type='submit' value='Submit'>"
     print "</form>"
     print "Or try some of these test points:<br>"
     def murl(x):
-        return "<a href='{}?host={}'>{}</a>".format(os.environ["SCRIPT_NAME"],x,x)
+        return "<a href='{}?host={}'>{}</a>".format(script,x,x)
     print "<ul>"
     print "<li>",murl("unixadm.org")," (SMTP)"
     print "<li>",murl("https://www.freebsd.org/")," (HTTP)"

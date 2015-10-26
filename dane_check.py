@@ -57,6 +57,7 @@ os.environ["SSL_CERT_FILE"]="/nonexistant"
 
 html_style = """
 <style>
+.info   { background-color: white }
 .passed { background-color: #80FF80;
           -webkit-print-color-adjust: exact}
 .failed { background-color: #FFA0A0;
@@ -65,22 +66,28 @@ html_style = """
            -webkit-print-color-adjust: exact }
 .non_deployment { background-color: cyan;
                  -webkit-print-color-adjust: exact}
+.breaking_info { border-left: 1px solid white;
+        border-right: 1px solid white;
+        line-height: 200%;
+      }
+.external { font-variant: small-caps;}
 table { border-collapse: collapse }
 th, td { border: 1px solid black }
 th { color: gray }
 td { vertical-align: top }
 th, td { padding: 3px }
-.info { border-left: 1px solid white;
-        border-right: 1px solid white;
-        line-height: 200%;
-      }
-.external { font-variant: small-caps;}
+
 </style>
 """
 
 def dnsviz_url(hostname):
     if hostname.endswith("."): hostname=hostname[0:-1]
     return "http://dnsviz.net/d/{}/dnssec/".format(hostname)
+
+dnsviz_logo='http://dnsviz.net/static/images/logo-dnsviz.png'
+
+def dnsviz_link(hostname):
+    return " <a href='{}' target='_blank' class='external'><img src='{}' height=14></a> ".format(dnsviz_url(hostname),dnsviz_logo)
 
 
 valid_tests = {}
@@ -89,18 +96,18 @@ class MakeTest:
         assert num not in valid_tests
         self.num  = num
         self.desc = desc
-        self.section = section
+        self.section = section  # if present, quote 'desc' unless section begins with a '>'
         self.failed_desc = failed_desc
         self.recommendation = recommendation
         valid_tests[num] = self
 
 ## 100 series - DNS queries ##
 TEST_CNAME_NOERROR     = MakeTest(101,"""If at any stage of CNAME expansion an error is detected, the lookup of the original requested records MUST be considered to have failed.""","2.1.3") 
-TEST_CNAME_EXPANSION_SECURE      = MakeTest(102,"""If at
+TEST_CNAME_EXPANSION_SECURE      = MakeTest(102,"""CNAME records must be authenticated with DNSSEC. “If at
    any stage of recursive expansion an “insecure” CNAME record is
    encountered, then it and all subsequent results (in particular, the
    final result) MUST be considered “insecure” regardless of whether any
-   earlier CNAME records leading to the “insecure” record were  “secure”. ""","2.1.3")
+   earlier CNAME records leading to the “insecure” record were  “secure”.” """,">2.1.3")
 TEST_TLSA_PRESENT    = MakeTest(103,"Service hostname must have matching TLSA record")
 TEST_TLSA_DNSSEC     = MakeTest(104,"TLSA records must be secured by DNSSEC")
 
@@ -119,7 +126,7 @@ TEST_TLSA_PARMS      = MakeTest(303,"TLSA Certificate Usage must be in the range
 TEST_TLSA_RR_LEAF    = MakeTest(304,"TLSA RR is not supposed to match leaf with usage 0 or 2")
 TEST_DANE_SMTP_RECOMMEND  = MakeTest(305,"""Internet-Draft RECOMMEND[s] the use of "DANE-EE(3) SPKI(1) SHA2-256(1)" with "DANE-TA(2) Cert(0) SHA2-256(1)" TLSA records as a second choice, depending on site needs.""","3.1",recommendation=True)
 TEST_EECERT_VERIFY   = MakeTest(306,"Server EE Certificate must PKIX Verify",failed_desc="Server EE Certificate does not PKIX Verify")
-TEST_EECERT_NAME_CHECK = MakeTest(307,"""When name checks are applicable (certificate usage DANE-TA(2)), if
+TEST_EECERT_NAME_CHECK = MakeTest(307,"""When name checks are applicable ... if
    the server certificate contains a Subject Alternative Name extension
    ([RFC5280]), with at least one DNS-ID ([RFC6125]) then only the DNS-
    IDs are matched against the client’s reference identifiers.... The
@@ -136,9 +143,10 @@ TEST_TLSA_ATLEAST1   = MakeTest(402,"There must be at least 1 usable TLSA record
 TEST_TLSA_ALL_IP     = MakeTest(403,"All IP addresses for a host that is TLSA protected must TLSA verify")
 
 TEST_TLSA_HTTP_NO_FAIL = MakeTest(404,"No HTTP DANE test may fail")
-TEST_DNSSEC_ALL      = MakeTest(405,"All DNS lookups must be secured by DNSSEC")
-TEST_ALL_SMTP_PASS   = MakeTest(406,"All DANE-related tests must pass for a SMTP host")
-TEST_MX_PREEMPTION   = MakeTest(407,""" "Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly." Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.""","2.2.1")
+TEST_TLSA_PRESENT    = MakeTest(405,"DANE records must be present for DANE protection")
+TEST_DNSSEC_ALL      = MakeTest(406,"All DNS lookups must be secured by DNSSEC")
+TEST_ALL_SMTP_PASS   = MakeTest(407,"All DANE-related tests must pass for a SMTP host")
+TEST_MX_PREEMPTION   = MakeTest(408,""" "Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly." Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.""","2.2.1")
 
     
 
@@ -164,6 +172,7 @@ class timeout:
 
 
 # Test pass options
+BREAKING_INFO="BREAKING_INFO"   # info with a section break
 INFO="INFO"
 WARNING="WARNING"
 PROGRESS="PROGRESS"
@@ -174,7 +183,7 @@ class DaneTestResult:
         self.passed = passed
         self.dnssec = dnssec
         self.dnsrelied = True   # by default, assume we rely on this DNS
-        self.hostname = hostname
+        self.hostname = hostname 
         self.ipaddr = ipaddr
         self.test   = test
         self.testnumber = testnumber
@@ -183,6 +192,9 @@ class DaneTestResult:
         self.rdata  = rdata
         self.key    = key
         self.t      = time.time()
+        if type(self.hostname)==type("") and self.hostname.endswith("."):
+            hostname = hostname[0:-1]
+
     def __repr__(self):
         return "%s %s %s %s" % (self.passed,self.dnssec,self.what,self.data)
 
@@ -191,6 +203,7 @@ class DaneTestResult:
                 False:"FAILED",
                 "":"",
                 INFO:"INFO",
+                BREAKING_INFO:"INFO",
                 WARNING:"WARNING",
                 PROGRESS:"",
                 NON_DEPLOYMENT:"NON DEPLOYMENT",
@@ -199,8 +212,10 @@ class DaneTestResult:
 
 
 # Count the number of results in an array
-def count_passed(ret,v):
-    return len(filter(lambda a:a.passed==v,ret))
+
+
+def count_passed(ret,val):
+    return len(filter(lambda a:a.passed==val,ret))
 
 def find_result(ret,what):
     for r in ret:
@@ -379,10 +394,8 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
     else:
         hostname = hostnames[0]
         matched = hostname_match(hostname,cn)
-        if matched:
-            what="Hostname {} matches EE Certificate Common Name ‘{}’".format(hostname,cn)
-        else:
-            what="Hostname {} does not match EE Certificate Common Name ‘{}’".format(hostnames,cn)
+        what="Hostname ‘{}’ {} EE Certificate Common Name ‘{}’"\
+            .format(hostname,"matches" if matched else "does not match", cn)
         ret += [ DaneTestResult(passed=matched,
                                 what=what,
                                 hostname=hostname0,ipaddr=ipaddr,
@@ -782,7 +795,7 @@ def hexdata(rdata):
     return "".join(map(hex2,map(ord,rdata)))
 
 ctx = getdns.Context()
-def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
+def get_dns_rr(hostname,request_type=getdns.RRTYPE_A):
     ret = []
     
     ## Broken - If TLSA, do a A query first and ignore the results
@@ -793,6 +806,13 @@ def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
 
     SUCCESS=""
     results = ctx.general(name=hostname,request_type=request_type,extensions=extensions)
+    if results.status==getdns.RESPSTATUS_NO_NAME:
+        ret.append( DaneTestResult(passed=INFO,
+                                   hostname=hostname,
+                                   what='{} DNS lookup: NO NAME'.format(hostname)) )
+        return ret
+                                   
+
     for reply in results.replies_tree:
         for a in reply['answer']:
             dstat = reply.get('dnssec_status')
@@ -819,10 +839,10 @@ def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
 
 
 def get_dns_mx(hostname):
-    return get_dns_ip(hostname,request_type=getdns.RRTYPE_MX)
+    return get_dns_rr(hostname,request_type=getdns.RRTYPE_MX)
 
 def get_dns_cname(hostname):
-    return get_dns_ip(hostname,request_type=getdns.RRTYPE_CNAME)
+    return get_dns_rr(hostname,request_type=getdns.RRTYPE_CNAME)
 
 def tlsa_hostname(host,port):
     return "_{}._tcp.{}".format(port,host)
@@ -831,74 +851,117 @@ def get_dns_tlsa(host,port):
     # See if the TLSA record is actually pointing to a CNAME
     ret = []
     tlsa_name = tlsa_hostname(host,port)
-    (tlsa_name,cname_ret) = chase_dns_cname(tlsa_name)
+    (tlsa_name,cname_ret) = expand_cname(tlsa_name)
     ret += cname_ret
-    ret += get_dns_ip(tlsa_name,request_type=getdns.RRTYPE_TLSA)
+    ret += get_dns_rr(tlsa_name,request_type=getdns.RRTYPE_TLSA)
     return ret
 
 
+def get_tlsa_records(retlist):
+    return list(filter(lambda r:"certificate_usage" in str(r.rdata),retlist))
+
+def get_cname_records(retlist):
+    return list(filter(lambda r:"CNAME" in r.what,retlist))
+
 # If hostname is a cname, return (canonical name,results)
 # Otherwise return (hostname,[])
-def chase_dns_cname(hostname):
+def expand_cname(hostname):
     original_hostname = hostname
     results = []
     depth = 0
     secure = True
     while depth < MAX_CNAME_DEPTH:
         cname_results = get_dns_cname(hostname)
-        if cname_results==[]:
+        if get_cname_records(cname_results)==[]:
             if depth>0:
                 results += [ DaneTestResult(passed=secure,
                                             test=TEST_CNAME_EXPANSION_SECURE,
-                                            what='Expanding CNAME {} to {}'.format(original_hostname,hostname))]
+                                            hostname=original_hostname,
+                                            what='Expanding CNAME ‘{}’ to ‘{}’'\
+                                            .format(original_hostname,hostname))]
             return (hostname,results)
         for r in cname_results:
             if not r.dnssec:
                 secure = False
         results += cname_results
         hostname = cname_results[0].data
+        if hostname.endswith("."): hostname=hostname[0:-1]
         depth += 1
     results += [ DaneTestResult(passed=False,
                                 what='CNAME search for {} reached depth of {}'.
                                 format(original_hostname,MAX_CNAME_DEPTH))]
     return (None,results)
     
-def get_tlsa_records(retlist):
-    return list(filter(lambda r:"certificate_usage" in str(r.rdata),retlist))
+def compose_hostnames(a,b,c):
+    ret = [a]
+    if b and b not in ret:
+        ret += [b]
+    if c and c not in ret:
+        ret += [c]
+    return ret
 
 
 #
 # For a given hostname, port, and protocol, get the list
 # of IP addresses and verify the certificate of each.
+#
+# This is the meat of the tester...
 
-def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname=None,delivery_tlsa=[]):
+def tlsa_service_verify(desc="",source_hostname="",port=0,protocol="",
+                        delivery_hostname=None,delivery_tlsa=[]):
     ret = []
-    ret += get_dns_tlsa(hostname,port)
+
+    ## RFC 7671:
+    ## p.18: Implementations failing to find a TLSA record using a base name of
+    ## the final target of a CNAME expansion SHOULD issue a TLSA query using
+    ## the original destination name.  That is, the preferred TLSA base
+    ## domain SHOULD be derived from the fully expanded name and, failing
+    ## that, SHOULD be the initial domain name.
+
+    # fully expand the CNAME if possible
+    (target_hostname,cname_results) = expand_cname(source_hostname)
+    ret += cname_results
+    if not target_hostname:
+        return ret              # CNAME recursion failed
+
+    # See if there is a TLSA record for the target_hostname
+    ret += get_dns_tlsa(target_hostname,port)
+    tlsa_hostname = target_hostname
     tlsa_records = get_tlsa_records(ret)
+    what = "Resolving TLSA records for target hostname ‘{}’".format(tlsa_hostname,port)
+    # If there are no TLSA records and the target_hostname!=source_hostname, try again
+    if len(tlsa_records)==0 and target_hostname!=source_hostname:
+        ret += [ DaneTestResult(passed = NON_DEPLOYMENT,
+                                test = TEST_TLSA_PRESENT,
+                                hostname = target_hostname,
+                                what = "{}: 0 records found"\
+                                .format(what)) ]
+        ret += get_dns_tlsa(source_hostname,port)
+        tlsa_records = get_tlsa_records(ret)
+        tlsa_hostname = source_hostname
+        what = "Resolving TLSA records for source hostname ‘{}’".format(tlsa_hostname,port)
+
+    # If we have "delivery_tlsa" records, add those
     if delivery_tlsa:
         tlsa_records += delivery_tlsa
 
-    what = "Resolving TLSA records for hostname ‘{}’".format(tlsa_hostname(hostname,port))
     if delivery_hostname:
-        what += " and hostname " + tlsa_hostname(delivery_hostname,port)
+        what += " and hostname " + delivery_hostname
+
     num_records = len(tlsa_records)
     ret += [ DaneTestResult(passed = True if num_records>0 else NON_DEPLOYMENT,
                             test = TEST_TLSA_PRESENT,
-                            hostname = hostname,
-                            what = "{}: {} record{} found".format(what,num_records,"s" if num_records!=1 else "")) ]
+                            hostname = tlsa_hostname,
+                            what = "{}: {} record{} found"\
+                            .format(what,num_records,"s" if num_records!=1 else "")) ]
     if tlsa_records:
         ret += [ DaneTestResult(passed = (tlsa_records[0].dnssec==getdns.DNSSEC_SECURE),
                                 what = what,
                                 test = TEST_TLSA_DNSSEC,
-                                hostname = hostname) ]
+                                hostname = tlsa_hostname) ]
 
-    # Chase the CNAME if possible
-    (chased_hostname,cname_results) = chase_dns_cname(hostname)
-    ret += cname_results
-    if not chased_hostname:
-        return ret              # CNAME recursion failed
 
-    ip_results = get_dns_ip(chased_hostname)
+    ip_results = get_dns_rr(target_hostname)
 
     # Check each ip address against each tlsa record
     tlsa_verified_ip_addresses = 0
@@ -909,13 +972,13 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
 
         # If protocol is SMTP, make sure starttls works
         if protocol=="smtp":
-            ret += validate_remote_smtp(ipaddr,hostname)
+            ret += validate_remote_smtp(ipaddr,target_hostname)
             if find_first_test(ret,TEST_SMTP_CONNECT).passed==False:
                 # No valid SMTP server
                 continue
 
         # Get the certificate for the IP address
-        cert_results = get_service_certificate_chain(ipaddr,hostname,port,protocol)
+        cert_results = get_service_certificate_chain(ipaddr,source_hostname,port,protocol)
         ret += cert_results
         cert_chain = cert_results[0].data
 
@@ -925,11 +988,7 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
         ret_tlsa_noverify = []
         ret_tlsa_verified = []
         validating_tlsa_records = 0
-        hostnames         = [hostname]
-        if chased_hostname and hostname!=chased_hostname:
-            hostnames.append(chased_hostname)
-        if delivery_hostname:
-            hostnames.append(delivery_hostname)
+        hostnames         = compose_hostnames(source_hostname,target_hostname,delivery_hostname)
         for tlsa_record in tlsa_records:
             ret_t = tlsa_verify(cert_chain, tlsa_record.rdata, hostnames, ipaddr, protocol)
             if find_first_test(ret_t,TEST_TLSA_CU_VALIDATES) and find_first_test(ret_t,TEST_TLSA_CU_VALIDATES).passed:
@@ -949,28 +1008,44 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
             ret += [ DaneTestResult(passed=(validating_tlsa_records>0),
                                     test=TEST_TLSA_ATLEAST1,
                                     ipaddr=ipaddr,
-                                    hostname=hostname,
-                                    what='Counting usable TLSA records for {} host {} ipaddr {}. Total found: {}'.format(desc,hostname,ipaddr,validating_tlsa_records)) ]
+                                    hostname=tlsa_hostname,
+                                    what='Counting usable TLSA records for {} host {} ipaddr {}. Total found: {}'.format(desc,tlsa_hostname,ipaddr,validating_tlsa_records)) ]
         else:
             # If not TLSA records, at least check the EE certificate
             ret += ret_tlsa_noverify
-            ret += cert_verify(None,cert_chain,hostname,ipaddr,0)
-    ret += [ DaneTestResult(passed=(tlsa_verified_ip_addresses == len(ip_results)),
+            ret += cert_verify(None,cert_chain,[source_hostname],ipaddr,0)
+    #
+    # Determine how many IP addresses were protected by DANE
+    #
+    if tlsa_verified_ip_addresses == 0:
+        passed = NON_DEPLOYMENT
+    elif tlsa_verified_ip_addresses != len(ip_results):
+        passed = FAILED
+    else:
+        passed = True
+              
+    ret += [ DaneTestResult(passed=passed,
                             test=TEST_TLSA_ALL_IP,
-                            hostname=hostname,
-                            what="Validating TLSA records for {} out of {} IP addresses found for host {}".format(tlsa_verified_ip_addresses,len(ip_results),hostname)) ]
+                            hostname=source_hostname,
+                            what="Validating TLSA records for {} out of {} IP addresses found for host {}"
+                            .format(tlsa_verified_ip_addresses,len(ip_results),source_hostname)) ]
 
     # TK: We need to indicate that it works for ALL IP addresses.
     return ret
 
         
-def apply_dnssec_test(ret):
-    valid = True
+def apply_dnssec_test(ret,not_valid=False):
+    total_relied = 0
+    total_secure = 0
     for test in ret:
-        if test.dnsrelied and (test.dnssec not in [None,getdns.DNSSEC_SECURE]):
-            valid = False
-            break
+        if test.dnsrelied and test.dnssec!=None:
+            total_relied += 1
+            if test.dnssec in [getdns.DNSSEC_SECURE]:
+                total_secure += 1
+            
+    valid = True if total_relied==total_secure else not_valid
     ret += [ DaneTestResult(test=TEST_DNSSEC_ALL,
+                            what="Total relied: {}  total secure: {}".format(total_relied,total_secure),
                             passed=valid) ]
 
 
@@ -983,23 +1058,37 @@ def tlsa_http_verify(url):
     
     port = o.port
     if not port: port = 443
-    ret += tlsa_service_verify(desc="HTTP",hostname=o.hostname,port=port,protocol='https')
-    apply_dnssec_test(ret)
+    ret += tlsa_service_verify(desc="HTTP",source_hostname=o.hostname,port=port,protocol='https')
+
+    # Count how many TLSA records we have...
+    tlsa_record_count = len(get_tlsa_records(ret))
+    ret += [ DaneTestResult(test=TEST_TLSA_PRESENT,
+                            passed=True if tlsa_record_count>0 else NON_DEPLOYMENT,
+                            what="Total HTTP TLSA Records Present: {}".format(tlsa_record_count)) ]
+                                
+    apply_dnssec_test(ret,not_valid=False if tlsa_record_count>0 else NON_DEPLOYMENT)
     # Make sure that none of the DANE tests were a hard fail
-    valid = count_passed(ret,True) > 0 and count_passed(ret,False)==0
-    ret += [ DaneTestResult(test=TEST_TLSA_HTTP_NO_FAIL,
-                            what="Were any DANE HTTP tests a hard fail?",
-                            passed=valid) ]
+
+    if tlsa_record_count > 0:
+        valid = count_passed(ret,True) > 0 and count_passed(ret,False)==0
+        ret += [ DaneTestResult(test=TEST_TLSA_HTTP_NO_FAIL,
+                                what="Were any DANE HTTP tests a hard fail?",
+                                passed=valid) ]
     return ret
     
 
 # Check to see if the TLSA record for an SMTP host is okay.
 # @param delivery_tlsa_records - additional TLSA records if hostname is not the final deliery
 def tlsa_smtp_host_verify(hostname,delivery_hostname,delivery_tlsa_records,host_type):
-    ret = [ DaneTestResult(passed=INFO,what='Detail for {} host {}:'.format(host_type,hostname)) ]
-    ret += tlsa_service_verify(desc=host_type,hostname=hostname,port=25,protocol='smtp',
+    ret = [ DaneTestResult(passed=BREAKING_INFO,what='Detail for {} host {}:'.format(host_type,hostname)) ]
+    ret += tlsa_service_verify(desc=host_type,source_hostname=hostname,port=25,protocol='smtp',
                                delivery_hostname=delivery_hostname,delivery_tlsa=delivery_tlsa_records)
-    apply_dnssec_test(ret)
+    tlsa_record_count = len(get_tlsa_records(ret))
+    ret += [ DaneTestResult(test=TEST_TLSA_PRESENT,
+                            passed=True if tlsa_record_count>0 else NON_DEPLOYMENT,
+                            what="Total HTTP TLSA Records Present: {}".format(tlsa_record_count)) ]
+                                
+    apply_dnssec_test(ret,not_valid=False if tlsa_record_count>0 else NON_DEPLOYMENT)
     return ret
     
 
@@ -1053,11 +1142,11 @@ def tlsa_smtp_verify(destination_hostname):
                            test=TEST_MX_PREEMPTION,
                            hostname=destination_hostname,
                            what="Highest priority MX server that is operational must be DANE protected")]
-    ret += [DaneTestResult(passed=INFO,
+    ret += [DaneTestResult(passed=BREAKING_INFO,
                            what='Conclusion: {} {} receive DANE-secured EMAIL'.format(destination_hostname,
                                                                                       'can' if smtp_tlsa_status else 'cannot'),
                            hostname=destination_hostname)]
-    ret += [DaneTestResult(passed=INFO,what='')] # blank line
+    ret += [DaneTestResult(passed=BREAKING_INFO,what='')] # blank line
     ret += mx_rets
     return ret
     
@@ -1089,17 +1178,18 @@ def print_test_results(results,format="text"):
         print("<p>")
         print("<table>")
     t0 = None
+    header = "<tr><th>Test #</th><th>Test<br>Hostname</th><th>Test<br>IPaddr</th><th>Status</th><th>Test Description (§ Section)</th></tr>"
     for result in results:
         if format=="html":
             passed_text  = result.passed_text()
             passed_class = passed_text.lower().replace(" ","_")
-            if result.passed==INFO:
+            if result.passed==BREAKING_INFO:
                 print("<tr class={}>".format(passed_class))
                 print("<td colspan=5 class=info>{}</td></tr>".format(result.what))
                 needs_header = True
                 continue
             if needs_header:
-                print("<tr><th>Test #</th><th>Host</th><th>IP</th><th>Status</th><th>Test Description (§ Section)</th></tr>")
+                print(header)
                 needs_header = False
             print("<tr class={}>".format(passed_class))
             if result.test:
@@ -1107,18 +1197,20 @@ def print_test_results(results,format="text"):
                 desc = result.test.desc
                 if not result.passed and result.test.failed_desc:
                     desc = result.test.failed_desc
-                if result.test.section:
-                    if '"' in desc:
-                        desc = '{} (§{})'.format(desc,result.test.section)
-                    else:
-                        desc = '“{}” (§{})'.format(desc,result.test.section)
+                if not result.test.section:
+                    desc = '{}'.format(desc)
+                elif result.test.section.startswith(">"):
+                    desc = '{} (§{})'.format(desc,result.test.section[1:])
+                else:
+                    desc = '“{}” (§{})'.format(desc,result.test.section)
+
             else:
                 num = ""
                 desc = ""
             desc += "<br>" if len(desc)>0 and len(result.what)>0 else ""
             desc += "<b>" + dnssec(result) + "</b>" + "<i>" + result.what + "</i>"
             if result.dnssec:
-                desc += " <a href='{}' target='_blank' class='external'>[DNSVIZ]</a> ".format(dnsviz_url(result.hostname))
+                desc += dnsviz_link(result.hostname)
 
             def fixnone(x):
                 return x if x!=None else ""
@@ -1132,7 +1224,7 @@ def print_test_results(results,format="text"):
             continue
 
         # Text, typically used for debugging. Also prints times
-        if result.passed==INFO:
+        if result.passed==BREAKING_INFO:
             print("")
             print("  === {} ===".format(result.what))
             continue
@@ -1172,7 +1264,7 @@ def process(domain,format="text"):
         passed.append(domain)
     else:
         failed.append(domain)
-    ret += [ DaneTestResult(passed=INFO,what="Using OpenSSL Version {}".format(openssl_version())) ]
+    ret += [ DaneTestResult(passed=BREAKING_INFO,what="Using OpenSSL Version {}".format(openssl_version())) ]
     print_test_results(ret,format=format)
 
 def print_stats():
