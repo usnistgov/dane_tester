@@ -1,4 +1,5 @@
 #!/usr/bin/env python2.7
+# -*- coding: utf-8 -*-
 # -*- mode: python; -*-
 
 # NIST-developed software is provided by NIST as a public service. You
@@ -34,51 +35,60 @@
 
 
 import cgi,cgitb,subprocess,sys,os,re
-import dane_checker
+import dane_check
 
 times = 0
 
 if __name__=="__main__":
-   print "Content-type: text/html\r\n\r\n"
-   print "<html><title>Okay</title>"
+    print "Content-type: text/html\r\n\r\n"
 
-   cgitb.enable()
-   form = cgi.FieldStorage()
-   host = None
-   if "host" in form:
-      host = form['host'].value
-      
-   m = re.search(".*/smtp/(.*)$",os.environ["REQUEST_URI"])
-   if m:
-      host = m.group(1)
+    cgitb.enable()
+    form = cgi.FieldStorage()
+    host = None
+    proto = ''
+    if "host" in form:
+        host = form['host'].value
+        
+    m = re.search(".*/smtp/(.*)$",os.environ["REQUEST_URI"])
+    if m:
+        host = m.group(1)
+        proto = 'smtp'
 
-   m = re.search(".*/https?/(.*)$",os.environ["REQUEST_URI"])
-   if m:
-      host = "https://" + m.group(1) + "/"
+    m = re.search(".*/https?/(.*)$",os.environ["REQUEST_URI"])
+    if m:
+        host = "https://" + m.group(1) + "/"
+        proto = 'https'
 
-   if host:
-      host = host.strip()
-      print "Checking ok <b>{0}</b>:<br>".format(host)
-      sys.stdout.flush()
-      dane_checker.process(host,format='html')
-      sys.stdout.flush()
-      print "<p>"
-      print "Compare with <a href='https://dane.sys4.de/smtp/{}'>dane.sys4.de</a>".format(host)
+    if host:
+        hostname=host.replace("https:","").replace("/","")
+        print "<html><title>{} | DANE Checker</title>".format(hostname)
+        host = host.strip()
+        print "Checking ok <b>{0}</b>:<br>".format(host)
+        sys.stdout.flush()
+        dane_check.process(host,format='html')
+        sys.stdout.flush()
+        print "<p>"
+        if proto=='smtp':
+            print "Compare with <a href='https://dane.sys4.de/smtp/{}'>dane.sys4.de</a>".format(hostname)
+    else:
+        print "<html><title>DANE Checker</title>"
 
-   print "<p>"
-   print "<form>"
-   print "<input type='text' name='host'><br>"
-   print "<input type='submit' value='Submit'>"
-   print "</form>"
-   print "Or try some of these test points:<br>"
-   def murl(x):
-      return "<a href='{}?host={}'>{}</a><br>".format(os.environ["SCRIPT_NAME"],x,x)
-   print murl("unixadm.org"),"<br>"
-   print murl("https://www.freebsd.org/"),"<br>"
-   print "<p>Other DANE SMTP checkers:"
-   print "<ul>"
-   print "<li><a href='https://dane.sys4.de/'>https://dane.sys4.de/</a> (SMTP only)"
-   print "<li><a href='https://www.had-pilot.com/dane/danelaw.html'>https://www.had-pilot.com/dane/danelaw.html</a> (HTTPS only)."
-   print "</ul>"
-   print "</html>"
-   
+    print "<p>"
+    print "<form>"
+    print "<input type='text' name='host'><br>"
+    print "<input type='submit' value='Submit'>"
+    print "</form>"
+    print "Or try some of these test points:<br>"
+    def murl(x):
+        return "<a href='{}?host={}'>{}</a>".format(os.environ["SCRIPT_NAME"],x,x)
+    print "<ul>"
+    print "<li>",murl("unixadm.org")," (SMTP)"
+    print "<li>",murl("https://www.freebsd.org/")," (HTTP)"
+    print "</ul>"
+    print "<p>Other DANE Checkers:"
+    print "<ul>"
+    print "<li><a href='https://dane.sys4.de/'>https://dane.sys4.de/</a> (SMTP only)"
+    print "<li><a href='https://www.had-pilot.com/dane/danelaw.html'>https://www.had-pilot.com/dane/danelaw.html</a> (HTTPS only)."
+    print "</ul>"
+    print "</html>"
+    

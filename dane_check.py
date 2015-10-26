@@ -36,6 +36,7 @@ import getdns
 import sys
 import pytest
 import M2Crypto
+import time
 
 MAX_CNAME_DEPTH=20
 MAX_TIMEOUT=30
@@ -56,9 +57,14 @@ os.environ["SSL_CERT_FILE"]="/nonexistant"
 
 html_style = """
 <style>
-.passed { background-color: #80FF80 }
-.failed { background-color: red }
-.warning { background-color: yellow }
+.passed { background-color: #80FF80;
+          -webkit-print-color-adjust: exact}
+.failed { background-color: #FFA0A0;
+          -webkit-print-color-adjust: exact }
+.warning { background-color: yellow;
+           -webkit-print-color-adjust: exact }
+.non_deployment { background-color: cyan;
+                 -webkit-print-color-adjust: exact}
 table { border-collapse: collapse }
 th, td { border: 1px solid black }
 th { color: gray }
@@ -68,8 +74,14 @@ th, td { padding: 3px }
         border-right: 1px solid white;
         line-height: 200%;
       }
+.external { font-variant: small-caps;}
 </style>
 """
+
+def dnsviz_url(hostname):
+    if hostname.endswith("."): hostname=hostname[0:-1]
+    return "http://dnsviz.net/d/{}/dnssec/".format(hostname)
+
 
 valid_tests = {}
 class MakeTest:
@@ -84,11 +96,11 @@ class MakeTest:
 
 ## 100 series - DNS queries ##
 TEST_CNAME_NOERROR     = MakeTest(101,"""If at any stage of CNAME expansion an error is detected, the lookup of the original requested records MUST be considered to have failed.""","2.1.3") 
-TEST_CNAME_EXPANSION_SECURE      = MakeTest(102,"""if at
-   any stage of recursive expansion an "insecure" CNAME record is
+TEST_CNAME_EXPANSION_SECURE      = MakeTest(102,"""If at
+   any stage of recursive expansion an “insecure” CNAME record is
    encountered, then it and all subsequent results (in particular, the
-   final result) MUST be considered "insecure" regardless of whether any
-   earlier CNAME records leading to the "insecure" record were "secure".""","2.1.3")
+   final result) MUST be considered “insecure” regardless of whether any
+   earlier CNAME records leading to the “insecure” record were  “secure”. ""","2.1.3")
 TEST_TLSA_PRESENT    = MakeTest(103,"Service hostname must have matching TLSA record")
 TEST_TLSA_DNSSEC     = MakeTest(104,"TLSA records must be secured by DNSSEC")
 
@@ -110,9 +122,9 @@ TEST_EECERT_VERIFY   = MakeTest(306,"Server EE Certificate must PKIX Verify",fai
 TEST_EECERT_NAME_CHECK = MakeTest(307,"""When name checks are applicable (certificate usage DANE-TA(2)), if
    the server certificate contains a Subject Alternative Name extension
    ([RFC5280]), with at least one DNS-ID ([RFC6125]) then only the DNS-
-   IDs are matched against the client's reference identifiers.... The
+   IDs are matched against the client’s reference identifiers.... The
    server certificate is considered matched when one of its presented
-   identifiers ([RFC5280]) matches any of the client's reference
+   identifiers ([RFC5280]) matches any of the client’s reference
    identifiers.""","3.2.3")
 TEST_DANE2_CHAIN     = MakeTest(308,"""SMTP servers that rely on certificate usage DANE-TA(2) TLSA records for TLS authentication MUST include the TA certificate as part of the certificate chain presented in the TLS handshake server certificate message even when it is a self-signed root certificate.""","3.2.1")
 
@@ -150,10 +162,12 @@ class timeout:
         signal.alarm(0)
 ################################################################
 
+
+# Test pass options
 INFO="INFO"
 WARNING="WARNING"
 PROGRESS="PROGRESS"
-
+NON_DEPLOYMENT="NON_DEPLOYMENT"
 
 class DaneTestResult:
     def __init__(self,passed=None,test=None,dnssec=None,what='',data=None,rdata=None,hostname=None,ipaddr=None,testnumber=None,key=0):
@@ -168,8 +182,21 @@ class DaneTestResult:
         self.data   = data
         self.rdata  = rdata
         self.key    = key
+        self.t      = time.time()
     def __repr__(self):
         return "%s %s %s %s" % (self.passed,self.dnssec,self.what,self.data)
+
+    def passed_text(self):
+        return {True:"PASSED",
+                False:"FAILED",
+                "":"",
+                INFO:"INFO",
+                WARNING:"WARNING",
+                PROGRESS:"",
+                NON_DEPLOYMENT:"NON DEPLOYMENT",
+                None:""}[self.passed]
+
+
 
 # Count the number of results in an array
 def count_passed(ret,v):
@@ -323,7 +350,7 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
     ret += [ DaneTestResult(passed=r,
                             test=TEST_EECERT_VERIFY,
                             hostname=hostname0,ipaddr=ipaddr,
-                            what="Checking EE Certificate '{}' against {}".format(cn,against)) ]
+                            what="Checking EE Certificate ‘{}’ against {}".format(cn,against)) ]
     
 
 
@@ -333,7 +360,7 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
         for hostname in hostnames:
             for an in alt_names:
                 if hostname_match(hostname,an):
-                    msg = "EE Certificate Alternative Name '{}' matches hostname '{}'".format(an,hostname)
+                    msg = "EE Certificate Alternative Name ‘{}’ matches hostname ‘{}’".format(an,hostname)
                     ret += [ DaneTestResult(passed=True,
                                             hostname=hostname0,ipaddr=ipaddr,
                                             what=msg,
@@ -350,11 +377,12 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
 
 
     else:
+        hostname = hostnames[0]
         matched = hostname_match(hostname,cn)
         if matched:
-            what="Hostname {} matches EE Certificate Common Name '{}'".format(hostnames,cn)
+            what="Hostname {} matches EE Certificate Common Name ‘{}’".format(hostname,cn)
         else:
-            what="Hostname {} does not match EE Certificate Common Name '{}'".format(hostnames,cn)
+            what="Hostname {} does not match EE Certificate Common Name ‘{}’".format(hostnames,cn)
         ret += [ DaneTestResult(passed=matched,
                                 what=what,
                                 hostname=hostname0,ipaddr=ipaddr,
@@ -773,18 +801,18 @@ def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
                 ipv4 = v(rdata['ipv4_address'])
                 ret.append( DaneTestResult(passed=SUCCESS,
                                            what='DNS A lookup {} = {}'.format(hostname,ipv4),
-                                           dnssec=dstat,data=ipv4, rdata=rdata, key=ipv4) )
+                                           dnssec=dstat,data=ipv4, rdata=rdata, hostname=hostname,key=ipv4) )
             if a['type'] == getdns.RRTYPE_CNAME == request_type:
                 ret.append( DaneTestResult(passed=SUCCESS,
                                            what='DNS CNAME lookup {} = {}'.format(hostname,rdata['cname']),
-                                           dnssec=dstat,data=rdata['cname'],rdata=rdata,key=rdata['cname']))
+                                           dnssec=dstat,data=rdata['cname'],rdata=rdata,hostname=hostname,key=rdata['cname']))
             if a['type'] == getdns.RRTYPE_MX == request_type:
                 ret.append( DaneTestResult(passed=SUCCESS,
                                            what='DNS MX lookup {} = {} {}'.format(hostname,rdata['preference'],rdata['exchange']),
-                                           dnssec=dstat,data=rdata['exchange'],rdata=rdata,key=rdata['preference']))
+                                           dnssec=dstat,data=rdata['exchange'],rdata=rdata,hostname=hostname,key=rdata['preference']))
             if a['type'] == getdns.RRTYPE_TLSA == request_type:
                 ret.append( DaneTestResult(passed=SUCCESS,what='DNS TLSA lookup {} = {}'.format(hostname,tlsa_str(rdata)),
-                                           dnssec=dstat,rdata=rdata,key=tlsa_str(rdata)))
+                                           dnssec=dstat,rdata=rdata,hostname=hostname,key=tlsa_str(rdata)))
     ret.sort(key=lambda x:x.key)
     return ret
 
@@ -850,13 +878,14 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
     if delivery_tlsa:
         tlsa_records += delivery_tlsa
 
-    what = "Resolving TLSA records for hostname '{}'".format(tlsa_hostname(hostname,port))
+    what = "Resolving TLSA records for hostname ‘{}’".format(tlsa_hostname(hostname,port))
     if delivery_hostname:
         what += " and hostname " + tlsa_hostname(delivery_hostname,port)
-    ret += [ DaneTestResult(passed = (len(tlsa_records)>0),
+    num_records = len(tlsa_records)
+    ret += [ DaneTestResult(passed = True if num_records>0 else NON_DEPLOYMENT,
                             test = TEST_TLSA_PRESENT,
                             hostname = hostname,
-                            what = what) ]
+                            what = "{}: {} record{} found".format(what,num_records,"s" if num_records!=1 else "")) ]
     if tlsa_records:
         ret += [ DaneTestResult(passed = (tlsa_records[0].dnssec==getdns.DNSSEC_SECURE),
                                 what = what,
@@ -1032,18 +1061,17 @@ def tlsa_smtp_verify(destination_hostname):
     ret += mx_rets
     return ret
     
+
+#########################
+#########################
+### Printing Routines ###
+#########################
+#########################
+
+
 def print_test_results(results,format="text"):
     def dnssec(t):
         return dnssec_status[t.dnssec]+" " if t.dnssec else ""
-
-    def passed(t):
-        return {True:"PASSED: ",
-                False:"FAILED: ",
-                "":"",
-                INFO:"INFO: ",
-                WARNING:"WARNING: ",
-                PROGRESS:"",
-                None:""}[t]
 
     import textwrap
     w = textwrap.TextWrapper()
@@ -1060,10 +1088,11 @@ def print_test_results(results,format="text"):
         print(html_style)
         print("<p>")
         print("<table>")
+    t0 = None
     for result in results:
         if format=="html":
-            passed_text  = passed(result.passed).replace(":","").replace(" ","")
-            passed_class = passed_text.lower()
+            passed_text  = result.passed_text()
+            passed_class = passed_text.lower().replace(" ","_")
             if result.passed==INFO:
                 print("<tr class={}>".format(passed_class))
                 print("<td colspan=5 class=info>{}</td></tr>".format(result.what))
@@ -1082,12 +1111,14 @@ def print_test_results(results,format="text"):
                     if '"' in desc:
                         desc = '{} (§{})'.format(desc,result.test.section)
                     else:
-                        desc = '"{}" (§{})'.format(desc,result.test.section)
+                        desc = '“{}” (§{})'.format(desc,result.test.section)
             else:
                 num = ""
                 desc = ""
             desc += "<br>" if len(desc)>0 and len(result.what)>0 else ""
             desc += "<b>" + dnssec(result) + "</b>" + "<i>" + result.what + "</i>"
+            if result.dnssec:
+                desc += " <a href='{}' target='_blank' class='external'>[DNSVIZ]</a> ".format(dnsviz_url(result.hostname))
 
             def fixnone(x):
                 return x if x!=None else ""
@@ -1100,7 +1131,7 @@ def print_test_results(results,format="text"):
                     desc ))
             continue
 
-        # Text
+        # Text, typically used for debugging. Also prints times
         if result.passed==INFO:
             print("")
             print("  === {} ===".format(result.what))
@@ -1112,10 +1143,17 @@ def print_test_results(results,format="text"):
             if result.ipaddr:   res += " ADDR="+result.ipaddr
         print(w.fill(res))
         if result.test:
-            res = "  Test {} {} {}".format(result.test.num,passed(result.passed),result.test.desc)
+            passed_text = result.passed_text()
+            if passed_text: passed_text+=": "
+            res = "  Test {} {} {}".format(result.test.num,result.passed_text(),result.test.desc)
             if result.hostname: res += " HOST="+result.hostname
             if result.ipaddr:   res += " ADDR="+result.ipaddr
             print(w.fill(res))
+        if t0:
+            print(" t={}  dt={}".format(result.t,result.t-t0))
+        else:
+            print(" t={}".format(result.t))
+        t0 = result.t
         print("")
     print("")
     if format=="html":
