@@ -16,32 +16,21 @@ logging.basicConfig(level=logging.DEBUG)
 
 if __name__=="__main__":
     # Get the test type for our invocation
-    conn = tester.mysql_connect()
     cmd = sys.argv[1]
-    c = conn.cursor()
-    c.execute("select testtype from testtypes where name=%s",(cmd,))
-    try:
-        testtype = c.fetchone()[0]
-    except TypeError:
-        raise RuntimeError("No test type '{}'".format(cmd))
-        
-    print("testtype={}".format(testtype))
+    T = tester(cmd)
 
     # Get the email message
     body = sys.stdin.read()
 
     # Save it in the database
     c.execute("insert into tests (testtype) values (%s)",(testtype,))
-    testid = c.lastrowid
-    messageid = tester.insert_email_message(conn,testid,tester.EMAIL_TAG_USER_SENT,body)
+    messageid = T.insert_email_message(T.testid,tester.EMAIL_TAG_USER_SENT,body)
 
     # Finally, a workqueue requirement to compose the response
     args = {"messageid":messageid}
-    tester.insert_task(conn,testid,tester.TASK_COMPOSE_SIMPLE_RESPONSE,args)
-    conn.commit()
+    T.insert_task(testid,tester.TASK_COMPOSE_SIMPLE_RESPONSE,args)
+    T.commit()
 
-    # First get a database handle
+    # Log the results
     logging.info("Logged Message {}".format(messageid))
 
-    # Now save the message in the database
-    # 
