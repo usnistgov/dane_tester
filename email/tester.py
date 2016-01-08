@@ -41,7 +41,7 @@ class tester:
                                     db=sec.get("emaildb",DB_NAME))
 
         # if testname is specified, create a new test
-        self.rw = rw
+        self.rw = rw            # .rw means we are writing
         if testid:
             self.rw = False
             self.testid = testid
@@ -79,6 +79,8 @@ class tester:
         if self.rw:
             self.conn.commit()
 
+    def __del__(self):
+        self.commit()           # if we need to commit, do it!
 
                            
 if __name__=="__main__":

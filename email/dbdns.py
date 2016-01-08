@@ -10,19 +10,28 @@ import dns
 import dns,dns.resolver,dns.query,dns.zone,dns.message
 import pickle
 import dbdns
+import pymysql
 
-def query(T,name,rr):
+
+class Dbdns:
+    def __init__(self,response=None):
+        if response:
+            self.response = response
+            
+    
+
+def query(T,name,rr,replay=False):
     """Perform a query of host/rr, store results in database, and get results from db and return"""
-    a = dns.resolver.query(name,rr)
-    response_text = a.response.to_text()
+
     c = T.conn.cursor()
-    print("T.testid=",type(T.testid),T.testid)
-    if T.rw:
+    if T.rw and replay==False:
+        a = dns.resolver.query(name,rr)
+        response_text = a.response.to_text()
         c.execute("insert into dns (testid,queryname,queryrr,answer) values (%s,%s,%s,%s)",(T.testid,name,rr,response_text))
     else:
         c.execute("select answer from dns where testid=%s and queryname=%s and queryrr=%s",(T.testid,name,rr))
         response_text = c.fetchone()[0]
-    return dns.message.from_text(response_text)
+    return Dbdns(response=dns.message.from_text(response_text))
 
 
 def test_query_MX():
@@ -72,25 +81,70 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser(description="test the DBDNS implementation")
     parser.add_argument("-t",help="specify record to test",default="A")
     parser.add_argument("-i",help="Specify Test ID to use for cache (if not specified, query is live, and a new testID is created)",type=int)
-    parser.add_argument("--list",help="list all DNS queries",action="store_true")
+    parser.add_argument("--list",help="list all DNS queries to date",action="store_true")
+    parser.add_argument("--dump",help="Dump DNS queries for a specific testID")
+    parser.add_argument("--demo",help="Demonstrate a database query and result.",action="store_true")
+    parser.add_argument("--mxdemo",help="MX Demo, for slides",action="store_true")
     parser.add_argument("name",nargs="*",help="name to search")
     args = parser.parse_args()
 
     if args.list:
         T = tester(rw=False)
         c = T.conn.cursor()
-        c.execute("select testid,queryname,queryrr,length(answer) from dns order by dnsid")
-        print(" testID  Query Name     RR    Len(answer)")
+        c.execute("select testid,modified,queryname,queryrr,length(answer) from dns order by dnsid")
+        print(" testID  Timestamp            Query Name      RR    Len(answer)")
         for row in c:
-            print("{:8n} {:15s} {:4s} len={:5n} ".format(row[0],row[1],row[2],row[3]))
-        exit(0)
-                
+            when = str(row[1])
+            print("{:8n} {:s}   {:15s} {:4s} len={:5n} ".format(row[0],when,row[2],row[3],row[4]))
+    
+    if args.dump:
+        T = tester(rw=False)
+        c = T.conn.cursor(pymysql.cursors.DictCursor)
+        c.execute("select dnsid,modified,queryname,queryrr,answer from dns where testid=%s order by dnsid",(args.dump,))
+        for row in c:
+            print("DNSID: {}   TIMESTAMP: {}   QUERY: {}    QUERYRR: {}".format(
+                row['dnsid'],row['modified'],row['queryname'],row['queryrr']))
+            print("")
+            print(row['answer'])
+            print("")
+            print("===================")
+            print("")
 
-    T = tester(testname="dig",testid=args.i)
-    print("dig -t {} {}".format(args.t,args.name))
-    print("TestID: {}".format(T.testid))
-    b = dbdns.query(T,args.name,args.t)
-    for i in range(len(b.answer)):
-        print("Part {}:".format(i))
-        for x in b.answer[i]:
-            print(x)
+    if args.demo:
+        if len(args.name)!=1:
+            print("Error: One name must be provided")
+            exit(1)
+        name = args.name[0]
+        print("DBDNS DEMO")
+        T = tester(testname="dig")
+        print("dig -t {} {}".format(args.t,name))
+        print("TestID: {}".format(T.testid))
+
+        b = dbdns.query(T,name,args.t)
+        for part in range(len(b.answer)):
+            print("ANSWER PART {}:".format(part))
+            for i in range(len(b.answer[part])):
+                print("RR {}: {} {}".format(i,b.answer[part][i],type(b.answer[part][i])))
+        T.commit()
+
+        print("\n\n\nReplay:")
+        c = dbdns.query(T,name,args.t,replay=True)
+        for part in range(len(b.answer)):
+            print("ANSWER PART {}:".format(part))
+            for i in range(len(b.answer[part])):
+                print("RR {}: {} {}".format(i,b.answer[part][i],type(b.answer[part][i])))
+
+    if args.mxdemo:
+        print("MX hosts for dnspython.org:")
+        print("")
+        print("Traditional dnspython MX resolution:")
+        a = dns.resolver.query("dnspython.org","MX")
+        for x in a.response.answer[0]:
+            print("{} {}".format(x.preference,x.exchange))
+
+        print("")
+        print("dbdns:")
+        T = tester(testname="dig")
+        a = dbdns.query(T,"dnspython.org","MX")
+        for x in a.response.answer[0]:
+            print("{} {}".format(x.preference,x.exchange))
