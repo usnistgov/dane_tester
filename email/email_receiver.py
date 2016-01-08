@@ -6,7 +6,8 @@
 #
 
 
-import tester                   # get my routine
+from tester import Tester                   # get my routine
+import tester
 import logging
 import sys
 import email
@@ -17,18 +18,17 @@ logging.basicConfig(level=logging.DEBUG)
 if __name__=="__main__":
     # Get the test type for our invocation
     cmd = sys.argv[1]
-    T = tester(cmd)
+    T = Tester(testname=cmd)
 
-    # Get the email message
-    body = sys.stdin.read()
+    # Get the email message. Beware of possible unicode problems.
+    msg = email.message_from_file(sys.stdin)
 
     # Save it in the database
-    c.execute("insert into tests (testtype) values (%s)",(testtype,))
-    messageid = T.insert_email_message(T.testid,tester.EMAIL_TAG_USER_SENT,body)
+    messageid = T.insert_email_message(tester.EMAIL_TAG_USER_SENT,str(msg))
 
     # Finally, a workqueue requirement to compose the response
     args = {"messageid":messageid}
-    T.insert_task(testid,tester.TASK_COMPOSE_SIMPLE_RESPONSE,args)
+    T.insert_task(tester.TASK_COMPOSE_SIMPLE_RESPONSE,args)
     T.commit()
 
     # Log the results

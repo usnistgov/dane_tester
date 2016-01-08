@@ -76,7 +76,7 @@ def test_roundTrip():
 
 if __name__=="__main__":
     import argparse
-    from tester import tester
+    from tester import Tester
 
     parser = argparse.ArgumentParser(description="test the DBDNS implementation")
     parser.add_argument("-t",help="specify record to test",default="A")
@@ -89,7 +89,7 @@ if __name__=="__main__":
     args = parser.parse_args()
 
     if args.list:
-        T = tester(rw=False)
+        T = Tester(rw=False)
         c = T.conn.cursor()
         c.execute("select testid,modified,queryname,queryrr,length(answer) from dns order by dnsid")
         print(" testID  Timestamp            Query Name      RR    Len(answer)")
@@ -98,7 +98,7 @@ if __name__=="__main__":
             print("{:8n} {:s}   {:15s} {:4s} len={:5n} ".format(row[0],when,row[2],row[3],row[4]))
     
     if args.dump:
-        T = tester(rw=False)
+        T = Tester(rw=False)
         c = T.conn.cursor(pymysql.cursors.DictCursor)
         c.execute("select dnsid,modified,queryname,queryrr,answer from dns where testid=%s order by dnsid",(args.dump,))
         for row in c:
@@ -116,7 +116,7 @@ if __name__=="__main__":
             exit(1)
         name = args.name[0]
         print("DBDNS DEMO")
-        T = tester(testname="dig")
+        T = Tester(testname="dig")
         print("dig -t {} {}".format(args.t,name))
         print("TestID: {}".format(T.testid))
 
@@ -144,7 +144,7 @@ if __name__=="__main__":
 
         print("")
         print("dbdns:")
-        T = tester(testname="dig")
+        T = Tester(testname="dig")
         a = dbdns.query(T,"dnspython.org","MX")
         for x in a.response.answer[0]:
             print("{} {}".format(x.preference,x.exchange))

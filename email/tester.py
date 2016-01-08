@@ -16,6 +16,7 @@ DEFAULT_HOME = "/home/slg"
 
 home = os.getenv("HOME") if os.getenv("HOME") else DEFAULT_HOME
 cfg_file = os.path.join(home,"email.cfg")
+cfg_file = "/home/slg/email.cfg"
 
 # Work jobs
 TASK_COMPOSE_SIMPLE_RESPONSE="COMPOSE SIMPLE RESPONSE"
@@ -26,10 +27,13 @@ EMAIL_TAG_USER_SENT="USER SENT" # sent by a user
 EMAIL_TAG_AUTOMATED_RESPONSE="AUTOMATED RESPONSE" # created by our script
 
 import tester                   # import myself
-import pytest,json
+import pytest,json,os,os.path
 
-class tester:
+class Tester:
     def __init__(self,testname=None,testid=None,rw=True):
+        self.rw = rw            # .rw means we are writing
+        self.testid = testid
+        assert os.path.exists(cfg_file)
         import configparser,sys
         cfg = configparser.ConfigParser()
         cfg.read(cfg_file)
@@ -41,9 +45,7 @@ class tester:
                                     db=sec.get("emaildb",DB_NAME))
 
         # if testname is specified, create a new test
-        self.rw = rw            # .rw means we are writing
         if testid:
-            self.rw = False
             self.testid = testid
         if testname and self.rw:
             testtype = self.get_test_type(testname)
@@ -59,20 +61,30 @@ class tester:
         except TypeError:
             raise RuntimeError("No test type '{}'".format(cmd))
 
-    def insert_email_message(self,testid,tag,body):
+    def insert_email_message(self,tag,body):
         """Insert an email message into the database using a given connection; return the messageid"""
         assert self.rw
+        assert self.testid>0
         import email
         msg  = email.message_from_string(body)
         c = self.conn.cursor()
         c.execute("insert into messages(testid,tag,toaddr,fromaddr,body,received) values(%s,%s,%s,%s,%s,now())",(
-            testid,tag,msg['to'],msg['from'],body))
+            self.testid,tag,msg['to'],msg['from'],body))
         return c.lastrowid
 
-    def insert_task(self,testid,task,args):
+    def set_smtp_log(self,messageid,smtp_log):
+        c = self.conn.cursor()
+        c.execute("select smtp_log from messages where messageid=%s",(messageid,))
+        r = c.fetchall()
+        # Make sure that there is precisely one row with messageid=messageid and that it has no log
+        assert len(r)==1
+        assert r[0][0]==None
+        c.execute("update messages set smtp_log=%s where messageid=%s",(smtp_log,messageid))
+
+    def insert_task(self,task,args):
         assert self.rw
         c = self.conn.cursor()
-        c.execute("insert into workqueue (testid,task,args,created) values (%s,%s,%s,NOW())",(testid,task,json.dumps(args)))
+        c.execute("insert into workqueue (testid,task,args,created) values (%s,%s,%s,NOW())",(self.testid,task,json.dumps(args)))
         return c.lastrowid
 
     def commit(self):
