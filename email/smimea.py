@@ -10,20 +10,23 @@ from subprocess import Popen,PIPE
 
 smtp_server = "mail.nist.gov"
 dns_resolver = "8.8.8.8"
-signing_key_file = "/home/slg/ca/smime.key"
-signing_cert_file = "/home/slg/ca/smime.crt"
+#signing_key_file = "/home/slg/ca/smime.key"
+#signing_cert_file = "/home/slg/ca/smime.crt"
+signing_key_file = "/home/slg/ca/smime.2"
+signing_cert_file = "/home/slg/ca/smime.2"
 my_email="simson.garfinkel@nist.gov"
 
 email_template="""To: %TO%
 From: %FROM%
 Subject: This is a test message
 
-This is a test. Thanks for playing.
+This is a test %KIND% message. Thanks for playing.
 """
 
-def make_message(msg_to,msg_from,template):
-    template = template.replace("%TO%",msg_to)
-    template = template.replace("%FROM%",msg_from)
+def make_message(to=None,sender=None,kind=None,template=None):
+    template = template.replace("%TO%",to)
+    template = template.replace("%FROM%",sender)
+    template = template.replace("%KIND%",kind)
     return template
 
 def email_to_dns(email):
@@ -92,30 +95,48 @@ def print_cert(cert):
     p.stdin.write(cert)
     p.stdin.close()
 
-def smime_encrypt(msg,signing_key=None,signing_addr=None,
-                  encrypting_key=None,encrypting_addr=None):
-    from tempfile import TemporaryFIle
-    cmd = ['openssl','smime']
-    if signing_key:
-        t = TemporaryFile()
-        t.write(signing_key)
-        t.flush()
-        cmd += ['-sign',t.name]
-    if encrypting_key:
-        t = TemporaryFile()
-        t.write(signing_key)
-        t.flush()
-        
-    p = Popen(cmd,stdout=PIPE)
+def der_to_text(cert):
+    p = Popen(['openssl','x509','-inform','der','-text'],stdin=PIPE,stdout=PIPE)
+    p.stdin.write(cert)
     return p.communicate()[0]
+
+def smime_encrypt(msg,signing_key=None,signing_cert=None,
+                  signing_addr=None,
+                  encrypting_cert=None):
+    from tempfile import NamedTemporaryFile
+    import sys
+    infile = NamedTemporaryFile(mode="w+")
+    infile.write(msg)
+    infile.flush()
+
+    cmd = ['openssl','smime','-in',infile.name]
+    if signing_key:
+        sk = NamedTemporaryFile(mode="w+")
+        sk.write(signing_key)
+        sk.flush()
+        sc = NamedTemporaryFile(mode="w+")
+        sc.write(signing_cert)
+        sc.flush()
+
+        cmd += ['-sign','-signer',sk.name,'-inkey',sk.name,'-certfile',sc.name]
+
+    if encrypting_cert:
+        ek = NamedTemporaryFile()
+        ek.write(encrypting_cert)
+        ek.flush()
+        cmd += ['-encrypt','-aes256',ek.name]
+        
+    print(66,cmd,66)
+    p = Popen(cmd,stdout=PIPE)
+    return p.communicate()[0].decode('utf-8')
     
 
 if __name__=="__main__":
-    import argparse
+    import argparse,sys
 
     parser = argparse.ArgumentParser(description="smimea tester")
     parser.add_argument("--print",help="get and print a certificate for an email address")
-    parser.add_argument("--send",help="send a signed email to an address")
+    parser.add_argument("--send",help="send test emails email to an address")
     args = parser.parse_args()
     if args.print:
         tname = args.print
@@ -126,11 +147,16 @@ if __name__=="__main__":
 
     if args.send:
         cert = get_cert(args.send)
-        msg = make_message(args.send,my_email,email_template)
+        x509_cert = der_to_text(cert[3])
+        signing_key = open(signing_cert_file,"r").read()
+        signing_cert = open(signing_key_file,"r").read()
         print("signed:")
-        signing_key = open(signing_key_file,"r").read()
-        print(smime_encrypt(msg,signing_key=signing_key))
+        #sys.stdout.write(smime_encrypt(make_message(to=args.send,sender=my_email,kind='signed',template=email_template),
+        #                               signing_key=signing_key,signing_cert=signing_cert ))
         print("encrypted:")
-        print(smime_encrypt(msg,encrypting_cert=cert))
+        #sys.stdout.write(smime_encrypt(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
+        #                                encrypting_cert=x509_cert))
         print("signed and encrypted:")
-        print(smime_encrypt(msg,signing_key=signing_key,encrypting_cert=cert))
+        print(smime_encrypt(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
+                            signing_key=signing_key,signing_cert=signing_cert,
+                            encrypting_cert=x509_cert))
