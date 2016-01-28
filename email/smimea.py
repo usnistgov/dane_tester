@@ -2,7 +2,7 @@
 #
 # DANE smimea implementation
 #
-import pytest
+import pytest,unittest
 import dns
 import dns,dns.resolver,dns.query,dns.zone,dns.message
 import dbdns
@@ -18,7 +18,7 @@ my_email="simson.garfinkel@nist.gov"
 
 email_template="""To: %TO%
 From: %FROM%
-Subject: This is a test message
+Subject: This is a test %KIND% message
 
 This is a test %KIND% message. Thanks for playing.
 """
@@ -34,8 +34,8 @@ def email_to_dns(email):
     import hashlib
     (box,domain) = email.split("@")
     dns = hashlib.sha256(box.encode("utf-8")).hexdigest()[0:28*2] + "._smimecert." + domain
-    if not dns.endswith("."):
-        dns += "."
+    if dns.endswith("."):
+        dns = dns[:-1]
     return dns
 
 def get_cert(email):
@@ -86,10 +86,6 @@ def get_certdb(email):
         return(v0,v1,v2,der_encoded_cert)
 
 
-def smimea_test():
-    assert email_to_dns("slg@had-pilot.com")== \
-        "77a3c94a8ebb95e36eb9682857da339d8ab09597d8e57eb1a4eb3f46._smimecert.had-pilot.com."
-
 def print_cert(cert):
     p = Popen(['openssl','x509','-inform','der','-text'],stdin=PIPE)
     p.stdin.write(cert)
@@ -104,10 +100,11 @@ def smime_encrypt(msg,signing_key=None,signing_cert=None,
                   signing_addr=None,
                   encrypting_cert=None):
     from tempfile import NamedTemporaryFile
-    import sys
+    import sys,email
     infile = NamedTemporaryFile(mode="w+")
     infile.write(msg)
     infile.flush()
+    m = email.message_from_string(msg)
 
     cmd = ['openssl','smime','-in',infile.name]
     if signing_key:
@@ -126,10 +123,19 @@ def smime_encrypt(msg,signing_key=None,signing_cert=None,
         ek.flush()
         cmd += ['-encrypt','-aes256',ek.name]
         
-    print(66,cmd,66)
     p = Popen(cmd,stdout=PIPE)
-    return p.communicate()[0].decode('utf-8')
+    m2 = email.message_from_string(p.communicate()[0].decode('utf-8'))
+    for h in ['To','From','Subject']:
+        m2[h] = m[h]
+    return str(m2)
     
+
+class MyTest(unittest.TestCase):
+    def test_smimea(self):
+        print(email_to_dns("hugh@example.com"))
+        assert email_to_dns("slg@had-pilot.com")== \
+            "77a3c94a8ebb95e36eb9682857da339d8ab09597d8e57eb1a4eb3f46._smimecert.had-pilot.com"
+
 
 if __name__=="__main__":
     import argparse,sys
@@ -146,17 +152,16 @@ if __name__=="__main__":
             print_cert(cert[3])
 
     if args.send:
+        import smtplib
+        s = smtplib.SMTP("mail.nist.gov")
         cert = get_cert(args.send)
         x509_cert = der_to_text(cert[3])
         signing_key = open(signing_cert_file,"r").read()
         signing_cert = open(signing_key_file,"r").read()
-        print("signed:")
-        #sys.stdout.write(smime_encrypt(make_message(to=args.send,sender=my_email,kind='signed',template=email_template),
-        #                               signing_key=signing_key,signing_cert=signing_cert ))
-        print("encrypted:")
-        #sys.stdout.write(smime_encrypt(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
-        #                                encrypting_cert=x509_cert))
-        print("signed and encrypted:")
-        print(smime_encrypt(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
+        s.sendmail(my_email,[args.send],smime_encrypt(make_message(to=args.send,sender=my_email,kind='signed',template=email_template),
+                                       signing_key=signing_key,signing_cert=signing_cert ))
+        s.sendmail(my_email,[args.send],smime_encrypt(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
+                                        encrypting_cert=x509_cert))
+        s.sendmail(my_email,[args.send],smime_encrypt(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
                             signing_key=signing_key,signing_cert=signing_cert,
                             encrypting_cert=x509_cert))
