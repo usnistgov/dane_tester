@@ -27,22 +27,29 @@ EMAIL_TAG_USER_SENT="USER SENT" # sent by a user
 EMAIL_TAG_AUTOMATED_RESPONSE="AUTOMATED RESPONSE" # created by our script
 
 import tester                   # import myself
-import pytest,json,os,os.path
+import pytest,json,os,os.path,sys
 
 class Tester:
     def __init__(self,testname=None,testid=None,rw=True):
         self.rw = rw            # .rw means we are writing
         self.testid = testid
+        self.conn = None        # make sure it's set
         assert os.path.exists(cfg_file)
         import configparser,sys
         cfg = configparser.ConfigParser()
         cfg.read(cfg_file)
         sec = cfg["mysql"]
-        self.conn = pymysql.connect(host=sec.get("host",DB_HOST),
+        try:
+            self.conn = pymysql.connect(host=sec.get("host",DB_HOST),
                                     user=sec.get("username"),
                                     password=sec.get("password"),
                                     charset='utf8',
                                     db=sec.get("emaildb",DB_NAME))
+        except pymysql.err.OperationalError as e:
+            sys.stderr.write("********************************\n")
+            sys.stderr.write("*** MYSQL SERVER NOT RUNNING ***\n")
+            sys.stderr.write("********************************\n")
+            raise e
 
         # if testname is specified, create a new test
         if testid:
@@ -89,7 +96,7 @@ class Tester:
 
     def commit(self):
         if self.rw:
-            self.conn.commit()
+            if self.conn: self.conn.commit()
 
     def __del__(self):
         self.commit()           # if we need to commit, do it!
