@@ -93,8 +93,8 @@ def print_cert(cert):
 
 def der_to_text(cert):
     p = Popen(['openssl','x509','-inform','der','-text'],stdin=PIPE,stdout=PIPE)
-    p.stdin.write(cert)
-    return p.communicate()[0]
+    #p.stdin.write(cert)
+    return p.communicate(cert)[0]
 
 def smime_encrypt(msg,signing_key=None,signing_cert=None,
                   signing_addr=None,

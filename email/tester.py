@@ -95,11 +95,12 @@ class Tester:
         return c.lastrowid
 
     def commit(self):
-        if self.rw:
-            if self.conn: self.conn.commit()
+        if self.rw and self.conn:
+            self.conn.commit()
 
-    def __del__(self):
-        self.commit()           # if we need to commit, do it!
+    # this has caused many problems
+    #def __del__(self):
+    #    self.commit()           # if we need to commit, do it!
 
                            
 if __name__=="__main__":

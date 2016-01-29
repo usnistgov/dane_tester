@@ -9,12 +9,13 @@ import dbdns
 import tempfile
 from subprocess import Popen,PIPE,call
 
+# Info on command line
+# http://www.spywarewarrior.com/uiuc/gpg/gpg-com-4.htm#4-2c
+
 smtp_server = "mail.nist.gov"
 dns_resolver = "8.8.8.8"
-#signing_key_file = "/home/slg/ca/smime.key"
-#signing_cert_file = "/home/slg/ca/smime.crt"
-signing_key_file = "/home/slg/ca/smime.2"
-signing_cert_file = "/home/slg/ca/smime.2"
+signing_key_file = "/home/slg/.gnupg/nistsecretkey.asc"
+
 my_email="simson.garfinkel@nist.gov"
 
 email_template="""To: %TO%
@@ -29,6 +30,16 @@ def make_message(to=None,sender=None,kind=None,template=None):
     template = template.replace("%FROM%",sender)
     template = template.replace("%KIND%",kind)
     return template
+
+from contextlib import contextmanager
+@contextmanager
+def make_file(buf):
+    import tempfile
+    """Returns the name of buf written into a file"""
+    kfile = tempfile.NamedTemporaryFile(mode="wb+")
+    kfile.write(buf)
+    kfile.flush()
+    yield kfile.name
 
 def email_to_dns(email):
     """Given an email address, return the OPENPGPKEY encoding."""
@@ -56,20 +67,44 @@ def get_pubkey(T,email):
         return hexdata
 
 
-def print_pubkey(key):
-    # Print GPG key
-    dname = tempfile.mkdtemp()  # locateion for temporary keyfiles
-    kname = tempfile.NamedTemporaryFile(mode="wb+",dir=dname)
-    kname.write(key)
-    kname.flush()
-
+def import_key(tempdir,kfile):
+    "Imports a key to the keyring in tempdir and returns the keyid"
     import re
-    
-    out = Popen(['gpg','--homedir',dname,'--import',kname.name],stderr=PIPE).communicate()[1].decode('utf-8')
+    out = Popen(['gpg','--homedir',tempdir,'--import',kfile],stderr=PIPE).communicate()[1].decode('utf-8')
     m = re.search("gpg: key ([0-9A-F]+).*imported",out.replace("\n"," "))
     if m:
-        keyid = m.group(1)
-        call(['gpg','--homedir',dname,'--list-sigs',keyid])
+        return m.group(1)
+    raise RuntimeError("No PGP key imported")
+    
+
+def print_pubkey(key):
+    # Print GPG key
+    tempdir = tempfile.mkdtemp()  # location for temporary keyfiles
+    with make_file(key) as kfile:
+        keyid = import_key(tempdir,kfile)
+        call(['gpg','--batch','--homedir',tempdir,'--list-sigs',keyid])
+
+def pgp_encrypt(msg,signing_key_file=None,encrypting_key=None):
+    tempdir = tempfile.mkdtemp()
+    if not signing_key_file and encrypting_key:
+        with make_file(encrypting_key) as efile:
+            keyid = import_key(tempdir,efile)
+            cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'-a','-e','--recipient',keyid]
+            p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
+            res = p.communicate(msg.encode('utf-8'))[0]
+            return res.decode('utf-8')
+            
+    if signing_key_file and not encrypting_key:
+        cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'--import',signing_key_file]
+        print(cmd)
+        call(cmd)
+        cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'-a','--clearsign']
+        print(cmd)
+        p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
+        res = p.communicate(msg.encode('utf-8'))[0]
+        return res.decode('utf-8')
+            
+    
 
 class MyTest(unittest.TestCase):
     def test_openpgp(self):
@@ -89,12 +124,21 @@ if __name__=="__main__":
     args = parser.parse_args()
     T = Tester(testname="dig")
     if args.print:
-        tname = args.print
-        key = get_pubkey(T,tname)
+        key = get_pubkey(T,args.print)
         if key:
             print_pubkey(key)
 
     if args.send:
+        key = get_pubkey(T,args.send)
+        print("key:",key)
+        if key:
+            msg="Hello World\n"
+            #res = pgp_encrypt(msg,signing_key=None,encrypting_key=key)
+            res = pgp_encrypt(msg,signing_key_file=signing_key_file,encrypting_key=None)
+            print("Resulting message:")
+            print(res)
+
+        exit(0)
         import smtplib
         s = smtplib.SMTP("mail.nist.gov")
         cert = get_cert(T,args.send)
