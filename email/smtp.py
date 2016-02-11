@@ -3,6 +3,11 @@
 import tempfile, smtplib, os, sys
 
 def sendmailWithTranscript(server,port,from_header,to_headers,body):
+    # See if we should send to an internal
+    if tester.SMTP_INTERNAL_DOMAIN in to_headers[0]:
+        server = tester.SMTP_INTERNAL_HOST
+
+
     # Send a message and return the transcript
     # Find an available file descriptor
     t = tempfile.TemporaryFile()
