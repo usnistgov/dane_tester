@@ -6,7 +6,7 @@
 import os,os.path
 import pymysql.cursors
 
-SMTP_HOST = "localhost"
+SMTP_HOST = "mail.nist.gov"
 SMTP_PORT = 25
 
 
@@ -21,6 +21,7 @@ cfg_file = "/home/slg/email.cfg"
 # Work jobs
 TASK_COMPOSE_SIMPLE_RESPONSE="COMPOSE SIMPLE RESPONSE"
 TASK_SEND_MESSAGE="SEND MESSAGE"
+TASK_REGISTER_FROM_EMAIL="REGISTER FROM EMAIL"
 
 # Email message tags
 EMAIL_TAG_USER_SENT="USER SENT" # sent by a user
@@ -89,7 +90,7 @@ class Tester:
         # Make sure that there is precisely one row with messageid=messageid and that it has no log
         assert len(r)==1
         assert r[0][0]==None
-        c.execute("update messages set smtp_log=%s where messageid=%s",(smtp_log,messageid))
+        c.execute("update messages set smtp_log=%s,sent=now() where messageid=%s",(smtp_log,messageid))
 
     def insert_task(self,task,args):
         assert self.rw
