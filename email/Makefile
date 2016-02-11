@@ -1,6 +1,6 @@
 CFG_FILE=$(HOME)/email.cfg
-schema.sql: dump_schema.py $(CFG_FILE)
-	python3 dump_schema.py > schema.sql
+schema.sql: dbmail.py $(CFG_FILE)
+	python3 dbmaint.py --dump > schema.sql
 
 setup:	dbmaint.py
 	python3 dbmaint.py create test bouncer

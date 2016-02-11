@@ -23,6 +23,8 @@ Clone of HAD Pythenic system:
 
 Simple email responder
 ======================
+Activity: Mail sent to bouncer@had-ub1 results in a response to the sender
+
 These lines are in `/etc/aliases`:
 
     ### email-bouncer test 
@@ -34,7 +36,19 @@ State machine:
 2. TASK_COMPOSE_SIMPLE_RESPONSE
 3. TASK_SEND_MESSAGE
 
+
 Website registration with hash-sent-back
 ========================================
+Activity: users register online, receive a hash, enter the hash and the email address on the website to get a message.
+
+1. User sends email to pythentic@had-ub1 with register as the subject.  (email_receiver.py)
+2. TASK_COMPOSE_REGISTRATION_RESPONSE
+
+Alternative registration:
+
+3. email_register.py <emailaddress>
+4. 
+
+
 These lines are in `/etc/aliases`:
 

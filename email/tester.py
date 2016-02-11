@@ -60,6 +60,9 @@ class Tester:
             c.execute("insert into tests (testtype) values (%s)",(testtype,))
             self.testid = c.lastrowid
 
+    def cursor(self):
+        return self.conn.cursor()
+
     def get_test_type(self,name):
         c = self.conn.cursor()
         c.execute("select testtype from testtypes where name=%s",(name,))
