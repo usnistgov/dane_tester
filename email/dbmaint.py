@@ -26,9 +26,12 @@ def user_register(conn,email):
     c.execute("select userid from users where email=%s",(email,))
     return c.fetchone()[0]
         
-def user_hash(conn,userid):
+def user_hash(conn,userid=None,email=None):
     c = conn.cursor()
-    c.execute("select hash from users where userid=%s",(userid,))
+    if userid:
+        c.execute("select hash from users where userid=%s",(userid,))
+    if email:
+        c.execute("select hash from users where email=%s",(email,))
     return c.fetchone()[0]
         
 
@@ -72,7 +75,7 @@ if __name__=="__main__":
 
     if args.register:
         userid = user_register(T.conn,args.register)
-        print("Hash for {}: {}".format(args.register,user_hash(T.conn,userid)))
+        print("Hash for {}: {}".format(args.register,user_hash(T.conn,userid=userid)))
             
     if args.registerByMail:
         import email_receiver,email

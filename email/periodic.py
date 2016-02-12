@@ -8,10 +8,19 @@ import pymysql.cursors
 import logging,json
 import email
 import dbmaint
+import smtp
 
 logging.basicConfig(level=logging.DEBUG)
 
 from_address = "pythentic@had-ub1.had-pilot.com"
+template0 = \
+"""To: %TO%
+From: %FROM%
+Subject: %SUBJECT%
+
+%MESSAGE%
+"""
+
 template1 = \
 """To: %TO%
 From: %FROM%
@@ -40,6 +49,18 @@ If you register again you will get the same hash as a reminder.
 
 
 # Get the message from the database, create a response, and put it back in the database with new work to do.
+def compose_simple_message(T,args):
+    c = T.conn.cursor()
+    msg = template0.replace("%TO%",args['to']) \
+                            .replace("%FROM%",from_address) \
+                            .replace("%SUBJECT%",args['subject']) \
+                            .replace("%TESTID%",str(T.testid)) \
+                            .replace("%BODY%",args['body'])
+    messageid = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,msg)
+    T.insert_task(tester.TASK_SEND_MESSAGE,{"messageid":messageid})
+    T.commit()
+    return True
+
 def compose_simple_response(T,args):
     c = T.conn.cursor()
     c.execute("select body from messages where messageid=%s",(args['messageid'],))
@@ -47,16 +68,17 @@ def compose_simple_response(T,args):
         msg = email.message_from_string(body)
         response = template1.replace("%TO%",msg['from']) \
                             .replace("%FROM%",from_address) \
-                            .replace("%TESTID%",T.testid) \
+                            .replace("%TESTID%",str(T.testid)) \
                             .replace("%MESSAGE%",body)
         messageid = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,response)
         T.insert_task(tester.TASK_SEND_MESSAGE,{"messageid":messageid})
         T.commit()
         return True
 
+
+
 # Like compse_simple_response, but also creates a hash
 def register_from_email(T,args):
-    import dbmaint
     c = T.conn.cursor()
     c.execute("select body from messages where messageid=%s",(args['messageid'],))
     for (body,) in c.fetchall():
@@ -65,7 +87,7 @@ def register_from_email(T,args):
         response = template2.replace("%TO%",sender) \
                             .replace("%FROM%",from_address) \
                             .replace("%MAILTO%",sender) \
-                            .replace("%HASH%",dbmaint.user_hash(T.conn,dbmaint.user_register(T.conn,sender)))
+                            .replace("%HASH%",dbmaint.user_hash(T.conn,userid=dbmaint.user_register(T.conn,sender)))
         messageid = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,response)
         T.insert_task(tester.TASK_SEND_MESSAGE,{"messageid":messageid})
         T.commit()
@@ -73,7 +95,6 @@ def register_from_email(T,args):
 
 # Send a message that is pending in the database
 def send_message(T,args):
-    import email,smtp
     c = T.conn.cursor()
     messageid = args['messageid']
     c.execute("select body from messages where messageid=%s",(messageid,))
@@ -102,14 +123,30 @@ def run(testid,task,args):
     if task==tester.TASK_REGISTER_FROM_EMAIL:
         return register_from_email(testid,args)
 
+    if task==tester.TASK_COMPOSE_SIMPLE_MESSAGE:
+        return compose_simple_message(testid,args)
+
     raise RuntimeError("testid: {}  unknown worker: {}".format(testid,worker))
 
 
 def periodic():
     from tester import Tester
 
+
+    import argparse
+    parser = argparse.ArgumentParser(description="database maintenance")
+    parser.add_argument("--list",help="List all of the tasks",action="store_true")
+    args = parser.parse_args()
+    
     W = Tester()                # get a database connection
     c = W.conn.cursor()
+
+    if args.list:
+        c.execute("select workqueueid,testid,created,completed from workqueue")
+        for line in c:
+            print(line)
+        exit(0)
+
     c.execute("select workqueueid,testid,task,args from workqueue where isnull(completed)")
     for (workqueueid,testid,task,args_str) in c.fetchall():
         T = Tester(testid=testid)

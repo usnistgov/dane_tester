@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import tempfile, smtplib, os, sys
+import tester
 
 def sendmailWithTranscript(server,port,from_header,to_headers,body):
     # See if we should send to an internal
