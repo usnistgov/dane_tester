@@ -18,7 +18,7 @@ template0 = \
 From: %FROM%
 Subject: %SUBJECT%
 
-%MESSAGE%
+%BODY%
 """
 
 template1 = \
