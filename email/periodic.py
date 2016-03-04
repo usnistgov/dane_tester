@@ -2,6 +2,7 @@
 #
 # periodic queue runner
 # currently includes the test implementations as well.
+# periodic.py - the program that is for development
 
 import tester
 import pymysql.cursors
@@ -9,6 +10,7 @@ import logging,json
 import email
 import dbmaint
 import smtp
+
 
 logging.basicConfig(level=logging.DEBUG)
 

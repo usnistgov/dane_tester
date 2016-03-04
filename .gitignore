@@ -5,3 +5,4 @@ __pycache__
 *.pyc
 #*#
 get_altnames
+email/periodic_cron.py
