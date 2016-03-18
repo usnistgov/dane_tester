@@ -7,6 +7,7 @@ import logging
 import sys
 import pymysql.err
 from tabulate import tabulate
+import periodic
 
 def make_hash(email):
     "These are called hashes, but they are actually random nonces."
@@ -25,7 +26,9 @@ def user_register(conn,email):
     except pymysql.err.IntegrityError as e:
         pass                    # user already exists
     c.execute("select userid from users where email=%s",(email,))
-    return c.fetchone()[0]
+    for (userid,) in c.fetchall():
+        return userid
+    return none
         
 def user_hash(conn,userid=None,email=None):
     """Return the hash for a specific user or email address"""
@@ -35,7 +38,9 @@ def user_hash(conn,userid=None,email=None):
         c.execute("select hash from users where userid=%s",(userid,))
     if email:
         c.execute("select hash from users where email=%s",(email,))
-    return c.fetchone()[0]
+    for (hash,) in c.fetchall():
+        return hash
+    return None
         
 
 if __name__=="__main__":
@@ -50,6 +55,7 @@ if __name__=="__main__":
     parser.add_argument("--register",help="Register an email address as a user")
     parser.add_argument("--registerByMail",help="Fake registration from email address")
     parser.add_argument("--resend",help="Resend an email message")
+    parser.add_argument("--message",help="Display mesasge #",type=int)
     
     if len(sys.argv)==1:
         parser.print_help()
@@ -74,7 +80,7 @@ if __name__=="__main__":
             cmd = "select testtype,name from testtypes"
         if args.list.startswith("user"):
             cmd = "select * from users"
-        if args.list.startswith("message"):
+        if args.list.startswith("m"):
             cmd = "select messageid,fromaddr,toaddr,received,sent,length(smtp_log) from messages"
         if args.list.startswith("w"):
             cmd = "select * from workqueue"
@@ -89,9 +95,8 @@ if __name__=="__main__":
             
     if args.registerByMail:
         import email_receiver,email
-        msg = email.message_from_string("To: pythentic@had-pilot.biz\nFrom: {}\nSubject: register\n\n".format(args.registerByMail))
+        msg = email.message_from_string("To: {}\nFrom: {}\nSubject: register\n\n".format(periodic.from_address,args.registerByMail))
         email_receiver.email_receiver("register",msg)
-
 
     if args.dump:
         import configparser,sys
@@ -104,6 +109,10 @@ if __name__=="__main__":
         cmd = ['mysqldump','-u'+username,'-p'+password,'-d',dbname]
         sys.stdout.write(Popen(cmd,stdout=PIPE).communicate()[0].decode('utf-8'))
         
+    if args.message:
+        c.execute("select body from messages where messageid=%s",(args.message,))
+        print(c.fetchone()[0])
+
     if args.dumpsmtp:
         c.execute("select smtp_log from messages where messageid=%s",(args.dumpsmtp,))
         print(c.fetchone()[0])

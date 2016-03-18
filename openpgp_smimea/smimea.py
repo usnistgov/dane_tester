@@ -12,8 +12,8 @@ smtp_server = "mail.nist.gov"
 dns_resolver = "8.8.8.8"
 #signing_key_file = "/home/slg/ca/smime.key"
 #signing_cert_file = "/home/slg/ca/smime.crt"
-signing_key_file = "/home/slg/ca/smime.2"
-signing_cert_file = "/home/slg/ca/smime.2"
+signing_key_file = "/home/slg/ca/simson.garfinkel@nist.gov"
+signing_cert_file = "/home/slg/ca/simson.garfinkel@nist.gov"
 my_email="simson.garfinkel@nist.gov"
 
 email_template="""To: %TO%
@@ -38,7 +38,10 @@ def email_to_dns(email):
         dns = dns[:-1]
     return dns
 
-def get_cert(email):
+def get_file(fname):
+    return open(fname).read()
+
+def get_cert_for_email(email):
     """Returns the DNS cert for email"""
     import re,codecs
     msg = dns.message.make_query(dns.name.from_text(email_to_dns(email)), "TYPE53")
@@ -96,7 +99,7 @@ def der_to_text(cert):
     #p.stdin.write(cert)
     return p.communicate(cert)[0]
 
-def smime_encrypt(msg,signing_key=None,signing_cert=None,
+def smime_crypto(msg,signing_key=None,signing_cert=None,
                   signing_addr=None,
                   encrypting_cert=None):
     from tempfile import NamedTemporaryFile
@@ -154,14 +157,14 @@ if __name__=="__main__":
     if args.send:
         import smtplib
         s = smtplib.SMTP("mail.nist.gov")
-        cert = get_cert(args.send)
+        cert = get_cert_for_email(args.send)
         x509_cert = der_to_text(cert[3])
-        signing_key = open(signing_cert_file,"r").read()
-        signing_cert = open(signing_key_file,"r").read()
-        s.sendmail(my_email,[args.send],smime_encrypt(make_message(to=args.send,sender=my_email,kind='signed',template=email_template),
+        signing_key  = get_file(signing_cert_file)
+        signing_cert = get_file(signing_key_file)
+        s.sendmail(my_email,[args.send],smime_crypto(make_message(to=args.send,sender=my_email,kind='signed',template=email_template),
                                        signing_key=signing_key,signing_cert=signing_cert ))
-        s.sendmail(my_email,[args.send],smime_encrypt(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
+        s.sendmail(my_email,[args.send],smime_crypto(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
                                         encrypting_cert=x509_cert))
-        s.sendmail(my_email,[args.send],smime_encrypt(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
+        s.sendmail(my_email,[args.send],smime_crypto(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
                             signing_key=signing_key,signing_cert=signing_cert,
                             encrypting_cert=x509_cert))

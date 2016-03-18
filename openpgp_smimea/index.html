@@ -76,11 +76,11 @@
           <form id="form1" action='sendmail.cgi'>
             <label for="email">Your Email</label>    <input type="text" id="email" name="email"/><br/>
             <label for="hash">Your Hash</label>      <input type="text" id="hash" name="hash"/><br/>
-            <label for="signature">Signature</label>
+            <label for="sigmode">Signature</label>
             <select name="sigmode">
                 <option value="None">--</option>
-                <option value="OpenPGP">OpenPGP</option>
-                <option value="S/MIME">S/MIME</option>
+                <option value="pgp">OpenPGP</option>
+                <option value="smime">S/MIME</option>
             </select><br/>
             <input type="submit" value="Send Mail" id="form1-submit"><br/>
            <span id="form1-status"></span>

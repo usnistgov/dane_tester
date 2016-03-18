@@ -24,10 +24,11 @@ cfg_file = os.path.join(home,"email.cfg")
 cfg_file = "/home/slg/email.cfg"
 
 # Work jobs
-TASK_COMPOSE_SIMPLE_RESPONSE="COMPOSE SIMPLE RESPONSE"
-TASK_SEND_MESSAGE="SEND MESSAGE"
-TASK_REGISTER_FROM_EMAIL="REGISTER FROM EMAIL"
-TASK_COMPOSE_SIMPLE_MESSAGE="COMPOSE SIMPLE MESSAGE"
+TASK_COMPOSE_SIMPLE_RESPONSE="compose_simple_response"
+TASK_COMPOSE_SIMPLE_MESSAGE="compose_simple_message"
+TASK_CRYPTO_MESSAGE="crypto_message"
+TASK_SEND_MESSAGE="send_message"
+TASK_REGISTER_FROM_EMAIL="register_from_email"
 
 # Email message tags
 EMAIL_TAG_USER_SENT="USER SENT" # sent by a user

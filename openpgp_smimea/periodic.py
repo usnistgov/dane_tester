@@ -10,11 +10,13 @@ import logging,json
 import email
 import dbmaint
 import smtp
+import smimea
 
-
+debug = True
 logging.basicConfig(level=logging.DEBUG)
 
-from_address = "pythentic@had-ub1.had-pilot.com"
+#from_address = "pythentic@had-ub1.had-pilot.com"
+from_address = "simson.garfinkel@nist.gov"
 template0 = \
 """To: %TO%
 From: %FROM%
@@ -49,7 +51,6 @@ If you register again you will get the same hash as a reminder.
 """
 
 
-
 # Get the message from the database, create a response, and put it back in the database with new work to do.
 def compose_simple_message(T,args):
     c = T.conn.cursor()
@@ -58,8 +59,8 @@ def compose_simple_message(T,args):
                             .replace("%SUBJECT%",args['subject']) \
                             .replace("%TESTID%",str(T.testid)) \
                             .replace("%BODY%",args['body'])
-    messageid = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,msg)
-    T.insert_task(tester.TASK_SEND_MESSAGE,{"messageid":messageid})
+    args['messageid'] = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,msg)
+    T.insert_task(tester.TASK_CRYPTO_MESSAGE,args)
     T.commit()
     return True
 
@@ -72,8 +73,8 @@ def compose_simple_response(T,args):
                             .replace("%FROM%",from_address) \
                             .replace("%TESTID%",str(T.testid)) \
                             .replace("%MESSAGE%",body)
-        messageid = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,response)
-        T.insert_task(tester.TASK_SEND_MESSAGE,{"messageid":messageid})
+        args['messageid'] = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,response)
+        T.insert_task(tester.TASK_CRYPTO_MESSAGE,args)
         T.commit()
         return True
 
@@ -90,8 +91,33 @@ def register_from_email(T,args):
                             .replace("%FROM%",from_address) \
                             .replace("%MAILTO%",sender) \
                             .replace("%HASH%",dbmaint.user_hash(T.conn,userid=dbmaint.user_register(T.conn,sender)))
-        messageid = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,response)
-        T.insert_task(tester.TASK_SEND_MESSAGE,{"messageid":messageid})
+        args['messageid'] = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,response)
+        T.insert_task(tester.TASK_CRYPTO_MESSAGE,args)
+        T.commit()
+        return True
+
+# crypto a message
+def crypto_message(T,args):
+    c = T.conn.cursor()
+    c.execute("select body,messageid from messages where messageid=%s",(args['messageid'],))
+    for (body,messageid) in c.fetchall():
+        msg = email.message_from_string(body)
+        sigmode = args.get('sigmode',None)
+        encmode = args.get('encmode',None)
+        print("sigmode=",sigmode)
+        if sigmode==None and encmode==None:
+            # No processing; use the old message
+            pass
+        elif sigmode=='smime' or encmode=='smime':
+            # Perform an SMIME signature and/or encryption
+            signing_cert = None
+            signing_key  = None
+            if sigmode=='smime':
+                signing_cert = smimea.get_file(smimea.signing_key_file )
+                signing_key  = smimea.get_file(smimea.signing_cert_file)
+            newbody = smimea.smime_crypto(body,signing_key=signing_key,signing_cert=signing_cert)
+            args['messageid'] = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,newbody)
+        T.insert_task(tester.TASK_SEND_MESSAGE,args)
         T.commit()
         return True
 
@@ -113,23 +139,6 @@ def send_message(T,args):
             T.commit()
         return True
     
-def run(testid,task,args):
-    logging.info("testid={} task={} args={}".format(testid,task,args))
-
-    if task==tester.TASK_COMPOSE_SIMPLE_RESPONSE:
-        return compose_simple_response(testid,args)
-
-    if task==tester.TASK_SEND_MESSAGE:
-        return send_message(testid,args)
-
-    if task==tester.TASK_REGISTER_FROM_EMAIL:
-        return register_from_email(testid,args)
-
-    if task==tester.TASK_COMPOSE_SIMPLE_MESSAGE:
-        return compose_simple_message(testid,args)
-
-    raise RuntimeError("testid: {}  unknown worker: {}".format(testid,worker))
-
 
 def periodic():
     from tester import Tester
@@ -150,16 +159,25 @@ def periodic():
             print(line)
         exit(0)
 
-    c.execute("select workqueueid,testid,task,args from workqueue where isnull(completed)")
-    for (workqueueid,testid,task,args_str) in c.fetchall():
-        T = Tester(testid=testid)
-        args = json.loads(args_str)
-        print("args_str=",args_str,"args=",args)
-        args['state'] = 'WORKING'
-        if run(T,task,args):
-            c.execute("update workqueue set completed=now() where workqueueid=%s",(workqueueid,))
-            W.commit()
-        
+    # Run the queue until there is nothing left to run
+    while True:
+        c.execute("select workqueueid,testid,task,args from workqueue where isnull(completed)")
+        count = 0
+        for (workqueueid,testid,task,task_args_str) in c.fetchall():
+            count += 1 
+            T = Tester(testid=testid)
+            task_args = json.loads(task_args_str)
+            if args.debug or debug:
+                print("task_args=",task_args)
+                task_args['state'] = 'WORKING'
+            logging.info("testid={} task={} args={}".format(testid,task,args))
+            if eval(task+"(T,task_args)"):
+                c.execute("update workqueue set completed=now() where workqueueid=%s",(workqueueid,))
+                W.commit()
+        if count==0:
+            break
+    
+
 
 if __name__=="__main__":
     periodic()

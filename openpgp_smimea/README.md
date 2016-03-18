@@ -11,9 +11,9 @@ email message it is.
 
 Test Infrastructure supported:
 ==============================
-- Register by email
-- Register by website
-- Send plain email
++ Register by email
++ Register by website
++ Send plain email
 - Send plain email with s/mime signature
 - Send plain email with PGP signature
 - Send smimea encrypted email 
@@ -21,6 +21,10 @@ Test Infrastructure supported:
 - Send PGP encrypted email
 - Send PGP encrypted email with PGP signature
 
+
+To do:
+======
+- Change template in process.py to use mako
 
 Clone of HAD Pythenic system:
 ================================
