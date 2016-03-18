@@ -13,3 +13,7 @@ lbounce:
 bounce:	
 	@echo Sending a test email message
 	sendmail -t -v < msg-bounce.txt
+
+clean:
+	/bin/rm -f *~
+

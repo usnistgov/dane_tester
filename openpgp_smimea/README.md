@@ -9,6 +9,18 @@ Each email message in the database has a tag to indicate what kind of
 email message it is.
 
 
+Test Infrastructure supported:
+==============================
+- Register by email
+- Register by website
+- Send plain email
+- Send plain email with s/mime signature
+- Send plain email with PGP signature
+- Send smimea encrypted email 
+- Send smimea encrypted email with s/mime signature
+- Send PGP encrypted email
+- Send PGP encrypted email with PGP signature
+
 
 Clone of HAD Pythenic system:
 ================================

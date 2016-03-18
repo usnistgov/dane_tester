@@ -84,7 +84,7 @@ def print_pubkey(key):
         keyid = import_key(tempdir,kfile)
         call(['gpg','--batch','--homedir',tempdir,'--list-sigs',keyid])
 
-def pgp_encrypt(msg,signing_key_file=None,encrypting_key=None):
+def pgp_process(msg,signing_key_file=None,encrypting_key=None):
     tempdir = tempfile.mkdtemp()
     if not signing_key_file and encrypting_key:
         with make_file(encrypting_key) as efile:
@@ -133,8 +133,8 @@ if __name__=="__main__":
         print("key:",key)
         if key:
             msg="Hello World\n"
-            #res = pgp_encrypt(msg,signing_key=None,encrypting_key=key)
-            res = pgp_encrypt(msg,signing_key_file=signing_key_file,encrypting_key=None)
+            #res = pgp_process(msg,signing_key=None,encrypting_key=key)
+            res = pgp_process(msg,signing_key_file=signing_key_file,encrypting_key=None)
             print("Resulting message:")
             print(res)
 

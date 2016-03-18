@@ -6,6 +6,7 @@ import tester                   # get my routine
 import logging
 import sys
 import pymysql.err
+from tabulate import tabulate
 
 def make_hash(email):
     "These are called hashes, but they are actually random nonces."
@@ -27,6 +28,8 @@ def user_register(conn,email):
     return c.fetchone()[0]
         
 def user_hash(conn,userid=None,email=None):
+    """Return the hash for a specific user or email address"""
+    assert(userid!=None or email!=None)
     c = conn.cursor()
     if userid:
         c.execute("select hash from users where userid=%s",(userid,))
@@ -41,17 +44,23 @@ if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description="database maintenance")
     parser.add_argument("--create",help="Create a new test")
-    parser.add_argument("--list",help="List something [tests, email, messages]")
+    parser.add_argument("--list",help="List something [tests, users, messages, workqueue]")
     parser.add_argument("--dump",help="Dump database",action="store_true")
     parser.add_argument("--dumpsmtp",help="Dump an SMTP transaction")
     parser.add_argument("--register",help="Register an email address as a user")
     parser.add_argument("--registerByMail",help="Fake registration from email address")
     parser.add_argument("--resend",help="Resend an email message")
     
+    if len(sys.argv)==1:
+        parser.print_help()
+        exit(0)
+
     args = parser.parse_args()
+
     T = Tester()
     c = T.cursor()
     
+
     if args.create:
         try:
             c.execute("insert into testtypes (name) values (%s)",(args.create,))
@@ -67,11 +76,12 @@ if __name__=="__main__":
             cmd = "select * from users"
         if args.list.startswith("message"):
             cmd = "select messageid,fromaddr,toaddr,received,sent,length(smtp_log) from messages"
+        if args.list.startswith("w"):
+            cmd = "select * from workqueue"
         print("Tests:")
-        print(cmd)
         c.execute(cmd)
-        for row in c:
-            print("\t".join([str(r) for r in row]))
+        headers = [t[0] for t in c.description]
+        print(tabulate(c,headers))
 
     if args.register:
         userid = user_register(T.conn,args.register)

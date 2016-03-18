@@ -59,10 +59,10 @@
     <!-- Main jumbotron for a primary marketing message or call to action -->
     <div class="jumbotron">
       <div class="container">
-        <h1>Hello ANTD!</h1>
-        <p>Jumping off place for Simson's ANTD tests.</p>
+        <h1>Email Tester</h1>
+          <p>To register, send an email message to <a href='mailto:register@had-ub1.antd.nist.gov'>register@had-ub1.antd.nist.gov</a></p>
         <!-- <p><a class="btn btn-primary btn-lg" href="#"
-        role="button">Learn more &raquo;</a></p> -->
+        role="button">Learn more »</a></p> -->
       </div>
     </div>
 
@@ -70,35 +70,45 @@
       <!-- Example row of columns -->
       <div class="row">
         <div class="col-md-4">
-          <h2>Register</h2>
-          <p>To register, send an email message to <a href='mailto:register@had-ub1.antd.nist.gov'>register@had-ub1.antd.nist.gov</a></p>
-          <p><a class="btn btn-default" href="mailto:register@had-ub1.antd.nist.gov?subject=HAD Registration" role="button">Register &raquo;</a></p>
-        </div>
-        <div class="col-md-4">
-          <h2>Get Plain</h2>
+          <h2>Unencrypted</h2>
           <p>Send yourself a plain message</p>
 
           <form id="form1" action='sendmail.cgi'>
-            <label for="email">Your Email</label>
-            <input type="text" id="email" name="email"/>
-            <label for="hash">Your Hash</label>
-            <input type="text" id="hash" name="hash"/>
-            <input type="submit" value="Send Mail">
+            <label for="email">Your Email</label>    <input type="text" id="email" name="email"/><br/>
+            <label for="hash">Your Hash</label>      <input type="text" id="hash" name="hash"/><br/>
+            <label for="signature">Signature</label>
+            <select name="sigmode">
+                <option value="None">--</option>
+                <option value="OpenPGP">OpenPGP</option>
+                <option value="S/MIME">S/MIME</option>
+            </select><br/>
+            <input type="submit" value="Send Mail" id="form1-submit"><br/>
+           <span id="form1-status"></span>
           </form>
           <p></p>
-          <p><a class="btn btn-default" href="#" role="button" id='form1-button'>View details &raquo;</a></p>
-       </div>
-        <div class="col-md-4">
-          <h2>Heading</h2>
-          <p>Donec sed odio dui. Cras justo odio, dapibus ac facilisis in, egestas eget quam. Vestibulum id ligula porta felis euismod semper. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus.</p>
-          <p><a class="btn btn-default" href="#" role="button">View details &raquo;</a></p>
+          <p><a class="btn btn-default" href="#" role="button" id='getplain-details'>View details »</a></p>
         </div>
-      </div>
+        <div class="col-md-4">
+          <h2>SMIMEA</h2>
+          <p>Send yourself an an SMIME-encrypted message, finding the
+          key with the <a href='https://tools.ietf.org/html/draft-ietf-dane-smime-10'>SMIMEA Resource Record<a></p>
+          <p><a class="btn btn-default" href="#" role="button">View details »</a></p>
+        </div>
+        <div class="col-md-4">
+          <h2>OpenPGP</h2>
+          <p>Send yourself an an OpenPGP-encrypted message, finding the
+          key with the <a href='https://tools.ietf.org/html/draft-ietf-dane-openpgpkey-08'>OPENPGPKEY Resource Record<a></p>
+          <p><a class="btn btn-default" href="#" role="button">View details »</a></p>
+        </div>
+      </div> <!-- row -->
+      <div class="row">
+      </div> <!-- row -->
+
 
       <hr>
 
       <footer>
-        <p>2016 Simson Garfinkel.  <a href='www/hello.cgi'>hello</a></p>
+        <p>2016 Simson Garfinkel.  </p>
       </footer>
     </div> <!-- /container -->
 
@@ -113,10 +123,16 @@
     <script src="bootstrap/docs/assets/js/ie10-viewport-bug-workaround.js"></script>
   </body>
 <script>
-  document.getElementById('form1').style.display='none';
-  document.getElementById('form1-button').onclick=function(){
-    document.getElementById('form1').style.display='block';
-  };
+document.getElementById('form1').style.display='none';
+document.getElementById('getplain-details').onclick=function(){
+    if (document.getElementById('form1').style.display == 'none'){
+        document.getElementById('form1').style.display='block';
+        document.getElementById('getplain-details').text='Hide details »';
+    } else {
+        document.getElementById('form1').style.display='none';
+        document.getElementById('getplain-details').text='View details »';
+    }
+};
 </script>
 
 </html>

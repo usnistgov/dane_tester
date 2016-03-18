@@ -38,6 +38,7 @@ import pytest,json,os,os.path,sys
 
 class Tester:
     def __init__(self,testname=None,testid=None,rw=True):
+        """Create a new Tester object. Specify either testname or testid"""
         self.rw = rw            # .rw means we are writing
         self.testid = testid
         self.conn = None        # make sure it's set
@@ -70,6 +71,9 @@ class Tester:
     def cursor(self):
         return self.conn.cursor()
 
+    def dictcursor(self):
+        return self.conn.cursor(pymysql.cursors.DictCursor)
+
     def get_test_type(self,name):
         c = self.conn.cursor()
         c.execute("select testtype from testtypes where name=%s",(name,))
@@ -101,7 +105,8 @@ class Tester:
     def insert_task(self,task,args):
         assert self.rw
         c = self.conn.cursor()
-        c.execute("insert into workqueue (testid,task,args,created) values (%s,%s,%s,NOW())",(self.testid,task,json.dumps(args)))
+        c.execute("insert into workqueue (testid,task,args,created) values (%s,%s,%s,NOW())",
+                  (self.testid,task,json.dumps(args)))
         return c.lastrowid
 
     def commit(self):

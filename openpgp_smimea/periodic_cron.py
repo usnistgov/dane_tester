@@ -2,7 +2,6 @@
 #
 # periodic queue runner
 # currently includes the test implementations as well.
-# periodic.py - the program that is for development
 
 import tester
 import pymysql.cursors
@@ -10,7 +9,6 @@ import logging,json
 import email
 import dbmaint
 import smtp
-
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -66,7 +64,7 @@ def compose_simple_message(T,args):
 def compose_simple_response(T,args):
     c = T.conn.cursor()
     c.execute("select body from messages where messageid=%s",(args['messageid'],))
-    for (body,) in c.fetchall():
+    for (body,) in c.fetchone():
         msg = email.message_from_string(body)
         response = template1.replace("%TO%",msg['from']) \
                             .replace("%FROM%",from_address) \
@@ -83,7 +81,7 @@ def compose_simple_response(T,args):
 def register_from_email(T,args):
     c = T.conn.cursor()
     c.execute("select body from messages where messageid=%s",(args['messageid'],))
-    for (body,) in c.fetchall():
+    for (body,) in c.fetchone():
         msg = email.message_from_string(body)
         sender = msg['from']
         response = template2.replace("%TO%",sender) \
@@ -93,6 +91,20 @@ def register_from_email(T,args):
         messageid = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,response)
         T.insert_task(tester.TASK_SEND_MESSAGE,{"messageid":messageid})
         T.commit()
+        return True
+
+# crypto a message
+def crypto_message(T,args):
+    c = T.conn.cursor()
+    c.execute("select body from messages where messageid=%s",(args['messageid'],))
+    with c.fetchone() as (body,):
+        msg = email.message_from_string(body)
+        sigmode = args.get('sigmode',None)
+        encmode = args.get('encmode',None)
+        if sigmode==None and encmode==None:
+            # No processing; schedule it to be sent
+            T.insert_task(tester.TASK_SEND_MESSAGE,{"messageid":messageid})
+            T.commit()
         return True
 
 # Send a message that is pending in the database
@@ -137,7 +149,6 @@ def periodic():
 
     import argparse
     parser = argparse.ArgumentParser(description="database maintenance")
-    parser.add_argument("--debug",action="store_true")
     parser.add_argument("--list",help="List all of the tasks",action="store_true")
     args = parser.parse_args()
     

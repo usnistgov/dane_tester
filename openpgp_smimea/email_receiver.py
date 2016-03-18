@@ -7,6 +7,7 @@
 
 
 from tester import Tester                   # get my routine
+import argparse
 import tester
 import logging
 import sys
@@ -18,7 +19,7 @@ logging.basicConfig(level=logging.DEBUG)
 def email_receiver(cmd,msg):
     T = Tester(testname=cmd)
 
-    # Save it in the database
+    # Save the received email mesasge in the database
     messageid = T.insert_email_message(tester.EMAIL_TAG_USER_SENT,str(msg))
     args = {"messageid":messageid,"cmd":cmd}
 
@@ -38,8 +39,22 @@ def email_receiver(cmd,msg):
     
 
 if __name__=="__main__":
+    cmd = None
+    parser = argparse.ArgumentParser(description="Designed to be called from a PIPE in /etc/aliases.")
+    parser.add_argument("--register",help="Simulate register by email with a predefined message. REGISTER is from: address")
+    parser.add_argument("command",nargs="?",help="Specifies queue to use. [bouncer|register]. Email message should be provided on STDIN")
+    args = parser.parse_args()
+
+    if args.register:
+        print("Fake registration email:\n\n")
+        msg_str = "To: email_receiver.py\nFrom: {}\nSubject: register\n\nRegister me\n".format(args.register)
+        print(msg_str)
+        cmd = "register"
+        msg = email.message_from_string(msg_str)
+
     # Get the test type for our invocation
-    cmd = sys.argv[1]
-    msg = email.message_from_file(sys.stdin)
+    if not cmd:
+        cmd = sys.argv[1]
+        msg = email.message_from_file(sys.stdin)
 
     email_receiver(cmd,msg)
