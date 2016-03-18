@@ -1,14 +1,25 @@
-# NIST Software Disclaimer #
+# NIST DANE Support
 
+This repository contains support for:
+
+* [openpgp_smimea/](openpgp_smimea/) Scripts and CGIs for an event-based openpgp_smimea tester
+
+* [tlsa/](tlsa/) First attempt---A tester for TLSA records for HTTP and SMTP servers.
+
+
+
+# NIST Software Disclaimer
+
+<sub><sup>
 NIST-developed software is provided by NIST as a public service. You
- may use, copy and distribute copies of the software in any medium,
- provided that you keep intact this entire notice. You may improve,
- modify and create derivative works of the software or any portion of
- the software, and you may copy and distribute such modifications or
- works. Modified works should carry a notice stating that you changed
- the software and should note the date and nature of any such
- change. Please explicitly acknowledge the National Institute of
- Standards and Technology as the source of the software.
+may use, copy and distribute copies of the software in any medium,
+provided that you keep intact this entire notice. You may improve,
+modify and create derivative works of the software or any portion of
+the software, and you may copy and distribute such modifications or
+works. Modified works should carry a notice stating that you changed
+the software and should note the date and nature of any such
+change. Please explicitly acknowledge the National Institute of
+Standards and Technology as the source of the software.
 
 NIST-developed software is expressly provided “AS IS.” NIST MAKES NO
 WARRANTY OF ANY KIND, EXPRESS, IMPLIED, IN FACT OR ARISING BY
@@ -30,3 +41,4 @@ interruption of operation. This software is not intended to be used in
 any situation where a failure could cause risk of injury or damage to
 property. The software developed by NIST employees is not subject to
 copyright protection within the United States.
+</sub></sup>
