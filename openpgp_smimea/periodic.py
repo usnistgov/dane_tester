@@ -170,7 +170,7 @@ def periodic():
             if args.debug or debug:
                 print("task_args=",task_args)
                 task_args['state'] = 'WORKING'
-            logging.info("testid={} task={} args={}".format(testid,task,args))
+            logging.info("testid={} task={} task_args={}".format(testid,task,task_args))
             if eval(task+"(T,task_args)"):
                 c.execute("update workqueue set completed=now() where workqueueid=%s",(workqueueid,))
                 W.commit()
