@@ -8,6 +8,7 @@ import dns,dns.resolver,dns.query,dns.zone,dns.message
 import dbdns
 import tempfile
 from subprocess import Popen,PIPE,call
+from mako.template import Template
 
 # Info on command line
 # http://www.spywarewarrior.com/uiuc/gpg/gpg-com-4.htm#4-2c
@@ -19,17 +20,33 @@ signing_key_file = "/home/slg/.gnupg/nistsecretkey.asc"
 my_email="simson.garfinkel@nist.gov"
 
 email_template="""To: %TO%
-From: %FROM%
 Subject: This is a test %KIND% message
+From: %FROM%
 
 This is a test %KIND% message. Thanks for playing.
 """
+
+class DebugSendmail:
+    def sendmail(self,from_,to,msg):
+        print("MAIL FROM: {}".format(from_))
+        print("TO: {}".format(" ".join(to)))
+        print("MESSAGE:")
+        print(msg)
+        print("="*80)
+        print("="*80)
+        print("="*80)
 
 def make_message(to=None,sender=None,kind=None,template=None):
     template = template.replace("%TO%",to)
     template = template.replace("%FROM%",sender)
     template = template.replace("%KIND%",kind)
     return template
+
+#def make_message(to=None,sender=None,kind=None,template=None):
+#    t = Template(text=template)
+#    return t.render(**{'to':to,
+#                     'from':sender,
+#                     'kind':kind})
 
 from contextlib import contextmanager
 @contextmanager
@@ -84,27 +101,46 @@ def print_pubkey(key):
         keyid = import_key(tempdir,kfile)
         call(['gpg','--batch','--homedir',tempdir,'--list-sigs',keyid])
 
-def pgp_process(msg,signing_key_file=None,encrypting_key=None):
+def pgp_process1(msg,signing_key_file=None,encrypting_key=None):
     tempdir = tempfile.mkdtemp()
-    if not signing_key_file and encrypting_key:
-        with make_file(encrypting_key) as efile:
-            keyid = import_key(tempdir,efile)
-            cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'-a','-e','--recipient',keyid]
-            p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
-            res = p.communicate(msg.encode('utf-8'))[0]
-            return res.decode('utf-8')
-            
-    if signing_key_file and not encrypting_key:
+
+    # If we are signing, need to import the key into the signing_key_file
+    if signing_key_file:
+        # Import the key into the temporary keychain
         cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'--import',signing_key_file]
-        print(cmd)
         call(cmd)
-        cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'-a','--clearsign']
-        print(cmd)
-        p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
-        res = p.communicate(msg.encode('utf-8'))[0]
-        return res.decode('utf-8')
+
+    # If we are encrypting, need to import the encrypting key
+    if encrypting_key:
+        with make_file(encrypting_key) as encrypting_key_file:
+            encrypting_keyid = import_key(tempdir,encrypting_key_file)
+
+            if signing_key_file:
+                cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'--armor','--sign','--encrypt','--recipient',encrypting_keyid]
+            else:
+                cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'--armor','--encrypt','--recipient',encrypting_keyid]
+            p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
+            (res,res_error) = p.communicate(msg.encode('utf-8'))
+            if res_error:
+                raise RuntimeError(res_error.encode('utf-8'))
+            return res.decode('utf-8')
+                
+    # Only signing
+    # Use the temporary keychain to sign the message
+    cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'--armor','--clearsign']
+    p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
+    (res,res_error) = p.communicate(msg.encode('utf-8'))
+    if res_error:
+        raise RuntimeError(res_error.encode('utf-8'))
+    return res.decode('utf-8') # return the result
             
     
+def pgp_process(msg,signing_key_file=None,encrypting_key=None):
+    import email
+    e = email.message_from_string(msg)
+    e.set_payload(pgp_process1(e.get_payload(),signing_key_file=signing_key_file,encrypting_key=encrypting_key))
+    return(e.as_string())
+
 
 class MyTest(unittest.TestCase):
     def test_openpgp(self):
@@ -121,6 +157,8 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser(description="smimea tester")
     parser.add_argument("--print",help="get and print a certificate for an email address")
     parser.add_argument("--send",help="send test emails email to an address")
+    parser.add_argument("--debug",help="print the test email messages, but don't send them",action='store_true')
+    parser.add_argument("--smtpdebug",help="enable SMTP debugging",action='store_true')
     args = parser.parse_args()
     T = Tester(testname="dig")
     if args.print:
@@ -129,26 +167,22 @@ if __name__=="__main__":
             print_pubkey(key)
 
     if args.send:
-        key = get_pubkey(T,args.send)
-        print("key:",key)
-        if key:
-            msg="Hello World\n"
-            #res = pgp_process(msg,signing_key=None,encrypting_key=key)
-            res = pgp_process(msg,signing_key_file=signing_key_file,encrypting_key=None)
-            print("Resulting message:")
-            print(res)
-
-        exit(0)
+        encrypting_key = get_pubkey(T,args.send)
+        if not encrypting_key:
+            print("Cannot find key for {}".format(args.send))
+            exit(1)
+            
         import smtplib
-        s = smtplib.SMTP("mail.nist.gov")
-        cert = get_cert(T,args.send)
-        x509_cert = der_to_text(cert[3])
-        signing_key = open(signing_cert_file,"r").read()
-        signing_cert = open(signing_key_file,"r").read()
-        s.sendmail(my_email,[args.send],smime_encrypt(make_message(to=args.send,sender=my_email,kind='signed',template=email_template),
-                                       signing_key=signing_key,signing_cert=signing_cert ))
-        s.sendmail(my_email,[args.send],smime_encrypt(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
-                                        encrypting_cert=x509_cert))
-        s.sendmail(my_email,[args.send],smime_encrypt(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
-                            signing_key=signing_key,signing_cert=signing_cert,
-                            encrypting_cert=x509_cert))
+        if args.debug:
+            s = DebugSendmail()
+        else:
+            s = smtplib.SMTP("mail.nist.gov")
+            if args.smtpdebug:
+                s.set_debuglevel(True)
+        s.sendmail(my_email,[args.send],pgp_process(make_message(to=args.send,sender=my_email,kind='signed',template=email_template),
+                                                    signing_key_file=signing_key_file))
+        s.sendmail(my_email,[args.send],pgp_process(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
+                                                    encrypting_key=encrypting_key))
+        s.sendmail(my_email,[args.send],pgp_process(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
+                                                    signing_key_file=signing_key_file,
+                                                    encrypting_key=encrypting_key))
