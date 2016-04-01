@@ -6,3 +6,4 @@ __pycache__
 #*#
 get_altnames
 email/periodic_cron.py
+TESTVECTORS.txt

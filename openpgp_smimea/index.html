@@ -123,7 +123,7 @@
                 <option value="pgp">OpenPGP</option>
             </select><br/>
             <input type="submit" value="Send Mail" id="form1-submit"><br/>
-           <span id="form1-status"></span>
+           <span id="form3-status"></span>
           </form>
           <p></p>
 
@@ -132,12 +132,26 @@
         </div>
       </div> <!-- row -->
       <div class="row">
+        <div class="col-md-4">
+          <h2>Lookup</h2>
+          <p>Enter an email address and we will look up SMIMEA and
+          OPENPGPKEY records</p>
+
+          <form id="form-lookup" method=GET action="lookup.cgi">
+            <label for="email">Email</label> <input type="text" id="email" name="email"/><br/>
+            <input type="submit" value="Lookup" ><br/>
+          </form>
+        </div>
       </div> <!-- row -->
 
 
-      <hr>
+      <div class="container">
+          <span id="form-lookup-status"></span>
+      </div>
 
-      <footer>
+     <hr>
+
+    <footer>
         <p id='author'>2016 Simson Garfinkel.  </p>
       </footer>
     </div> <!-- /container -->
@@ -153,6 +167,7 @@
     <script src="bootstrap/docs/assets/js/ie10-viewport-bug-workaround.js"></script>
 
     <script>
+
     $(document).ready(function(){
       // hide the forms!
       $(".mailForm").hide();
@@ -172,7 +187,20 @@
         alert("your code goes here");
       });
 
-    });
+      // Lookup
+      $("#form-lookup").submit(function(event) {
+              $('#form-lookup-status').html("working...");
+              $.ajax({ // create an AJAX call...
+                  data: $(this).serialize(), // get the form data
+                  type: $(this).attr('method'),
+                  url: $(this).attr('action'),
+                  success: function(response) {
+                      $('#form-lookup-status').html(response)
+                  }
+             });
+             return false; // cancel original event to prevent form submitting
+          });
+        });
     </script>
 
 

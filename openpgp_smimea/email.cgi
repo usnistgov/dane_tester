@@ -12,6 +12,7 @@ if __name__=="__main__":
    print("Content-Type: text/html")    # HTML is following
    print()                             # blank line, end of headers
    form = cgi.FieldStorage()
+   host = None
 
 
    if 'email' in form and 'hash' in form:
