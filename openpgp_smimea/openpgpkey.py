@@ -100,6 +100,7 @@ def print_pubkey(key):
     with make_file(key) as kfile:
         keyid = import_key(tempdir,kfile)
         call(['gpg','--batch','--homedir',tempdir,'--list-sigs',keyid])
+        call(['gpg','--batch','--homedir',tempdir,'-a','--export',keyid])
 
 def pgp_process1(msg,signing_key_file=None,encrypting_key=None):
     tempdir = tempfile.mkdtemp()
