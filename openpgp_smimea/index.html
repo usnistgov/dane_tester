@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+    <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -77,7 +77,7 @@
           <h2>Unencrypted</h2>
           <p>Send yourself a plain message</p>
 
-          <form class="mailForm" id="form1">
+          <form class="mailForm" id="form1" action='sendmail.cgi'>
             <label for="email">Your Email</label>    <input type="text" id="email" name="email"/><br/>
             <label for="hash">Your Hash</label>      <input type="text" id="hash" name="hash"/><br/>
             <label for="sigmode">Signature</label>
@@ -86,8 +86,8 @@
                 <option value="pgp">OpenPGP</option>
                 <option value="smime">S/MIME</option>
             </select><br/>
-            <input type="submit" value="Send Mail" id="form1-submit"><br/>
-           <span id="form1-status"></span>
+            <input type="submit" value="Send Mail"><br/>
+           <span class="status"></span>
           </form>
           <p></p>
           <p><a class="btn btn-default viewDetails" href="#" role="button" id='getplain-details' form='form1'>View details »</a></p>
@@ -104,8 +104,8 @@
                 <option value="None">--</option>
                 <option value="smime">S/MIME</option>
             </select><br/>
-            <input type="submit" value="Send Mail" id="form2-submit"><br/>
-           <span id="form2-status"></span>
+            <input type="submit" value="Send Mail"><br/>
+           <span class="status"></span>
           </form>
           <p></p>
           <p><a class="btn btn-default viewDetails" href="#" role="button" form='form2'>View details »</a></p>
@@ -114,7 +114,7 @@
           <h2>OpenPGP</h2>
           <p>Send yourself an an OpenPGP-encrypted message, finding the
           key with the <a href='https://tools.ietf.org/html/draft-ietf-dane-openpgpkey-08'>OPENPGPKEY Resource Record</a></p>
-          <form class="mailForm" id="form3">
+          <form class="mailForm" id="form3" action='sendmail.cgi'>
             <label for="email">Your Email</label>    <input type="text" id="email" name="email"/><br/>
             <label for="hash">Your Hash</label>      <input type="text" id="hash" name="hash"/><br/>
             <label for="sigmode">Signature</label>
@@ -122,8 +122,8 @@
                 <option value="None">--</option>
                 <option value="pgp">OpenPGP</option>
             </select><br/>
-            <input type="submit" value="Send Mail" id="form1-submit"><br/>
-           <span id="form3-status"></span>
+            <input type="submit" value="Send Mail"><br/>
+           <span class="status"></span>
           </form>
           <p></p>
 
@@ -135,10 +135,11 @@
         <div class="col-md-4">
           <h2>Lookup</h2>
           <p>Enter an email address and we will look up SMIMEA and
-          OPENPGPKEY records</p>
+          OPENPGPKEY records.</p>
 
-          <form id="form-lookup" method=GET action="lookup.cgi">
-            <label for="email">Email</label> <input type="text" id="email" name="email"/><br/>
+          <form class="lookupForm" method=GET action="lookup.cgi">
+            <label for="email">Email</label> <input type="text" id="email" name="email" size=40/><br/>
+            <br/>
             <input type="submit" value="Lookup" ><br/>
           </form>
         </div>
@@ -168,42 +169,55 @@
 
     <script>
 
-    $(document).ready(function(){
-      // hide the forms!
-      $(".mailForm").hide();
-
-      // Create the toggle function
-      $(".viewDetails").click(function(){
+$(document).ready(function(){
+    // hide the forms!
+    $(".mailForm").hide();
+    
+    // Create the toggle function
+    $(".viewDetails").click(function(){
         $("#" + $(this).attr("form")).toggle();
         if ( $(this).text()=="View details »" ) {
-           $(this).text("Hide details »"); 
+            $(this).text("Hide details »"); 
         } else {
-           $(this).text("View details »"); 
+            $(this).text("View details »"); 
         }
-      });
-
-      // Send the mail
-      $("#form1-submit").click(function(){
-        alert("your code goes here");
-      });
-
-      // Lookup
-      $("#form-lookup").submit(function(event) {
-              $('#form-lookup-status').html("working...");
-              $.ajax({ // create an AJAX call...
-                  data: $(this).serialize(), // get the form data
-                  type: $(this).attr('method'),
-                  url: $(this).attr('action'),
-                  success: function(response) {
-                      $('#form-lookup-status').html(response)
-                  }
-             });
-             return false; // cancel original event to prevent form submitting
-          });
+    });
+    
+    // Send the mail
+    $(".mailForm").submit( function(event) {
+        var status = $(this).find('.status');
+        
+        status.text("working..."); // clear the status
+        $.ajax({                       // create an AJAX call...
+            data: $(this).serialize(), // get the form data from the form and send it
+            type: $(this).attr('method'),
+            url: $(this).attr('action'),
+            success: function(response) {
+                status.html(response)
+            }
         });
-    </script>
+        
+        return false; // cancel original event to prevent submitting
+    });
+    
+    // Lookup
+    $(".lookupForm").submit(function(event) {
+        var status = $("#form-lookup-status");
+        status.text("");               // clear the staus
+        $.ajax({                       // create an AJAX call...
+            data: $(this).serialize(), // get the form data
+            type: $(this).attr('method'),
+            url: $(this).attr('action'),
+            success: function(response) {
+                status.html(response)
+            }
+        });
+        return false; // cancel original event to prevent form submitting
+    });
+});
+</script>
+    
 
-
-  </body>
+</body>
 </html>
-
+    

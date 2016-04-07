@@ -13,6 +13,7 @@ Test Infrastructure supported:
 ==============================
 + Register by email
 + Register by website
++ Verify Registration
 + Send plain email
 - Send plain email with s/mime signature
 - Send plain email with PGP signature

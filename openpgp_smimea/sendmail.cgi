@@ -16,19 +16,25 @@ if __name__=="__main__":
 
    if 'email' in form and 'hash' in form:
       T = Tester(testname="sendplain")
-      t = Template(filename="sendmail.html")
       args = {}
       email = form['email'].value
       hash  = form['hash'].value
-      if hash == dbmaint.user_hash(T.conn,email=email):
-         args['to']      = email
-         args['subject'] = "A subject"
-         args['testid']  = T.testid
-         args['body']    = "A body"
-         args['sigmode'] = form['sigmode'].value
-         T.insert_task(tester.TASK_COMPOSE_SIMPLE_MESSAGE, args)
-         T.commit()
-         args['message'] = 'Your email to {} is queued.'.format(email)
-      else:
-         args['message'] = 'Email/Hash missmatch. {} != {}'.format(hash,dbmaint.user_hash(T.conn,email=email))
-      print(t.render(**args))
+      try:
+         sigmode = form['sigmode'].value
+      except KeyError:
+         sigmode = '--'
+      if hash != dbmaint.user_hash(T.conn,email=email):
+         print("Invalid hash for {}".format(email))
+         exit(0)
+         
+      args['to']      = email
+      args['subject'] = "A subject"
+      args['testid']  = T.testid
+      args['body']    = "A body"
+      args['sigmode'] = form['sigmode'].value
+      T.insert_task(tester.TASK_COMPOSE_SIMPLE_MESSAGE, args)
+      T.commit()
+      print('Your {} email to {} is queued.'.format(sigmode,email))
+      exit(0)
+
+   print("required args not provided")
