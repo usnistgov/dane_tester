@@ -116,7 +116,8 @@ if __name__=="__main__":
             exit(1)
         name = args.name[0]
         print("DBDNS DEMO")
-        T = Tester(testname="dig")
+        T = Tester()
+        T.newtest(testname="dig")
         print("dig -t {} {}".format(args.t,name))
         print("TestID: {}".format(T.testid))
 
@@ -144,7 +145,8 @@ if __name__=="__main__":
 
         print("")
         print("dbdns:")
-        T = Tester(testname="dig")
+        T = Tester()
+        T.newtest(testname="dig")
         a = dbdns.query(T,"dnspython.org","MX")
         for x in a.response.answer[0]:
             print("{} {}".format(x.preference,x.exchange))

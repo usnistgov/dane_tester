@@ -17,7 +17,8 @@ import json
 logging.basicConfig(level=logging.DEBUG)
 
 def email_receiver(cmd,msg):
-    T = Tester(testname=cmd)
+    T = Tester()
+    T.newtest(testname=cmd)
 
     # Save the received email mesasge in the database
     messageid = T.insert_email_message(tester.EMAIL_TAG_USER_SENT,str(msg))

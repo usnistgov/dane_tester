@@ -70,7 +70,8 @@ def get_cert_for_email(email):
 def get_certdb(email):
     """Returns the DNS cert for email"""
     from tester import Tester
-    T = Tester(testname="dig")
+    T = Tester()
+    T.newtest(testname="dig")
     import re,codecs
     msg = dbdns.query(T,email_to_dns(email), "TYPE53")
     # response.answer[0] is in wire format. 

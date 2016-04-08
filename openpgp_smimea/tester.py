@@ -35,13 +35,14 @@ EMAIL_TAG_USER_SENT="USER SENT" # sent by a user
 EMAIL_TAG_AUTOMATED_RESPONSE="AUTOMATED RESPONSE" # created by our script
 
 import pytest,json,os,os.path,sys
+import dbmaint
 
 class Tester:
-    def __init__(self,testname=None,testid=None,rw=True):
+    def __init__(self,testid=None,rw=True):
         """Create a new Tester object. Specify either testname or testid"""
-        self.rw = rw            # .rw means we are writing
+        self.rw     = rw            # .rw means we are writing
         self.testid = testid
-        self.conn = None        # make sure it's set
+        self.conn   = None        # make sure it's set
         assert os.path.exists(cfg_file)
         import configparser,sys
         cfg = configparser.ConfigParser()
@@ -62,15 +63,29 @@ class Tester:
         # if testname is specified, create a new test
         if testid:
             self.testid = testid
-        if testname and self.rw:
-            self.testtype = self.get_test_type(testname)
-            self.newtest()
 
-    def newtest(self):
+    def login(self,email,userhash):
+        if userhash != dbmaint.user_hash(self.conn,email=email):
+            print("Invalid hash for {}".format(email))
+            exit(0)
+        self.email  = email
+        self.userid = dbmaint.user_lookup(self.conn,email)
+
+    def newtest(self,testname=None):
         """Get a new testid."""
+        self.testtype = self.get_test_type(testname)
         c = self.conn.cursor()
-        c.execute("insert into tests (testtype) values (%s)",(self.testtype,))
+        fields = ["testtype"]
+        fds    = ["%s"]
+        vals   = [self.testtype]
+        if self.userid:
+            fields.append("userid")
+            fds.append("%s")
+            vals.append(self.userid)
+
+        c.execute("insert into tests (" + ",".join(fields) + ") values (" + ",".join(fds) +")",vals)
         self.testid = c.lastrowid
+
 
     def cursor(self):
         return self.conn.cursor()
@@ -84,7 +99,7 @@ class Tester:
         try:
             return c.fetchone()[0]
         except TypeError:
-            raise RuntimeError("No test type '{}'".format(cmd))
+            raise RuntimeError("No test type '{}'".format(name))
 
     def insert_email_message(self,tag,body):
         """Insert an email message into the database using a given connection; return the messageid"""

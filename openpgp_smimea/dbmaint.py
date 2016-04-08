@@ -30,6 +30,18 @@ def user_register(conn,email):
         return userid
     return none
         
+def user_lookup(conn,email=None,hash=None):
+    """Return the userID given a hash or email"""
+    c = conn.cursor()
+    if email:
+        c.execute("select userid from users where email=%s",(email,))
+    if hash:
+        c.execute("select userid from users where hash=%s",(hash,))
+    for (userid,) in c.fetchall():
+        return userid
+    return None
+    
+
 def user_hash(conn,userid=None,email=None):
     """Return the hash for a specific user or email address"""
     assert(userid!=None or email!=None)

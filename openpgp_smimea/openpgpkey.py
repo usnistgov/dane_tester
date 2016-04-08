@@ -161,7 +161,8 @@ if __name__=="__main__":
     parser.add_argument("--debug",help="print the test email messages, but don't send them",action='store_true')
     parser.add_argument("--smtpdebug",help="enable SMTP debugging",action='store_true')
     args = parser.parse_args()
-    T = Tester(testname="dig")
+    T = Tester()
+    T.newtest(testname="dig")
     if args.print:
         key = get_pubkey(T,args.print)
         if key:
