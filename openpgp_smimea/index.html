@@ -128,12 +128,26 @@
           <p>Enter an email address and we will look up SMIMEA and
           OPENPGPKEY records.</p>
 
-          <form class="lookupForm" method=GET action="lookup.cgi">
+          <form class="statusForm" method=GET action="lookup.cgi">
             <label for="email">Email</label> <input type="text" id="email" name="email" size=40/><br/>
             <br/>
             <input type="submit" value="Lookup" ><br/>
           </form>
         </div>
+
+
+        <div class="col-md-4">
+          <h2>History</h2>
+          <p>Provide history of interaction with this server.</p>
+
+          <form class="statusForm" method=GET action="history.cgi">
+            <label for="hash">Hash</label> <input type="text" id="hash" name="hash" size=15/><br/>
+            <br/>
+            <input type="submit" value="Lookup" ><br/>
+          </form>
+        </div>
+
+
       </div> <!-- row -->
 
 
@@ -144,7 +158,8 @@
      <hr>
 
     <footer>
-        <p id='author'>2016 Simson Garfinkel.  </p>
+        <p id='author'><del>(C)</del> 2016 Simson Garfinkel, National Institute of
+        Standards and Technology.  </p>
       </footer>
     </div> <!-- /container -->
 
@@ -191,8 +206,8 @@ $(document).ready(function(){
         return false; // cancel original event to prevent submitting
     });
     
-    // Lookup
-    $(".lookupForm").submit(function(event) {
+    // Lookup and history forms
+    $(".statusForm").submit(function(event) {
         var status = $("#form-lookup-status");
         status.text("");               // clear the staus
         $.ajax({                       // create an AJAX call...
