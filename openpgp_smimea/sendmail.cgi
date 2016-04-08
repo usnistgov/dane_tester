@@ -19,22 +19,28 @@ if __name__=="__main__":
       args = {}
       email = form['email'].value
       hash  = form['hash'].value
-      try:
-         sigmode = form['sigmode'].value
-      except KeyError:
-         sigmode = '--'
       if hash != dbmaint.user_hash(T.conn,email=email):
          print("Invalid hash for {}".format(email))
          exit(0)
-         
-      args['to']      = email
-      args['subject'] = "A subject"
-      args['testid']  = T.testid
-      args['body']    = "A body"
-      args['sigmode'] = form['sigmode'].value
-      T.insert_task(tester.TASK_COMPOSE_SIMPLE_MESSAGE, args)
-      T.commit()
-      print('Your {} email to {} is queued.'.format(sigmode,email))
-      exit(0)
 
+      result = ""
+      for sigmode in ["none","pgp","smime"]:
+         try:
+            checked = form[sigmode].value
+         except KeyError:
+            checked = False
+         
+         if checked:
+            args['to']      = email
+            args['subject'] = "Email from proj-had TestID {}".format(T.testid)
+            args['testid']  = T.testid
+            args['body']    = "This message was sent with signature mode '{}'.\n\nTestID {}.\n".format(sigmode,T.testid)
+            args['sigmode'] = sigmode
+            T.insert_task(tester.TASK_COMPOSE_SIMPLE_MESSAGE, args)
+            T.commit()
+            T.newtest()
+            result += "<p>Message #{} mode '{}' queued.<p/>\n".format(T.testid,sigmode)
+      print(result)             # send to caller
+      exit(0)
    print("required args not provided")
+   exit(0)

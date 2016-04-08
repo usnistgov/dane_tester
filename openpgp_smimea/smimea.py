@@ -12,8 +12,8 @@ smtp_server = "mail.nist.gov"
 dns_resolver = "8.8.8.8"
 #signing_key_file = "/home/slg/ca/smime.key"
 #signing_cert_file = "/home/slg/ca/smime.crt"
-signing_key_file = "/home/slg/ca/simson.garfinkel@nist.gov"
-signing_cert_file = "/home/slg/ca/simson.garfinkel@nist.gov"
+SIGNING_KEY_FILE = "/home/slg/keystore/simson.garfinkel@nist.gov"
+SIGNING_CERT_FILE = "/home/slg/keystore/simson.garfinkel@nist.gov"
 my_email="simson.garfinkel@nist.gov"
 
 email_template="""To: %TO%
@@ -159,8 +159,8 @@ if __name__=="__main__":
         s = smtplib.SMTP("mail.nist.gov")
         cert = get_cert_for_email(args.send)
         x509_cert = der_to_text(cert[3])
-        signing_key  = get_file(signing_cert_file)
-        signing_cert = get_file(signing_key_file)
+        signing_key  = get_file(SIGNING_CERT_FILE)
+        signing_cert = get_file(SIGNING_KEY_FILE)
         s.sendmail(my_email,[args.send],smime_crypto(make_message(to=args.send,sender=my_email,kind='signed',template=email_template),
                                        signing_key=signing_key,signing_cert=signing_cert ))
         s.sendmail(my_email,[args.send],smime_crypto(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),

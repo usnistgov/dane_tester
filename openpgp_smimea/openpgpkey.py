@@ -15,7 +15,7 @@ from mako.template import Template
 
 smtp_server = "mail.nist.gov"
 dns_resolver = "8.8.8.8"
-signing_key_file = "/home/slg/.gnupg/nistsecretkey.asc"
+SIGNING_KEY_FILE = "/home/slg/keystore/nistsecretkey.asc"
 
 my_email="simson.garfinkel@nist.gov"
 
@@ -181,9 +181,9 @@ if __name__=="__main__":
             if args.smtpdebug:
                 s.set_debuglevel(True)
         s.sendmail(my_email,[args.send],pgp_process(make_message(to=args.send,sender=my_email,kind='signed',template=email_template),
-                                                    signing_key_file=signing_key_file))
+                                                    signing_key_file=SIGNING_KEY_FILE))
         s.sendmail(my_email,[args.send],pgp_process(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
                                                     encrypting_key=encrypting_key))
         s.sendmail(my_email,[args.send],pgp_process(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
-                                                    signing_key_file=signing_key_file,
+                                                    signing_key_file=SIGNING_KEY_FILE,
                                                     encrypting_key=encrypting_key))

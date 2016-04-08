@@ -7,9 +7,7 @@
     <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
     <meta name="description" content="">
     <meta name="author" content="">
-
     <link rel="icon" href="favicon.ico">
-
     <title>Jumbotron Template for Bootstrap</title>
 
     <!-- Bootstrap core CSS -->
@@ -26,8 +24,6 @@
       <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
       <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
-
-
 
   </head>
 
@@ -75,17 +71,16 @@
       <div class="row">
         <div class="col-md-4">
           <h2>Unencrypted</h2>
-          <p>Send yourself a plain message</p>
+          <p>Send yourself a plain message. This feature tests your
+          ability to receive email from this tester.</p>
 
           <form class="mailForm" id="form1" action='sendmail.cgi'>
             <label for="email">Your Email</label>    <input type="text" id="email" name="email"/><br/>
             <label for="hash">Your Hash</label>      <input type="text" id="hash" name="hash"/><br/>
-            <label for="sigmode">Signature</label>
-            <select name="sigmode">
-                <option value="None">--</option>
-                <option value="pgp">OpenPGP</option>
-                <option value="smime">S/MIME</option>
-            </select><br/>
+            <label for="sigmode">Select Signature Mode(s):</label></br>
+            <input type="checkbox" name="none" value="none"> No signature<br/>
+            <input type="checkbox" name="pgp"  value="pgp">  OpenPGP<br/>
+            <input type="checkbox" name="smime" value="smime"> S/MIME<br/>
             <input type="submit" value="Send Mail"><br/>
            <span class="status"></span>
           </form>
@@ -94,16 +89,14 @@
         </div>
         <div class="col-md-4">
           <h2>SMIMEA</h2>
-          <p>Send yourself an an SMIME-encrypted message, finding the
+          <p>Send yourself an SMIME-encrypted message, finding the
           key with the <a href='https://tools.ietf.org/html/draft-ietf-dane-smime-10'>SMIMEA Resource Record</a></p>
           <form class="mailForm" id="form2" action='sendmail.cgi'>
             <label for="email">Your Email</label>    <input type="text" id="email" name="email"/><br/>
             <label for="hash">Your Hash</label>      <input type="text" id="hash" name="hash"/><br/>
-            <label for="sigmode">Signature</label>
-            <select name="sigmode">
-                <option value="None">--</option>
-                <option value="smime">S/MIME</option>
-            </select><br/>
+            <label for="sigmode">Select Signature Mode(s):</label></br>
+            <input type="checkbox" name="none" value="none"> No signature<br/>
+            <input type="checkbox" name="smime" value="smime"> S/MIME<br/>
             <input type="submit" value="Send Mail"><br/>
            <span class="status"></span>
           </form>
@@ -117,11 +110,9 @@
           <form class="mailForm" id="form3" action='sendmail.cgi'>
             <label for="email">Your Email</label>    <input type="text" id="email" name="email"/><br/>
             <label for="hash">Your Hash</label>      <input type="text" id="hash" name="hash"/><br/>
-            <label for="sigmode">Signature</label>
-            <select name="sigmode">
-                <option value="None">--</option>
-                <option value="pgp">OpenPGP</option>
-            </select><br/>
+            <label for="sigmode">Select Signature Mode(s):</label></br>
+            <input type="checkbox" name="pgp"  value="pgp">  OpenPGP<br/>
+            <input type="checkbox" name="smime" value="smime"> S/MIME<br/>
             <input type="submit" value="Send Mail"><br/>
            <span class="status"></span>
           </form>
@@ -176,17 +167,17 @@ $(document).ready(function(){
     // Create the toggle function
     $(".viewDetails").click(function(){
         $("#" + $(this).attr("form")).toggle();
+        $("#" + $(this).attr("form")).find(".status").text("");  // clear the status
         if ( $(this).text()=="View details »" ) {
             $(this).text("Hide details »"); 
         } else {
-            $(this).text("View details »"); 
+            $(this).text("View details »");
         }
     });
     
     // Send the mail
     $(".mailForm").submit( function(event) {
         var status = $(this).find('.status');
-        
         status.text("working..."); // clear the status
         $.ajax({                       // create an AJAX call...
             data: $(this).serialize(), // get the form data from the form and send it

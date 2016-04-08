@@ -11,12 +11,13 @@ import email
 import dbmaint
 import smtp
 import smimea
+import openpgpkey
 
 debug = True
 logging.basicConfig(level=logging.DEBUG)
 
 #from_address = "pythentic@had-ub1.had-pilot.com"
-from_address = "simson.garfinkel@nist.gov"
+FROM_ADDRESS = "simson.garfinkel@nist.gov"
 template0 = \
 """To: %TO%
 From: %FROM%
@@ -55,7 +56,7 @@ If you register again you will get the same hash as a reminder.
 def compose_simple_message(T,args):
     c = T.conn.cursor()
     msg = template0.replace("%TO%",args['to']) \
-                            .replace("%FROM%",from_address) \
+                            .replace("%FROM%",FROM_ADDRESS) \
                             .replace("%SUBJECT%",args['subject']) \
                             .replace("%TESTID%",str(T.testid)) \
                             .replace("%BODY%",args['body'])
@@ -70,7 +71,7 @@ def compose_simple_response(T,args):
     for (body,) in c.fetchall():
         msg = email.message_from_string(body)
         response = template1.replace("%TO%",msg['from']) \
-                            .replace("%FROM%",from_address) \
+                            .replace("%FROM%",FROM_ADDRESS) \
                             .replace("%TESTID%",str(T.testid)) \
                             .replace("%MESSAGE%",body)
         args['messageid'] = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,response)
@@ -88,7 +89,7 @@ def register_from_email(T,args):
         msg = email.message_from_string(body)
         sender = msg['from']
         response = template2.replace("%TO%",sender) \
-                            .replace("%FROM%",from_address) \
+                            .replace("%FROM%",FROM_ADDRESS) \
                             .replace("%MAILTO%",sender) \
                             .replace("%HASH%",dbmaint.user_hash(T.conn,userid=dbmaint.user_register(T.conn,sender)))
         args['messageid'] = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,response)
@@ -97,15 +98,15 @@ def register_from_email(T,args):
         return True
 
 # crypto a message
+# currently only does signing.
 def crypto_message(T,args):
     c = T.conn.cursor()
     c.execute("select body,messageid from messages where messageid=%s",(args['messageid'],))
     for (body,messageid) in c.fetchall():
-        msg = email.message_from_string(body)
-        sigmode = args.get('sigmode',None)
-        encmode = args.get('encmode',None)
-        print("sigmode=",sigmode)
-        if sigmode==None and encmode==None:
+        sigmode = args.get('sigmode',"none")
+        encmode = args.get('encmode',"none")
+        newbody = None
+        if sigmode=="none" and encmode=="none":
             # No processing; use the old message
             pass
         elif sigmode=='smime' or encmode=='smime':
@@ -113,10 +114,19 @@ def crypto_message(T,args):
             signing_cert = None
             signing_key  = None
             if sigmode=='smime':
-                signing_cert = smimea.get_file(smimea.signing_key_file )
-                signing_key  = smimea.get_file(smimea.signing_cert_file)
+                signing_cert = smimea.get_file(smimea.SIGNING_KEY_FILE )
+                signing_key  = smimea.get_file(smimea.SIGNING_CERT_FILE)
             newbody = smimea.smime_crypto(body,signing_key=signing_key,signing_cert=signing_cert)
-            args['messageid'] = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,newbody)
+        elif sigmode=='pgp' or encmode=='pgp':
+            # Perform a PGP signature and/or encryption
+            newbody = openpgpkey.pgp_process(body,signing_key_file=openpgpkey.SIGNING_KEY_FILE)
+        else:
+            newbody = body + "\n\nInvalid signature mode: {}\n".format(sigmode)
+
+        # If a new message was created, insert the new message into
+        # the database and get the new messageID
+        if newbody:
+            args['messageid'] = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,newbody) 
         T.insert_task(tester.TASK_SEND_MESSAGE,args)
         T.commit()
         return True

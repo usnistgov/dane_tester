@@ -34,7 +34,6 @@ TASK_REGISTER_FROM_EMAIL="register_from_email"
 EMAIL_TAG_USER_SENT="USER SENT" # sent by a user
 EMAIL_TAG_AUTOMATED_RESPONSE="AUTOMATED RESPONSE" # created by our script
 
-import tester                   # import myself
 import pytest,json,os,os.path,sys
 
 class Tester:
@@ -64,10 +63,14 @@ class Tester:
         if testid:
             self.testid = testid
         if testname and self.rw:
-            testtype = self.get_test_type(testname)
-            c = self.conn.cursor()
-            c.execute("insert into tests (testtype) values (%s)",(testtype,))
-            self.testid = c.lastrowid
+            self.testtype = self.get_test_type(testname)
+            self.newtest()
+
+    def newtest(self):
+        """Get a new testid."""
+        c = self.conn.cursor()
+        c.execute("insert into tests (testtype) values (%s)",(self.testtype,))
+        self.testid = c.lastrowid
 
     def cursor(self):
         return self.conn.cursor()
@@ -120,7 +123,7 @@ class Tester:
 
                            
 if __name__=="__main__":
-    import tester               # I can import myself!
+    import tester               # I can import myself; useful for demo code
     print("Current databases:")
     db = tester.mysql_connect()
     c = db.cursor()
