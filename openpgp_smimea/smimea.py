@@ -70,7 +70,13 @@ def get_cert_for_email(email):
 def get_certdb(T,email):
     """Returns the DNS cert for email"""
     import re,codecs
-    msg = dbdns.query(T,email_to_dns(email), "TYPE53")
+    try:
+        msg = dbdns.query(T,email_to_dns(email), "TYPE53")
+    except dns.resolver.NXDOMAIN:
+        return None
+    except dns.resolver.Timeout:
+        return None
+
     # response.answer[0] is in wire format. 
     # I've been unable to parse it, so I convert it to RFC 3597-format text,
     # which I then parse. It's not that slow.
@@ -131,6 +137,7 @@ def smimea_to_txt(T,tname):
     cert = get_certdb(T,tname)
     if cert:
         return "DANE Certificate Usage: {} {} {}\n{}".format(cert[0],cert[1],cert[2],cert_to_txt(cert[3]))
+    return None
 
 
 class MyTest(unittest.TestCase):

@@ -19,6 +19,9 @@ import codecs; sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 
 # Outputs a table with the ability to have disclosure triangles.
 
+def testid_html(testid,hash):
+   return "<a href='lookup_test.cgi?testid={}&hash={}' target='_blank'>{}</a>".format(testid,hash,testid)
+
 if __name__=="__main__":
    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
    print("Content-Type: text/html")    # HTML is following
@@ -59,9 +62,9 @@ if __name__=="__main__":
    for (testid,testtype,modified) in data:
       # The disclosure triangle.
       # It's not working now.
-      disclosure="<span class='disclosure' id={}'><a href='lookup_test.cgi?testid={}&hash={}' target='_blank'>{}</a></span>".\
-         format(oid,testid,hash,tclosed)
-      print("<tr><td>{}{}</td><td>{}</td><td>{}</td></tr>".format(disclosure,testid,testtype,modified))
+      disclosure="<span class='disclosure' id={}'>{}{}</span>".\
+         format(oid,tclosed,testid_html(testid,hash))
+      print("<tr><td>{}</td><td>{}</td><td>{}</td></tr>".format(disclosure,testtype,modified))
       # print("<tr><td colspan=3 class='disclosure_text nb' id={}>More data goes here. It can be very big.</td></tr>".format(oid))
       oid += 1
    print("</table>")

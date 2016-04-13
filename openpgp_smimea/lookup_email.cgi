@@ -17,6 +17,13 @@ import codecs; sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 
 from subprocess import call,Popen,PIPE
 import smimea
+import openpgpkey
+
+ANONYMOUS_USER="anonymous"
+ANONYMOUS_HASH="Oijb1q03QNM="
+
+def testid_html(testid,hash):
+   return "<a href='lookup_test.cgi?testid={}&hash={}' target='_blank'>{}</a>".format(testid,hash,testid)
 
 if __name__=="__main__":
 
@@ -25,16 +32,18 @@ if __name__=="__main__":
       email = form['email'].value
    except KeyError as e:
       email = ""
-      
-   print("Content-Type: text/html")    # HTML is following
-   print()
-   print("""<html><body>""")
-   print("<h3>SMIMEA Lookup for <tt>{}</tt></h3>".format(email))
 
    from tester import Tester
    T = Tester()
+   T.login(ANONYMOUS_USER,ANONYMOUS_HASH)
    T.newtest(testname="dig")
-   print("<p><i>Test {}</i></p>".format(T.testid))
+
+   print("Content-Type: text/html")    # HTML is following
+   print()
+   print("""<html><body>""")
+   print("<p><i>Test {}</i></p>".format(testid_html(T.testid,ANONYMOUS_HASH)))
+   print("<h3>SMIMEA Lookup for <tt>{}</tt></h3>".format(email))
+
    data = smimea.smimea_to_txt(T,email)
    if data:
       print("<pre>{}</pre>".format(data))
@@ -42,8 +51,7 @@ if __name__=="__main__":
       print("<p>No SMIMEA record for {}</p>".format(email))
 
    print("<h3>OPENPGPA Lookup for <tt>{}</tt></h3>".format(email))
-   data = Popen(["python3","openpgpkey.py","--print",email],stdout=PIPE).communicate()[0]
-   sys.stdout.flush()
+   data = openpgpkey.openpgpkey_to_txt(T,email)
    if data:
       print("<pre>{}</pre>".format(data))
    else:
@@ -51,11 +59,10 @@ if __name__=="__main__":
 
    
    print("<h3>Tester Status</h3>")
-   import tester,dbmaint
-   T = Tester()
    if dbmaint.user_hash(T.conn,email=email):
       print("<p><tt>{}</tt> is a registered user of this system.</p>".format(email))
    else:
       print("<p><tt>{}</tt> is not a registered user of this system.</p>".format(email))
 
    print("</body></html>")
+   T.commit()

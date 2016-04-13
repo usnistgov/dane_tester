@@ -82,8 +82,6 @@ def get_pubkey(T,email):
     # I've been unable to parse it, so I convert it to RFC 3597-format text,
     # which I then parse. It's not that slow.
 
-    print("msg=",msg)
-
     data = msg.response.answer[0][0].to_text()
     r = re.compile(r"\\# (\d+) (.*)")
     m = r.search(data)
@@ -152,10 +150,18 @@ def pgp_process(msg,signing_key_file=None,encrypting_key=None):
     return(e.as_string())
 
 
+def openpgpkey_to_txt(T,email):
+    key = get_pubkey(T,email)
+    if key:
+        return pubkey_to_txt(key)
+    else:
+        return ""
+
 class MyTest(unittest.TestCase):
     def test_openpgp(self):
         assert email_to_dns("hugh@example.com")== \
             "c93f1e400f26708f98cb19d936620da35eec8f72e57f9eec01c1afd6._openpgpkey.example.com"
+
 
 
 
@@ -173,11 +179,7 @@ if __name__=="__main__":
     T = Tester()
     T.newtest(testname="dig")
     if args.print:
-        key = get_pubkey(T,args.print)
-        if key:
-            print(pubkey_to_txt(key))
-        else:
-            print("No public key for {}".format(args.print))
+        print(openpgpkey_to_txt(T,args.print))
 
     if args.send:
         encrypting_key = get_pubkey(T,args.send)

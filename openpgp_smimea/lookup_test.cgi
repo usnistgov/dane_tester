@@ -35,7 +35,12 @@ if __name__=="__main__":
    T = Tester()
    c = T.cursor()
    c.execute("select userid from tests where testid=%s",(testid,))
-   userid = c.fetchone()[0]
+   r = c.fetchone()
+   if not r:
+      print("<h3>Invalid hash</h3>")
+      exit(0)
+   userid = r[0]
+   
    if dbmaint.user_hash(T.conn,userid=userid) != hash:
       print("<h3>Invalid hash for user userid={}</h3>".format(userid))
       exit(0)
@@ -60,17 +65,25 @@ if __name__=="__main__":
       
    print(navigation)
 
-   c.execute("select queryname,queryrr,answer,modified from dns where testid=%s order by modified",(testid,))
+   def mm(a,b):
+      b = str(b).replace("\n","</br>")
+      print("<tr><th>{}</th><td>{}</td></tr>".format(a,b))
+
+
    print("<h3>DNS lookup for TestID <tt>{}</tt></h3>".format(testid))
+   c.execute("select queryname,queryrr,answer,modified,nxdomain,timeout from dns where testid=%s order by modified",(testid,))
    data = c.fetchall()
    if data:
-      print("<table>")
-      print("<thead><tr><th>NAME</td><th>RR</th><th>Answer</th><th>Modified</th></tr></thead>")
-
-      for (queryname,queryrr,answer,modified) in data:
-         print("<tr><td>{}</td><td>{}</td><td><pre>\n{}\n</pre></td><td></td></tr>".format(
-            queryname,queryrr,answer,modified))
+      for (queryname,queryrr,answer,modified,nxdomain,timeout) in data:
+         print("<table>")
+         mm("queryname",queryname)
+         mm("queryrr",queryrr)
+         mm("answer",answer)
+         mm("modified",modified)
+         mm("NXDOMAIN",nxdomain)
+         mm("Timeout",timeout)
          print("</table>")
+         print("</hr>")
    else:
       print("<i>No DNS queries were issued</i>")
 
@@ -81,8 +94,6 @@ if __name__=="__main__":
    if data:
       for (body,received,sent,toaddr,fromaddr,modified,smtp_log) in data:
          print("<table>")
-         def mm(a,b):
-            print("<tr><th>{}</th><td>{}</td></tr>".format(a,b))
          mm("to:",toaddr)
          mm("from:",fromaddr)
          mm("date:",modified)
