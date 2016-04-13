@@ -8,7 +8,7 @@
     <meta name="description" content="">
     <meta name="author" content="">
     <link rel="icon" href="favicon.ico">
-    <title>Jumbotron Template for Bootstrap</title>
+    <title>HAD Tester</title>
 
     <!-- Bootstrap core CSS -->
     <link href="bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -128,8 +128,9 @@
           <p>Enter an email address and we will look up SMIMEA and
           OPENPGPKEY records.</p>
 
-          <form class="statusForm" method=GET action="lookup.cgi">
-            <label for="email">Email</label> <input type="text" id="email" name="email" size=40/><br/>
+          <form class="statusForm" method=GET action="lookup_email.cgi">
+            <label for="email">Email</label> <input type="text" id="email" name="email" size=30/><br/>
+            <label for="hash">Hash</label> <input type="text" id="hash" name="hash" size=20/> (optional)<br/>
             <br/>
             <input type="submit" value="Lookup" ><br/>
           </form>
@@ -175,11 +176,15 @@
 
     <script>
 
+//
+// Wire up the forms and make them work.
+//
+
 $(document).ready(function(){
-    // hide the forms!
+    // hide the forms that are revealed by the toggle buttons
     $(".mailForm").hide();
     
-    // Create the toggle function
+    // Implement the toggle buttons to view/hide details
     $(".viewDetails").click(function(){
         $("#" + $(this).attr("form")).toggle();
         $("#" + $(this).attr("form")).find(".status").text("");  // clear the status
@@ -199,14 +204,14 @@ $(document).ready(function(){
             type: $(this).attr('method'),
             url: $(this).attr('action'),
             success: function(response) {
-                status.html(response)
+                status.html(response);
             }
         });
         
         return false; // cancel original event to prevent submitting
     });
     
-    // Lookup and history forms
+    // A status form puts the results in the status section
     $(".statusForm").submit(function(event) {
         var status = $("#form-lookup-status");
         status.text("");               // clear the staus
@@ -215,11 +220,14 @@ $(document).ready(function(){
             type: $(this).attr('method'),
             url: $(this).attr('action'),
             success: function(response) {
-                status.html(response)
+                status.html(response);
             }
         });
         return false; // cancel original event to prevent form submitting
     });
+
+    
+
 });
 </script>
     

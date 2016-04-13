@@ -67,11 +67,8 @@ def get_cert_for_email(email):
         return(v0,v1,v2,der_encoded_cert)
 
 
-def get_certdb(email):
+def get_certdb(T,email):
     """Returns the DNS cert for email"""
-    from tester import Tester
-    T = Tester()
-    T.newtest(testname="dig")
     import re,codecs
     msg = dbdns.query(T,email_to_dns(email), "TYPE53")
     # response.answer[0] is in wire format. 
@@ -90,15 +87,11 @@ def get_certdb(email):
         return(v0,v1,v2,der_encoded_cert)
 
 
-def print_cert(cert):
-    p = Popen(['openssl','x509','-inform','der','-text'],stdin=PIPE)
-    p.stdin.write(cert)
-    p.stdin.close()
+def cert_to_txt(cert):
+    return Popen(['openssl','x509','-inform','der','-text'],stdin=PIPE,stdout=PIPE).communicate(cert)[0].decode('utf-8')
 
 def der_to_text(cert):
-    p = Popen(['openssl','x509','-inform','der','-text'],stdin=PIPE,stdout=PIPE)
-    #p.stdin.write(cert)
-    return p.communicate(cert)[0]
+    return Popen(['openssl','x509','-inform','der','-text'],stdin=PIPE,stdout=PIPE).communicate(cert)[0].decode('utf-8')
 
 def smime_crypto(msg,signing_key=None,signing_cert=None,
                   signing_addr=None,
@@ -134,11 +127,18 @@ def smime_crypto(msg,signing_key=None,signing_cert=None,
     return str(m2)
     
 
+def smimea_to_txt(T,tname):
+    cert = get_certdb(T,tname)
+    if cert:
+        return "DANE Certificate Usage: {} {} {}\n{}".format(cert[0],cert[1],cert[2],cert_to_txt(cert[3]))
+
+
 class MyTest(unittest.TestCase):
     def test_smimea(self):
         print(email_to_dns("hugh@example.com"))
         assert email_to_dns("slg@had-pilot.com")== \
             "77a3c94a8ebb95e36eb9682857da339d8ab09597d8e57eb1a4eb3f46._smimecert.had-pilot.com"
+
 
 
 if __name__=="__main__":
@@ -149,11 +149,10 @@ if __name__=="__main__":
     parser.add_argument("--send",help="send test emails email to an address")
     args = parser.parse_args()
     if args.print:
-        tname = args.print
-        cert = get_certdb(tname)
-        if cert:
-            print("DANE Certificate Usage: {} {} {}".format(cert[0],cert[1],cert[2]))
-            print_cert(cert[3])
+        from tester import Tester
+        T = Tester()
+        T.newtest(testname="dig")
+        print(smimea_to_txt(T,args.print))
 
     if args.send:
         import smtplib

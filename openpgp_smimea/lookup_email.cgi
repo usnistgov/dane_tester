@@ -11,7 +11,12 @@ import tester
 import cgi
 import sys
 
+# Force output to be encoded in UTF8
+# http://stackoverflow.com/questions/14860034/python-cgi-utf-8-doesnt-work
+import codecs; sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
+
 from subprocess import call,Popen,PIPE
+import smimea
 
 if __name__=="__main__":
 
@@ -25,8 +30,12 @@ if __name__=="__main__":
    print()
    print("""<html><body>""")
    print("<h3>SMIMEA Lookup for <tt>{}</tt></h3>".format(email))
-   sys.stdout.flush()
-   data = Popen(["python3","smimea.py","--print",email],stdout=PIPE).communicate()[0]
+
+   from tester import Tester
+   T = Tester()
+   T.newtest(testname="dig")
+   print("<p><i>Test {}</i></p>".format(T.testid))
+   data = smimea.smimea_to_txt(T,email)
    if data:
       print("<pre>{}</pre>".format(data))
    else:

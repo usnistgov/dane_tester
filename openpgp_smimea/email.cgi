@@ -8,6 +8,10 @@ import dbmaint
 import tester
 import cgi
 
+# Force output to be encoded in UTF8
+# http://stackoverflow.com/questions/14860034/python-cgi-utf-8-doesnt-work
+import codecs; sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
+
 if __name__=="__main__":
    print("Content-Type: text/html")    # HTML is following
    print()                             # blank line, end of headers

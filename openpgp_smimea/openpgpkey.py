@@ -70,14 +70,22 @@ def email_to_dns(email):
 def get_pubkey(T,email):
     """Returns the DNS cert for email"""
     import re,codecs
-    msg = dbdns.query(T,email_to_dns(email), "TYPE61")
+    try:
+        msg = dbdns.query(T,email_to_dns(email), "TYPE61")
+    except dns.resolver.NXDOMAIN:
+        return None
+    except dns.resolver.Timeout:
+        return None
+
 
     # response.answer[0] is in wire format. 
     # I've been unable to parse it, so I convert it to RFC 3597-format text,
     # which I then parse. It's not that slow.
 
-    r = re.compile(r"\\# (\d+) (.*)")
+    print("msg=",msg)
+
     data = msg.response.answer[0][0].to_text()
+    r = re.compile(r"\\# (\d+) (.*)")
     m = r.search(data)
     if m:
         hexdata = codecs.decode(m.group(2).replace(" ",""),"hex")
@@ -94,13 +102,14 @@ def import_key(tempdir,kfile):
     raise RuntimeError("No PGP key imported")
     
 
-def print_pubkey(key):
+def pubkey_to_txt(key):
     # Print GPG key
     tempdir = tempfile.mkdtemp()  # location for temporary keyfiles
     with make_file(key) as kfile:
         keyid = import_key(tempdir,kfile)
-        call(['gpg','--batch','--homedir',tempdir,'--list-sigs',keyid])
-        call(['gpg','--batch','--homedir',tempdir,'-a','--export',keyid])
+        msg  = Popen(['gpg','--batch','--homedir',tempdir,'--list-sigs',keyid],stdout=PIPE).communicate()[0].decode('utf-8')
+        msg += Popen(['gpg','--batch','--homedir',tempdir,'-a','--export',keyid],stdout=PIPE).communicate()[0].decode('utf-8')
+        return msg
 
 def pgp_process1(msg,signing_key_file=None,encrypting_key=None):
     tempdir = tempfile.mkdtemp()
@@ -166,7 +175,9 @@ if __name__=="__main__":
     if args.print:
         key = get_pubkey(T,args.print)
         if key:
-            print_pubkey(key)
+            print(pubkey_to_txt(key))
+        else:
+            print("No public key for {}".format(args.print))
 
     if args.send:
         encrypting_key = get_pubkey(T,args.send)

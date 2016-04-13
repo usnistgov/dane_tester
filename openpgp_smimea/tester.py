@@ -40,9 +40,10 @@ import dbmaint
 class Tester:
     def __init__(self,testid=None,rw=True):
         """Create a new Tester object. Specify either testname or testid"""
-        self.rw     = rw            # .rw means we are writing
+        self.rw     = rw          # .rw means we are writing
         self.testid = testid
         self.conn   = None        # make sure it's set
+        self.userid = 0           # not logged in
         assert os.path.exists(cfg_file)
         import configparser,sys
         cfg = configparser.ConfigParser()

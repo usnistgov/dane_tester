@@ -1,5 +1,5 @@
 CFG_FILE=$(HOME)/email.cfg
-schema.sql: dbmail.py $(CFG_FILE)
+schema.sql: dbmaint.py $(CFG_FILE)
 	python3 dbmaint.py --dump > schema.sql
 
 setup:	dbmaint.py
