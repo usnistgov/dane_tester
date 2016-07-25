@@ -113,6 +113,43 @@ S/MIME certificates associated with email addresses
 (\texttt{draft-ietf-dane-smime11}), and 
 a mechanism for associating OpenPGP public keys with email addresses (\texttt{draft-ietf-dane-openpgpkey-12}).
 
+We created a conventional tester for HTTP and SMTP servers in Python. The tester consists of
+a python module that implements an instrumented client that uses
+getdns to acquire a TLSA RR for either an HTTP or SMTP server. The
+certificate is then used to verify a TLS server reached through either
+HTTP or SMTP. The tester can be run from command line or a web
+interface. Testing results are incorporated into a data structure
+which can then be rendered as either text or HTML.  
+
+The conventional tester was implemented using commonly accepted programming
+practices including object-oriented design, modularization, and
+integrated tests. Nevertheless, it proved difficult to
+develop, audit, and extend to new protocols. A particular complication
+is the fact that whether a DANE validation succeeds or fails depends
+on both the server's certificate and the results of DNS queries, but DNS servers frequently give
+different answers to the same questions as a result of caching, load balancing, network
+congestion, and configuration changes. Thus, it is difficult to
+determine the reason for code that suddenly starts or stops working.
+
+Following the development of the conventional tester, we created a
+tester for the draft SMIMEA and OpenPGP protocols. As a result of the
+experience with the conventional HTTP and SMTP testers, we developed a
+new tester framework based on the core idea of \emph{auditability},
+which we define as ``the degree to which transactions can be traced
+and audited through a system.'' The core design goal of the SMIME and
+OpenPGP tester was to maintain a log of all DNS queries and responses
+so that the tester's edicts could be reviewed and validated. Another
+design goal was to enable a \emph{replay} capability, so that previous
+queries and responses to be used for regression testing. In the
+process of designing the new testing framework, we realized the entire
+testing agent could be implemented as a state machine, with each phase
+of the test corresponding to states and state transitions being
+directed by the responses from the systems undergoing test.
+
+
+
+
+
 \section*{References}
 
 \bibliography{rfc}
@@ -120,4 +157,4 @@ a mechanism for associating OpenPGP public keys with email addresses (\texttt{dr
 
 \end{document}
 
-% LocalWords:  cryptographic
+% LocalWords:  cryptographic modularization auditability
