@@ -8,3 +8,10 @@ get_altnames
 email/periodic_cron.py
 TESTVECTORS.txt
 TEST_EMAIL_ADDRESSES.txt
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.pdf
+*.spl

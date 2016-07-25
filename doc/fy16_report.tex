@@ -1,0 +1,123 @@
+%\documentclass[review]{elsarticle}
+\documentclass[preprint,5p]{elsarticle}
+
+\usepackage{lineno,hyperref}
+\modulolinenumbers[5]
+
+\journal{Journal of \LaTeX\ Templates}
+
+%%%%%%%%%%%%%%%%%%%%%%%
+%% Elsevier bibliography styles
+%%%%%%%%%%%%%%%%%%%%%%%
+%% To change the style, put a % in front of the second line of the current style and
+%% remove the % from the second line of the style you would like to use.
+%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Numbered
+%\bibliographystyle{model1-num-names}
+
+%% Numbered without titles
+%\bibliographystyle{model1a-num-names}
+
+%% Harvard
+%\bibliographystyle{model2-names.bst}\biboptions{authoryear}
+
+%% Vancouver numbered
+%\usepackage{numcompress}\bibliographystyle{model3-num-names}
+
+%% Vancouver name/year
+%\usepackage{numcompress}\bibliographystyle{model4-names}\biboptions{authoryear}
+
+%% APA style
+%\bibliographystyle{model5-names}\biboptions{authoryear}
+
+%% AMA style
+%\usepackage{numcompress}\bibliographystyle{model6-num-names}
+
+%% `Elsevier LaTeX' style
+\bibliographystyle{elsarticle-num}
+%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+\begin{frontmatter}
+
+\title{Implementing DANE Email Testers}
+\tnotetext[mytitlenote]{Fully documented templates are available in the elsarticle package on \href{http://www.ctan.org/tex-archive/macros/latex/contrib/elsarticle}{CTAN}.}
+
+%% Group authors per affiliation:
+\author{Simson Garfinkel}
+
+\begin{abstract}
+DNS-Based Authentication of Named Entities (DANE) can be used to
+improve the trustworthiness of email by providing a discovery
+mechanism for certificates and public keys that are used to secure the  SMTP communications
+between Mail Transfer Agents (MTAs) and to encrypt email. A testing
+frameworks for each of these DANE applications was created. The SMTP
+tester uses a conventional logic-driven approach for test
+frameworks, while the OPENPGP and SMIMEA testers employ a
+database-driven testing framework that implements the tester as a
+state machine. The two approaches are compared in terms of
+development time, functionality, and extensibility.
+\end{abstract}
+
+\begin{keyword}
+DNS-Based Authentication of Named Entities\sep DANE\sep OPENPGP\sep SMIMEA\sep 
+\end{keyword}
+
+\end{frontmatter}
+
+\linenumbers
+
+\section{Introduction}
+
+Public key discovery and certification has been one of the primary
+barriers to realizing the benefit of email security
+protocols. 
+
+Although many SMTP servers now implement the STARTTLS SMTP
+command\cite{rfc3207}, Mail Transfer Agents (MTAs) typically
+certificates signed by \emph{any} Certificate Authority (CA)
+(including self-signed certificates), as SMTP servers generally lack a
+list of pre-configured certificate authorities and a user interface
+that could be used to specify the disposition of mail that is being
+sent to a mail server that has a certificate that is signed by an
+unknown CA. Since mail is sent by default without encryption, this
+so-called ``opportunitist encryption'' at least provides security
+against a passive monitoring attacker.
+
+After more than two decades of research and standards development
+(e.g. \cite{rfc1421,rfc4880,rfc5750}), two incompatiable standards
+have emerged for the exchange of encrypted Internet email: S/MIME and
+PGP. Both of these standards from the \emph{key discovery problem:} in
+order to send a recipient an encrypted message, it is necessary to
+first obtain the recipient's public key. Within a single organization,
+this problem can be solved through the use of a enterprise
+directory. S/MIME also has the advantage that digitally signed email
+messages typically include the sender's public key in the PKCS\#7
+attachment\cite{rfc2315}, allowing the recipient of a digitally signed
+message to send an encrypted reply to the sender. However, when
+sending email between organizations, there is currently no deployed
+mechanism that can be used to find the recipient's S/MIME certificate
+or PGP public key prior to the first message exchange.
+
+DNS-Based Authentication of Named
+Entities\cite{rfc7671} (DANE) provides a general mechanism for the
+discovery of cryptographic keys associated with DNS-named. By relying
+on the DNSSEC\cite{rfc3833} trust roots, DANE delegates control of the
+names within an organization's DNS hierarchy to the administrative
+unit that is in control of the organization's DNS. RFC7671 and RFC7672 provide a
+discovery mechanism for a domain's certified SMTP MTA public key or
+PEM certificate\cite{rfc7671,rfc7672}. Work is in progress on a mechanism for discovering
+S/MIME certificates associated with email addresses
+(\texttt{draft-ietf-dane-smime11}), and 
+a mechanism for associating OpenPGP public keys with email addresses (\texttt{draft-ietf-dane-openpgpkey-12}).
+
+\section*{References}
+
+\bibliography{rfc}
+
+
+\end{document}
+
+% LocalWords:  cryptographic
