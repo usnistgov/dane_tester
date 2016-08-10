@@ -17,6 +17,13 @@ centos-slg:
 	echo target for installing useful packages for development
 	yum install -y mlocate
 
+/usr/lib64/python2.7/site-packages/getdns.so:
+	git clone https://github.com/getdnsapi/getdns-python-bindings
+	(cd getdns-python-bindings; python setup.py build; sudo python setup.py install)
+	/bin/rm -rf  getdns-python-bindings
+
+
+
 # https://devops.profitbricks.com/tutorials/install-python-3-in-centos-7/
 # to use python33 type:
 # scl enable python33 bash
