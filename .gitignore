@@ -16,3 +16,6 @@ TEST_EMAIL_ADDRESSES.txt
 *.pdf
 *.spl
 *.bak
+tlsa/getdns-python-bindings/
+#*#
+

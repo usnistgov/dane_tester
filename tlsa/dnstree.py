@@ -21,7 +21,7 @@ dnssec_status = {getdns.DNSSEC_SECURE:"SECURE",
 def walk_host(host):
     try:
         results = ctx.address(name=host, extensions=extensions)
-    except getdns.error, e:
+    except getdns.error as e:
         print(str(e))
         sys.exit(1)
 
