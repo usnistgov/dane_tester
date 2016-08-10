@@ -15,3 +15,4 @@ TEST_EMAIL_ADDRESSES.txt
 *.out
 *.pdf
 *.spl
+*.bak
