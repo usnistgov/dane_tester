@@ -149,8 +149,52 @@ directed by the responses from the systems undergoing test.
 
 
 \section{SMTP TLSA Tester}
-We developed 
 
+
+\section{HTTP and SMTP TLSA Tester}
+We created a tool to test server certificates advertised using DANE
+for validity. Our tester tests both HTTP and SMTP servers. The tool's
+operation is straightforward:
+
+\begin{enumerate}
+\item The user specifies a service to test (either an HTTPS URL or an
+  email address).
+\item Using getdns, the tester obtains the DANE announcements for the
+  service. 
+\item The tester connects to the service and reports if the server's
+  public key is validated by any of the   certificates or public keys
+  advertised through DNS TLSA records. 
+\end{enumerate}
+
+To perform these tests, the tester contains its own DANE
+implementation. The implementation covers several specific cases,
+including:
+
+\begin{itemize}
+\item If the DNS name maps to multiple IP addresses, each IP address
+  is tested. (Different IP addresses may have different certificates.)
+\item If the DNS name specifies a CNAME, the CNAMEs are followed until
+  the end of the change. A DANE record is looked for both the original
+  DNS name and the name pointed to be the CNAME chain.
+\item If the mail delivery host specifies a mail exchanger (MX)
+  record, then both the primary name and the exchangers are tested.
+\end{itemize}
+
+The TLSA tester tests certificate validity using the \verb+openssl+
+command line program, which is called using Python's \verb+subprocess.Popen()+
+facility. Testing requires the flags \verb+-purpose+
+\verb+-trusted_first+ \verb+-partial_chain+ and \verb+-CAfile+. As
+such, the tester requires that OpenSSL version 1.0.2h or later be
+installed.  Because US Government deployments are likely to have the
+most recent FIPS-140 accredited OpenSSL version installed, which is
+currently \verb+OpenSSL 0.9.8zh+, the installing scripts download and
+install a private copy of OpenSSL version 1.0.2h in the
+\verb+/usr/local/ssl+ directory.
+
+The TLSA tester also required that Python modules \verb+getdns+ and \verb+M2Crypto+
+be installed. The only version of Python that supports both is Python
+2.7, so these modules are added to the Python 2.7 installation, even
+if a version of Python 3 is installed.
 
 \section*{References}
 
@@ -159,4 +203,4 @@ We developed
 
 \end{document}
 
-% LocalWords:  cryptographic modularization auditability
+% LocalWords:  cryptographic modularization auditability exchanger MX
