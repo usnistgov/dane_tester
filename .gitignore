@@ -17,3 +17,7 @@ TEST_EMAIL_ADDRESSES.txt
 *.spl
 tlsa/getdns-python-bindings/
 #*#
+tlsa/openssl*.tar.gz
+tlsa/openssl*/
+doc/rfc.bak
+*~

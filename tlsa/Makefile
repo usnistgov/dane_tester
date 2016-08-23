@@ -33,3 +33,11 @@ centos7-prep:
 	yum -y install scl-utils
 	rpm -Uvh https://www.softwarecollections.org/en/scls/rhscl/python33/epel-7-x86_64/download/rhscl-python33-epel-7-x86_64.noarch.rpm
 	yum -y install python33
+
+
+# Install our own version of OpenSSL
+/usr/local/ssl/bin/openssl:
+	wget https://www.openssl.org/source/openssl-1.0.2h.tar.gz
+	tar xfz openssl-1.0.2h.tar.gz
+	( cd openssl-1.0.2h && ./config && make depend && make && make test && make install )
+	/bin/rm -rf openssl-1.0.2h.tar.gz openssl-1.0.2h
