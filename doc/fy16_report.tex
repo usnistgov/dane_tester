@@ -2,9 +2,11 @@
 \documentclass[preprint,5p]{elsarticle}
 
 \usepackage{lineno,hyperref}
+\usepackage{xspace}
+\usepackage{tabularx}
 \modulolinenumbers[5]
 
-\journal{Journal of \LaTeX\ Templates}
+\journal{Journal of Unpublished HAD Reports}
 
 %%%%%%%%%%%%%%%%%%%%%%%
 %% Elsevier bibliography styles
@@ -115,7 +117,7 @@ an experimental RFC was recently approved for associating OpenPGP public keys wi
 
 We created a conventional tester for HTTP and SMTP servers in
 Python. The tester consists of a python module that implements an
-instrumented client that uses \tt{getdns}\cite{getdns} to acquire a TLSA RR for either
+instrumented client that uses \texttt{getdns}\cite{getdns} to acquire a TLSA RR for either
 an HTTP or SMTP server. The certificate is then used to verify a TLS
 server reached through either HTTP or SMTP. The tester can be run from
 command line or a web interface. Testing results are incorporated into
@@ -148,13 +150,13 @@ of the test corresponding to states and state transitions being
 directed by the responses from the systems undergoing test.
 
 
-\section{SMTP TLSA Tester}
-
-
 \section{HTTP and SMTP TLSA Tester}
 We created a tool to test server certificates advertised using DANE
-for validity. Our tester tests both HTTP and SMTP servers. The tool's
-operation is straightforward:
+for validity. Our tester tests both HTTP and SMTP servers. 
+
+\subsection{Overview and requirements}
+
+The tool's operation is straightforward:
 
 \begin{enumerate}
 \item The user specifies a service to test (either an HTTPS URL or an
@@ -180,6 +182,8 @@ including:
   record, then both the primary name and the exchangers are tested.
 \end{itemize}
 
+\subsection{System Requirements}
+
 The TLSA tester tests certificate validity using the \verb+openssl+
 command line program, which is called using Python's \verb+subprocess.Popen()+
 facility. Testing requires the flags \verb+-purpose+
@@ -191,10 +195,36 @@ currently \verb+OpenSSL 0.9.8zh+, the installing scripts download and
 install a private copy of OpenSSL version 1.0.2h in the
 \verb+/usr/local/ssl+ directory.
 
-The TLSA tester also required that Python modules \verb+getdns+ and \verb+M2Crypto+
-be installed. The only version of Python that supports both is Python
-2.7, so these modules are added to the Python 2.7 installation, even
-if a version of Python 3 is installed.
+The TLSA tester also required that Python modules \verb+getdns+ and
+\verb+M2Crypto+ be installed. The only version of Python that supports
+both is Python 2.7, so these modules are added to the Python 2.7
+installation, even if a version of Python 3 is installed.
+
+The TLSA tester uses getdns and Verisign's getdns Python
+bindings. Numerous problems resulted from the decision to use getdns
+and it was not used in the follow-on tester.
+
+\subsection{File Layout}
+
+The tester is contained entirely in the {\tt tlsa/} directory of the
+git repository. It is implemented as a Python module and a CGI
+script. The tester consists of the following shown in Table~\ref{tlsa}.
+
+\begin{table*}
+\begin{tabularx}{\textwidth}{lX}
+Makefile & Targets for configuring Centos 7 base system and compiling helper programs. \\
+README.md & Documentation \\
+ca-bundle.crt & File containing multiple PEM-encoded SSL certificates of ``Well known'' Certificate Authorities. Used for Certificate Usage 0, which validates against system trust anchors. \\
+centose7-setup.bash & Script to configure Centos 7 system to run the tester. \\
+dane\_check.cgi & CGI script to run the tester from a webserver.\\
+dane\_checker.py & Python module that implements DANE tester. Called by dane\_check.cgi and runnable directly from the command line. Can output both TEXT and HTML data.\\
+dnstree.py & A program to test the getdns system.\\
+get\_altnames.c & M2Crypto provides no mechanism to read the alternative names on the X509 certificate, so this helper program gets the alt names of a certificate provided on the command line and prints the names to stdout.\\
+test\_dane.py & A test program using the py.test framework to test functions within the {\tt dane\_checker} module.
+\end{tabularx}
+\caption{Files in the tlsa/ tester directory}\label{tlsa}
+\end{table*}
+
 
 \section*{References}
 
