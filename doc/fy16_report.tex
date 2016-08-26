@@ -1,12 +1,15 @@
 %\documentclass[review]{elsarticle}
-\documentclass[preprint,5p]{elsarticle}
+\documentclass[preprint,3p]{elsarticle}
 
-\usepackage{lineno,hyperref}
+\usepackage{hyperref}
 \usepackage{xspace}
 \usepackage{tabularx}
 \usepackage{array}
 \usepackage{url}
-\modulolinenumbers[5]
+\usepackage{fancyvrb}
+\DefineShortVerb{\|}
+%\usepackage{lineno}
+%\modulolinenumbers[5]
 
 \journal{Journal of Unpublished HAD Reports}
 
@@ -71,7 +74,7 @@ DNS-Based Authentication of Named Entities\sep DANE\sep OPENPGP\sep SMIMEA\sep
 
 \end{frontmatter}
 
-\linenumbers
+%\linenumbers
 
 \section{Introduction}
 
@@ -114,7 +117,7 @@ unit that is in control of the organization's DNS. RFC7671 and RFC7672 provide a
 discovery mechanism for a domain's certified SMTP MTA public key or
 PEM certificate\cite{rfc7671,rfc7672}. Work is in progress on a mechanism for discovering
 S/MIME certificates associated with email addresses
-(\texttt{draft-ietf-dane-smime11}), and 
+(|draft-ietf-dane-smime11|), and 
 an experimental RFC was recently approved for associating OpenPGP public keys with email addresses\cite{rfc7929}.
 
 We created a conventional tester for HTTP and SMTP servers in
@@ -160,7 +163,7 @@ The complete DANE tester is available from Github at \url{https://github.com/usn
 We created a tool to test server certificates advertised using DANE
 for validity. Our tester tests both HTTP and SMTP servers. 
 
-\subsection{Overview and requirements}
+\subsection{Overview}
 
 The tool's operation is straightforward:
 
@@ -193,12 +196,13 @@ including:
 \paragraph{OpenSSL v 1.0.2h}
 The TLSA tester tests certificate validity using the \verb+openssl+
 command line program, which is called using Python's \verb+subprocess.Popen()+
-facility. Testing requires the flags \verb+-purpose+
-\verb+-trusted_first+ \verb+-partial_chain+ and \verb+-CAfile+. As
-such, the tester requires that OpenSSL version 1.0.2h or later be
-installed.  Because US Government deployments are likely to have the
+facility. Testing requires the flags |-purpose|, |-trusted_first|,
+|-partial_chain| and |-CAfile|. These flags are only available on
+OpenSSL version 1.0.2h and above.
+
+Because US Government deployments are likely to have the
 most recent FIPS-140 accredited OpenSSL version installed, which is
-currently \verb+OpenSSL 0.9.8zh+, the installing scripts download and
+currently OpenSSL version 0.9.8zh, the installing scripts download and
 install a private copy of OpenSSL version 1.0.2h in the
 \verb+/usr/local/ssl+ directory.
 
@@ -215,7 +219,7 @@ certificate manipulations.
 bindings. Numerous problems resulted from the decision to use getdns
 and it was not used in the follow-on tester.
 
-\paragraph{py.test} The Python test framework \testtt{py.test} is used
+\paragraph{py.test} The Python test framework \texttt{py.test} is used
 for unit tests. Be sure to use version the version of py.test for
 Python 2.7.
 
@@ -234,38 +238,121 @@ centose7-setup.bash & Script to configure Centos 7 system to run the tester. \\
 dane\_check.cgi & CGI script to run the tester from a webserver.\\
 dane\_checker.py & Python module that implements DANE tester. Called by dane\_check.cgi and runnable directly from the command line. Can output both TEXT and HTML data.\\
 dnstree.py & A program to test the getdns system.\\
-get\_altnames & The compiled executable for the \emph{get\_altnames.c} program.
+get\_altnames & The compiled executable for the \emph{get\_altnames.c} program.\\
 get\_altnames.c & M2Crypto provides no mechanism to read the alternative names on the X509 certificate, so this helper program gets the alt names of a certificate provided on the command line and prints the names to stdout.\\
-test\_dane.py & A test program using the py.test framework to test functions within the {\tt dane\_checker} module.
+test\_dane.py & A test program using the py.test framework to test functions within the {\tt dane\_checker} module.\\
 \end{tabularx}
 \caption{Files in the tlsa/ tester directory}\label{tlsa}
 \end{table*}
 
-
 \subsection{Installation and Operation}
 
 The DANE server tester can be run from the command line using the
-\texttt{dane_checker.py} script or from a web browser by placing the
-\texttt{dane_check.cgi} script and the associated files in a
+|dane_checker.py| script or from a web browser by placing the
+|dane_check.cgi| script and the associated files in a
 CGI-enabled directory of a modern web server. 
 
 \begin{enumerate}
 \item Set \verb|$DANESRC| to root of the cloned git repository
 \item \verb|cd $DANESRC|
-\item Run \texttt{make} to compile \texttt{get_altname}.
-\item Run \texttt{py.test} to run the self-test.
-\item Run \texttt{python2.7 dane_checker.py
-  https://good.dane.verisignlabs.com} to test Verisign's known-good
+\item Run |make| to compile |get_altname|.
+\item Run |py.test| to run the self-test.
+\item Run |python2.7 dane_checker.py https://good.dane.verisignlabs.com| to test Verisign's known-good
   DANE https server.
-\item Run \texttt{python2.7 dane_checker.py
-  https://bad-sig.dane.verisignlabs.com} to test one of Verisign's
+\item Run |python2.7 dane_checker.py https://bad-sig.dane.verisignlabs.com| to test one of Verisign's
   known-bad DANE https servers.
-\item Run \texttt{python2.7 dane_checker.py --test} to test all of the test vectors.
+\item Run |python2.7 dane_checker.py --test| to test all of the test vectors.
 \item Access \url{https://hostname/directory/dane_check.cgi} to run
   the web-based tester
 \end{enumerate}
 
 \subsection{Theory of Operation}
+
+To test a DANE server, the Python file |dane_checker.py| contains a
+DANE implementation in Python. The test is coded as a series of
+imperative statements that determine the name of the remote server,
+perform DNS lookups to discover the IP address(es) on which the server
+is running, fetch the server certificates, and then compare the server
+certificates to the DNS announcements. 
+
+Rather than printing out the results of the tests as they happen, the
+testing infrastructure creates a data structure that contains a record
+of each test that was performed and the results of the test. The
+data structure can then be rendered as text or HTML as required by the
+caller. 
+
+The tests were developed by a
+close reading of the DANE specifications. Each test is given a name
+and a number. Each test description is then stored its own Python
+object. The slots of the object are:
+
+\begin{tabularx}{\textwidth}{llX}
+test.num & int & Test number, assigned by the author.\\
+test.desc & str & A description of the test, in English.\\
+test.section & str & The section of the DANE RFC from which the test derives.\\
+test.failed\_desc & str & What to print if the test fails.\\
+test.recommendation & boolean & If the test is for a recommended usage, but not a mandatory usage.\\
+\end{tabularx}
+
+The test numbers are assigned in these ranges:
+
+\begin{tabular}{ll}
+101-104 & DNS tests \\
+201-205 & Server verification\\
+301-308 & Certificate verification\\
+401-407 & Ensemble results\\
+\end{tabular}
+
+When |dane_checker.py| loads the \emph{MakeTest} objects are created
+and stored in an associative array.
+
+As the test program executes, traditional imperative logic implements
+the DANE client and tests the server for correct responses. Whereas a
+traditional tester might simply print the results, this tester instead
+creates a list of \emph{DaneTestResult} objects. This list gets longer
+as the test progresses towards completion. Most of the tester's
+functions return a list of \emph{DaneTestResult} objects, which are
+then concatenated to form the final result.
+
+The \emph{DaneTestResult} object is a data structure that contains
+structured information about whether each test passes or fails. The
+slots of the object are:
+
+\begin{tabularx}{\textwidth}{llX}
+passed & boolean & True if the test passed \\
+dnssec & boolean & True if the test was a DNS lookup and the result was secured with DNSSEC \\
+dnsrelied & boolean & True if the DNS lookup was relied upon. (Some DNS lookups may not be relied upon. For example, a DNS name may map to two IP addresses, but only one may have a functioning server.)\\
+hostname & str & The relevant hostname.\\
+ipaddr & str & The relevant IP address \\
+test & DaneTestResult & A reference to the (immutable) \emph{DaneTestResult} object that corresponds to the test.\\
+what & str & The context of what was being tested when the test took place.\\
+rdata & str & The DNS response data (which the getdns API calls rdata) that was used in the test, if the test involves a DNS query.\\
+key & str & Additional information returned in a DNS query, such as an
+MX preference or a DANE cryptographic key. \\
+\end{tabularx}
+
+How this works is illustrated in this snippet of code from the
+function \emph{get\_dns\_ip} which is executed after an DNS query for
+an MX RR:
+
+\begin{lstlisting}
+if a['type'] == getdns.RRTYPE_MX == request_type:
+    what = 'DNS MX lookup {} = {} {}'.format(hostname,rdata['preference'],rdata['exchange'])
+    ret.append( DaneTestResult(passed=SUCCESS,
+                               what=what,
+                               dnssec=reply.get('dnssec_status'),
+                               rdata=rdata,
+                               data=rdata['exchange'],
+                               key=rdata['preference']))
+\end{lstlisting}
+
+In this example, \emph{ret} is an array of \emph{DaneTestResult}
+objects that will be returned. If an MX record is returned in the DNS
+lookup, it's fields a broken out and added to \emph{ret[]}. DNS can
+return multiple RRs in a query, and all of them are stored in
+\emph{ret[]}.  They can then be both used in later parts of the test
+and rendered for final output.
+
 
 \section*{References}
 

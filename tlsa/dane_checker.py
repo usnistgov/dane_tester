@@ -45,6 +45,10 @@ MAX_CNAME_DEPTH=20
 MAX_TIMEOUT=30
 VERSION=1.0
 
+INFO="INFO"
+WARNING="WARNING"
+PROGRESS="PROGRESS"
+
 get_altnames_exe = './get_altnames'
 openssl_exe = 'openssl' 
 openssl_cafile = 'ca-bundle.crt'
@@ -58,6 +62,32 @@ if os.path.exists("/usr/local/ssl/bin/openssl"):
 os.environ["SSL_CERT_DIR"]="/nonexistant"
 os.environ["SSL_CERT_FILE"]="/nonexistant"
 
+################################################################
+# Implement a simple timeout
+# usage:
+#    try:
+#        with timeout(seconds=3):
+#            stuff you do...
+#    except TimeoutError as e:
+#        pass
+#
+class TimeoutError(RuntimeError):
+    pass
+
+class timeout:
+    def __init__(self, seconds=1, error_message='Timeout'):
+        self.seconds = seconds
+        self.error_message = error_message
+    def handle_timeout(self, signum, frame):
+        raise TimeoutError(self.error_message)
+    def __enter__(self):
+        import signal
+        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.alarm(self.seconds)
+    def __exit__(self, type, value, traceback):
+        import signal
+        signal.alarm(0)
+################################################################
 
 html_style = """
 <style>
@@ -97,14 +127,14 @@ TEST_CNAME_EXPANSION_SECURE      = MakeTest(102,"""if at
 TEST_TLSA_PRESENT    = MakeTest(103,"Service hostname must have matching TLSA record")
 TEST_TLSA_DNSSEC     = MakeTest(104,"TLSA records must be secured by DNSSEC")
 
-## 200 Series - Server Verification
+## 200 Series - Server verification
 TEST_SMTP_CONNECT    = MakeTest(201,"Server must have working SMTP server on IP address")
 TEST_SMTP_STARTTLS   = MakeTest(202,"""Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)""","2.2")
 TEST_SMTP_TLS        = MakeTest(203,"Any connection to the MTA MUST employ TLS authentication (SMTP Server must enter TLS mode)","2.2")
 TEST_SMTP_QUIT       = MakeTest(204,"Any connection to the MTA MUST employ TLS authentication (SMTP Server must work after TLS entered)","2.2")
 TEST_EECERT_HAVE     = MakeTest(205,"Server must have End Entity Certificate")
 
-## 200 series - Certificate verification
+## 300 series - Certificate verification
 TEST_SMTP_CU         = MakeTest(301,"TLSA records for port 25 SMTP service used by client MTAs SHOULD "\
                                     "NOT include TLSA RRs with certificate usage PKIX-TA(0) or PKIX-EE(1)","3.1.3")
 TEST_TLSA_CU02_TP_FOUND = MakeTest(302,"TLSA certificate usage 0 and 2 specifies a trust point that is found in the server's certificate chain")
@@ -121,9 +151,7 @@ TEST_EECERT_NAME_CHECK = MakeTest(307,"""When name checks are applicable (certif
    identifiers.""","3.2.3")
 TEST_DANE2_CHAIN     = MakeTest(308,"""SMTP servers that rely on certificate usage DANE-TA(2) TLSA records for TLS authentication MUST include the TA certificate as part of the certificate chain presented in the TLS handshake server certificate message even when it is a self-signed root certificate.""","3.2.1")
 
-
-
-### 400 series
+### 400 series - Ensemble results
 TEST_TLSA_CU_VALIDATES = MakeTest(401,"At least one TLSA record must have a certificate usage and associated data that validates at least one EE cetficiate")
 TEST_TLSA_ATLEAST1   = MakeTest(402,"There must be at least 1 usable TLSA record for a host name")
 TEST_TLSA_ALL_IP     = MakeTest(403,"All IP addresses for a host that is TLSA protected must TLSA verify")
@@ -134,41 +162,18 @@ TEST_ALL_SMTP_PASS   = MakeTest(406,"All DANE-related tests must pass for a SMTP
 TEST_MX_PREEMPTION   = MakeTest(407,""" "Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly." Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.""","2.2.1")
 
     
-
-
 ################################################################
-class TimeoutError(RuntimeError):
-    pass
-
-class timeout:
-    def __init__(self, seconds=1, error_message='Timeout'):
-        self.seconds = seconds
-        self.error_message = error_message
-    def handle_timeout(self, signum, frame):
-        raise TimeoutError(self.error_message)
-    def __enter__(self):
-        import signal
-        signal.signal(signal.SIGALRM, self.handle_timeout)
-        signal.alarm(self.seconds)
-    def __exit__(self, type, value, traceback):
-        import signal
-        signal.alarm(0)
-################################################################
-
-INFO="INFO"
-WARNING="WARNING"
-PROGRESS="PROGRESS"
 
 
 class DaneTestResult:
-    def __init__(self,passed=None,test=None,dnssec=None,what='',data=None,rdata=None,hostname=None,ipaddr=None,testnumber=None,key=0):
+    def __init__(self,passed=None,test=None,dnssec=None,what='',data=None,rdata=None,
+                 hostname=None,ipaddr=None,key=0):
         self.passed = passed
         self.dnssec = dnssec
         self.dnsrelied = True   # by default, assume we rely on this DNS
         self.hostname = hostname
         self.ipaddr = ipaddr
         self.test   = test
-        self.testnumber = testnumber
         self.what   = what
         self.data   = data
         self.rdata  = rdata
@@ -245,7 +250,6 @@ def test_name_clean():
 def test_hostname_match():
     assert hostname_match("this.that","this.that.")==True
     assert hostname_match("this.that","*.that.")==True
-
 
 
 ################################################################
@@ -760,14 +764,14 @@ def hexdata(rdata):
 
 ctx = getdns.Context()
 def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
-    ret = []
     
-    ## Broken - If TLSA, do a A query first and ignore the results
+    ## getdns bug workaround:
+    ## If TLSA, do a A query first and ignore the results
     ## Not sure why, but this seems required for the NIST DNS server
     if request_type==getdns.RRTYPE_TLSA:
         ctx.general(name=hostname,request_type=getdns.RRTYPE_A,extensions=extensions)
 
-
+    ret = []
     SUCCESS=""
     results = ctx.general(name=hostname,request_type=request_type,extensions=extensions)
     for reply in results.replies_tree:
