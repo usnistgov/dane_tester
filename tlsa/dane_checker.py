@@ -32,8 +32,12 @@
 # damage to property. The software developed by NIST employees is not
 # subject to copyright protection within the United States.
 
-import getdns
 import sys
+if sys.version>='3':
+    raise RuntimeError("Requires Python 2.7")
+
+
+import getdns
 import pytest
 import M2Crypto
 
@@ -946,7 +950,7 @@ def apply_dnssec_test(ret):
                             passed=valid) ]
 
 
-def tlsa_http_verify(url):
+def tlsa_https_verify(url):
     from urlparse import urlparse
     ret = []
 
@@ -1128,7 +1132,7 @@ failed = []
 
 def process(domain,format="text"):
     if "http" in domain:
-        ret = tlsa_http_verify(domain)
+        ret = tlsa_https_verify(domain)
     else:
         ret = tlsa_smtp_verify(domain)
     if ret[-1].passed==True:
@@ -1157,11 +1161,11 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser(description="Test one or more DANE servers")
     parser.add_argument("--list",help="List tests",action='store_true')
     parser.add_argument("--html",help="output in HTML",action='store_true')
+    parser.add_argument("--test",help="Self test",action='store_true')
     parser.add_argument("names",nargs="*")
     args = parser.parse_args()
 
     format = 'text' if args.html==False else 'html'
-
 
     if args.list:
         import textwrap
@@ -1193,41 +1197,45 @@ if __name__=="__main__":
         exit(0)
             
 
-    # These test vectors from
-    # http://www.internetsociety.org/deploy360/resources/dane-test-sites/
-    for domain in ["dougbarton.us","spodhuis.org", "jhcloos.com", "nlnetlabs.nl", "nlnet.nl"
-                   ]:
-        print("=== {} ===".format(domain))
-        process(domain,format=format)
+    if args.test:
+
+        # These test vectors from
+        # http://www.internetsociety.org/deploy360/resources/dane-test-sites/
+        for domain in ["dougbarton.us","spodhuis.org", "jhcloos.com", "nlnetlabs.nl", "nlnet.nl"
+                       ]:
+            print("=== {} ===".format(domain))
+            process(domain,format=format)
 
 
-    print("HTTP - Valid TLSA Record with Valid CA-signed TLSA")
-    for domain in ["https://fedoraproject.org",
-                   "https://www.freebsd.org/",
-                   "https://torproject.org",
-                   'https://jhcloos.com/',
-                   'https://www.kumari.net/',
-                   'https://good.dane.verisignlabs.com',
-                   'https://www.statdns.net/',
-                   'https://dougbarton.us/',
-                   'https://www.huque.com/']:
-        print("=== Valid: {} ===".format(domain))
-        process(domain,format=format)
+        print("HTTP - Valid TLSA Record with Valid CA-signed TLSA")
+        for domain in ["https://fedoraproject.org",
+                       "https://www.freebsd.org/",
+                       "https://torproject.org",
+                       'https://jhcloos.com/',
+                       'https://www.kumari.net/',
+                       'https://good.dane.verisignlabs.com',
+                       'https://www.statdns.net/',
+                       'https://dougbarton.us/',
+                       'https://www.huque.com/']:
+            print("=== Valid: {} ===".format(domain))
+            process(domain,format=format)
+
+        print("HTTP Valid TLSA")
+        for domain in ["https://rover.secure64.com/"]:
+            print("=== Valid: {} ===".format(domain))
+            process(domain,format=format)
+
+
+        print("INVALID TLSA")
+        for domain in ["https://rogue.nohats.ca",
+                       "https://bad-sig.dane.verisignlabs.com",
+                       "https://bad-hash.dane.verisignlabs.com",
+                       "https://bad-params.dane.verisignlabs.com",
+                       "https://www.nist.gov"]:
+            print("=== INVALID: {} ===".format(domain))
+            process(domain,format=format)
+
+        print_stats()
+        exit(0)
+    parser.print_help()
     
-    print("HTTP Valid TLSA")
-    for domain in ["https://rover.secure64.com/"]:
-        print("=== Valid: {} ===".format(domain))
-        process(domain,format=format)
-
-
-    print("INVALID TLSA")
-    for domain in ["https://rogue.nohats.ca",
-                   "https://bad-sig.dane.verisignlabs.com",
-                   "https://bad-hash.dane.verisignlabs.com",
-                   "https://bad-params.dane.verisignlabs.com",
-                   "https://www.nist.gov"]:
-        print("=== INVALID: {} ===".format(domain))
-        process(domain,format=format)
-    
-    print_stats()
-    exit(0)

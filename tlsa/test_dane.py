@@ -6,14 +6,9 @@ def test_get_certificate_chain():
     www_certs = split_certs(nist_www[0].data)
     assert len(www_certs)>0
 
-    nist_smtp = get_service_certificate_chain("207.46.163.138","nist-gov.mail.protection.outlook.com",25,'smtp')
-    smtp_certs = split_certs(nist_smtp[0].data)
-    assert len(smtp_certs)>0
-    assert "CN=mail.protection.outlook.com" in smtp_certs[0]
-
 def test_smtp_works():
-    nist_smtp = get_service_certificate_chain("mail.schildbach.de","mail.schildbach.de",25,'smtp')
-    print(nist_smtp)
+    sys4_smtp = get_service_certificate_chain("sys4.de","mail.sys4.de",25,'smtp')
+    print(sys4_smtp)
 
     
 def test_get_tlsa():
@@ -196,5 +191,15 @@ def test_pem_verify():
     certs = split_certs(google_chain)
     assert pem_verify(certs[-1],google_chain,google_cert)==True
 
+def test_good_dane_verisignlabs_com():
+    ret = tlsa_https_verify("good.dane.verisignlabs.com")
+    assert ret.passed == True
+
+def test_bad_sig_dane_verisignlabs_com():
+    ret = tlsa_https_verify("bad-sig.dane.verisignlabs.com")
+    assert ret.passed == False
+
+
 if __name__=="__main__":
     test_smtp_works()
+

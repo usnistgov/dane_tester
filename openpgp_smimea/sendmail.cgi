@@ -7,6 +7,7 @@ from tester import Tester
 import dbmaint
 import tester
 import cgi
+import sys
 
 # Force output to be encoded in UTF8
 # http://stackoverflow.com/questions/14860034/python-cgi-utf-8-doesnt-work
