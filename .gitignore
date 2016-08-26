@@ -22,3 +22,4 @@ get_altnames
 tlsa/getdns-python-bindings/
 tlsa/openssl*.tar.gz
 tlsa/openssl*/
+.cache

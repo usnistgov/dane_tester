@@ -4,6 +4,8 @@
 \usepackage{lineno,hyperref}
 \usepackage{xspace}
 \usepackage{tabularx}
+\usepackage{array}
+\usepackage{url}
 \modulolinenumbers[5]
 
 \journal{Journal of Unpublished HAD Reports}
@@ -150,6 +152,10 @@ of the test corresponding to states and state transitions being
 directed by the responses from the systems undergoing test.
 
 
+\subsection{Availability}
+
+The complete DANE tester is available from Github at \url{https://github.com/usnistgov/dane_tester}.
+
 \section{HTTP and SMTP TLSA Tester}
 We created a tool to test server certificates advertised using DANE
 for validity. Our tester tests both HTTP and SMTP servers. 
@@ -184,6 +190,7 @@ including:
 
 \subsection{System Requirements}
 
+\paragraph{OpenSSL v 1.0.2h}
 The TLSA tester tests certificate validity using the \verb+openssl+
 command line program, which is called using Python's \verb+subprocess.Popen()+
 facility. Testing requires the flags \verb+-purpose+
@@ -195,14 +202,22 @@ currently \verb+OpenSSL 0.9.8zh+, the installing scripts download and
 install a private copy of OpenSSL version 1.0.2h in the
 \verb+/usr/local/ssl+ directory.
 
+\paragraph{Python 2.7}
 The TLSA tester also required that Python modules \verb+getdns+ and
 \verb+M2Crypto+ be installed. The only version of Python that supports
 both is Python 2.7, so these modules are added to the Python 2.7
 installation, even if a version of Python 3 is installed.
 
-The TLSA tester uses getdns and Verisign's getdns Python
+\paragraph{M2Crypto} The Python package M2Crypto is used for some
+certificate manipulations.
+
+\paragraph{getdns} The TLSA tester uses getdns and Verisign's getdns Python
 bindings. Numerous problems resulted from the decision to use getdns
 and it was not used in the follow-on tester.
+
+\paragraph{py.test} The Python test framework \testtt{py.test} is used
+for unit tests. Be sure to use version the version of py.test for
+Python 2.7.
 
 \subsection{File Layout}
 
@@ -211,7 +226,7 @@ git repository. It is implemented as a Python module and a CGI
 script. The tester consists of the following shown in Table~\ref{tlsa}.
 
 \begin{table*}
-\begin{tabularx}{\textwidth}{lX}
+\begin{tabularx}{\textwidth}{>{\tt}lX}
 Makefile & Targets for configuring Centos 7 base system and compiling helper programs. \\
 README.md & Documentation \\
 ca-bundle.crt & File containing multiple PEM-encoded SSL certificates of ``Well known'' Certificate Authorities. Used for Certificate Usage 0, which validates against system trust anchors. \\
@@ -219,12 +234,26 @@ centose7-setup.bash & Script to configure Centos 7 system to run the tester. \\
 dane\_check.cgi & CGI script to run the tester from a webserver.\\
 dane\_checker.py & Python module that implements DANE tester. Called by dane\_check.cgi and runnable directly from the command line. Can output both TEXT and HTML data.\\
 dnstree.py & A program to test the getdns system.\\
+get\_altnames & The compiled executable for the \emph{get\_altnames.c} program.
 get\_altnames.c & M2Crypto provides no mechanism to read the alternative names on the X509 certificate, so this helper program gets the alt names of a certificate provided on the command line and prints the names to stdout.\\
 test\_dane.py & A test program using the py.test framework to test functions within the {\tt dane\_checker} module.
 \end{tabularx}
 \caption{Files in the tlsa/ tester directory}\label{tlsa}
 \end{table*}
 
+
+\subsection{Installation}
+
+\begin{enumerate}
+\item Set \verb|$DANESRC| to root of the cloned git repository
+\item \verb|cd $DANESRC|
+\item Run \texttt{make} to compile \texttt{get_altname}.
+\item Run \texttt{py.test} to run the self-test.
+
+If the self-test completes, 
+
+, the files located in the \texttt{tlsa/} directory can be copied into a
+directory on the webserver
 
 \section*{References}
 
