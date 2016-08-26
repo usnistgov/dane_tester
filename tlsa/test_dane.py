@@ -3,13 +3,13 @@ from dane_checker import *
 
 def test_get_certificate_chain():
     nist_www = get_service_certificate_chain("132.163.4.162","www.nist.gov",443,'https')
-    certs = split_certs(nist_www[0].data)
-    assert len(certs)==3
+    www_certs = split_certs(nist_www[0].data)
+    assert len(www_certs)>0
 
     nist_smtp = get_service_certificate_chain("207.46.163.138","nist-gov.mail.protection.outlook.com",25,'smtp')
-    certs = split_certs(nist_smtp[0].data)
-    assert len(certs)==3
-    assert "CN=mail.protection.outlook.com" in certs[0]
+    smtp_certs = split_certs(nist_smtp[0].data)
+    assert len(smtp_certs)>0
+    assert "CN=mail.protection.outlook.com" in smtp_certs[0]
 
 def test_smtp_works():
     nist_smtp = get_service_certificate_chain("mail.schildbach.de","mail.schildbach.de",25,'smtp')

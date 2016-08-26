@@ -244,13 +244,26 @@ test\_dane.py & A test program using the py.test framework to test functions wit
 
 \subsection{Installation}
 
+The DANE server tester can be run from the command line using the
+\texttt{dane_checker.py} script or from a web browser by placing the
+\texttt{dane_check.cgi} script and the associated files in a
+CGI-enabled directory of a modern web server. 
+
 \begin{enumerate}
 \item Set \verb|$DANESRC| to root of the cloned git repository
 \item \verb|cd $DANESRC|
 \item Run \texttt{make} to compile \texttt{get_altname}.
 \item Run \texttt{py.test} to run the self-test.
+\item Run \texttt{python2.7 test_dane.py --test} to test all of the
+  test vectors.
+\item Run \texttt{python2.7 test_dane.py
+  https://good.dane.verisignlabs.com} to test Verisign's known-good
+  DANE https server.
+\item Run \texttt{python2.7 test_dane.py
+  https://bad-sig.dane.verisignlabs.com} to test one of Verisign's
+  known-bad DANE https servers.
+\end{enumerate}
 
-If the self-test completes, 
 
 , the files located in the \texttt{tlsa/} directory can be copied into a
 directory on the webserver
