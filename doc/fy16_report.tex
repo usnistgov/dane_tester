@@ -253,6 +253,9 @@ The DANE server tester can be run from the command line using the
 CGI-enabled directory of a modern web server. 
 
 \begin{enumerate}
+\item You will likely need to download and install the current
+  versions of unbound and getdns, as the versions shipped with Centos
+  have bugs that prevent proper DNSSEC verification of CNAME RRs.
 \item Set \verb|$DANESRC| to root of the cloned git repository
 \item \verb|cd $DANESRC|
 \item Run |make| to compile |get_altname|.

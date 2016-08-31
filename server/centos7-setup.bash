@@ -1,10 +1,10 @@
-#!/usr/bin/bash 
+y#!/usr/bin/bash 
 #
 # configure centos7 to run the script
 # note: this uses M2Crypto, so we are stuck with Python2
 
 yum -y install python-setuptools openssl-devel getdns getdns-devel pytest m2crypto \
-    httpd mod_ssl
+    httpd mod_ssl expat expat-devel 
 apachectl start			# start the web server
 
 make /usr/lib64/python2.7/site-packages/getdns.so	# getdns for python2

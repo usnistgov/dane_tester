@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.7
-# -*- mode: python; -*-
-
+# -*- coding: utf-8; mode: python; -*-
+#
 # NIST-developed software is provided by NIST as a public service. You
 # may use, copy and distribute copies of the software in any medium,
 # provided that you keep intact this entire notice. You may improve,
@@ -39,10 +39,15 @@ import dane_checker
 times = 0
 
 if __name__=="__main__":
-   print "Content-type: text/html\r\n\r\n"
-   print "<html><title>Okay</title>"
-
    cgitb.enable()
+   print "Content-type: text/html\r\n\r\n"
+   print "<html><title>DANE Server Checker</title>"
+
+   if not dane_checker.verify_package():
+      print("<p>Required <tt>dane_checker executable</tt>(s) not installed.</p>")
+      print("<p>Run <tt>make</tt> in installation directory.</p>")
+      exit(0)
+
    form = cgi.FieldStorage()
    host = None
    if "host" in form:
@@ -58,7 +63,7 @@ if __name__=="__main__":
 
    if host:
       host = host.strip()
-      print "Checking ok <b>{0}</b>:<br>".format(host)
+      print "Checking <b>{0}</b>:<br>".format(host)
       sys.stdout.flush()
       dane_checker.process(host,format='html')
       sys.stdout.flush()

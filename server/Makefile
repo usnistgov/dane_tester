@@ -22,6 +22,9 @@ centos-slg:
 	(cd getdns-python-bindings; python setup.py build; sudo python setup.py install)
 	/bin/rm -rf  getdns-python-bindings
 
+check:
+	python test_dane.py
+	python 
 
 
 # https://devops.profitbricks.com/tutorials/install-python-3-in-centos-7/
