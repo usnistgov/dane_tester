@@ -1,8 +1,8 @@
--- MySQL dump 10.14  Distrib 5.5.47-MariaDB, for debian-linux-gnu (x86_64)
+-- MySQL dump 10.14  Distrib 5.5.49-MariaDB, for debian-linux-gnu (x86_64)
 --
 -- Host: localhost    Database: emaildb
 -- ------------------------------------------------------
--- Server version	5.5.47-MariaDB-1ubuntu0.14.04.1
+-- Server version	5.5.49-MariaDB-1ubuntu0.14.04.1
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -29,10 +29,12 @@ CREATE TABLE `dns` (
   `queryrr` varchar(8) DEFAULT NULL,
   `answer` text,
   `modified` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `NXDOMAIN` tinyint(1) DEFAULT NULL,
+  `Timeout` tinyint(1) DEFAULT NULL,
   PRIMARY KEY (`dnsid`),
   KEY `testid` (`testid`),
   CONSTRAINT `dnsid1` FOREIGN KEY (`testid`) REFERENCES `tests` (`testid`)
-) ENGINE=InnoDB AUTO_INCREMENT=119 DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB AUTO_INCREMENT=177 DEFAULT CHARSET=utf8mb4;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -71,7 +73,7 @@ CREATE TABLE `messages` (
   PRIMARY KEY (`messageid`),
   KEY `testid` (`testid`),
   CONSTRAINT `testid_ctr` FOREIGN KEY (`testid`) REFERENCES `tests` (`testid`)
-) ENGINE=InnoDB AUTO_INCREMENT=157 DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB AUTO_INCREMENT=165 DEFAULT CHARSET=utf8mb4;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -89,7 +91,7 @@ CREATE TABLE `tests` (
   PRIMARY KEY (`testid`),
   KEY `testtype` (`testtype`),
   CONSTRAINT `testtype` FOREIGN KEY (`testtype`) REFERENCES `testtypes` (`testtype`)
-) ENGINE=InnoDB AUTO_INCREMENT=275 DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB AUTO_INCREMENT=342 DEFAULT CHARSET=utf8mb4;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -124,7 +126,7 @@ CREATE TABLE `users` (
   `hash` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`userid`),
   UNIQUE KEY `email` (`email`)
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -145,7 +147,7 @@ CREATE TABLE `workqueue` (
   PRIMARY KEY (`workqueueid`),
   KEY `testid` (`testid`),
   CONSTRAINT `workqueue_ibfk_1` FOREIGN KEY (`testid`) REFERENCES `tests` (`testid`)
-) ENGINE=InnoDB AUTO_INCREMENT=218 DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB AUTO_INCREMENT=233 DEFAULT CHARSET=utf8mb4;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -157,4 +159,4 @@ CREATE TABLE `workqueue` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2016-04-12 14:06:09
+-- Dump completed on 2016-08-31 16:30:17
