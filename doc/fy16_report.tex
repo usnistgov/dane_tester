@@ -50,7 +50,8 @@
 \begin{frontmatter}
 
 \title{Implementing DANE Email Testers}
-\tnotetext[mytitlenote]{Fully documented templates are available in the elsarticle package on \href{http://www.ctan.org/tex-archive/macros/latex/contrib/elsarticle}{CTAN}.}
+% \tnotetext[mytitlenote]{Fully documented templates are available in the elsarticle package 
+% on \href{http://www.ctan.org/tex-archive/macros/latex/contrib/elsarticle}{CTAN}.}
 
 %% Group authors per affiliation:
 \author{Simson Garfinkel}
@@ -165,7 +166,10 @@ for validity. Our tester tests both HTTP and SMTP servers.
 
 \subsection{Overview}
 
-The tool's operation is straightforward:
+The tool's function is compare the certificates provided by the
+SSL server(s) associated with a webserver or email server are
+consistent with the records provided by one or more DNSSEC TLSA
+RRs. It does so by following these rough steps. 
 
 \begin{enumerate}
 \item The user specifies a service to test (either an HTTPS URL or an
