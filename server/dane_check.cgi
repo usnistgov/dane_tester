@@ -77,9 +77,11 @@ if __name__=="__main__":
    print "</form>"
    print "Or try some of these test points:<br>"
    def murl(x):
-      return "<a href='{}?host={}'>{}</a><br>".format(os.environ["SCRIPT_NAME"],x,x)
-   print murl("unixadm.org"),"<br>"
-   print murl("https://www.freebsd.org/"),"<br>"
+      return "<a href='{}?host={}'>{}</a>".format(os.environ["SCRIPT_NAME"],x,x)
+   print "<ul>"
+   print "<li>",murl("unixadm.org"),"<i>Email tester</i></li>"
+   print "<li>",murl("https://www.freebsd.org/"),"<i>https tester</i></li>"
+   print "</ul>"
    print "<p>Other DANE SMTP checkers:"
    print "<ul>"
    print "<li><a href='https://dane.sys4.de/'>https://dane.sys4.de/</a> (SMTP only)"
