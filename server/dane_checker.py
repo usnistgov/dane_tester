@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-
+#
 # NIST-developed software is provided by NIST as a public service. You
 # may use, copy and distribute copies of the software in any medium,
 # provided that you keep intact this entire notice. You may improve,
@@ -36,10 +36,11 @@ import sys
 if sys.version>='3':
     raise RuntimeError("Requires Python 2.7")
 
-
 import getdns
 import pytest
 import M2Crypto
+import subprocess,os,os.path
+
 
 MAX_CNAME_DEPTH=20
 MAX_TIMEOUT=30
@@ -54,13 +55,16 @@ openssl_exe = 'openssl'
 openssl_cafile = 'ca-bundle.crt'
 openssl_debug = False
 
-import subprocess,os
 
 # See if a better openssl exists; remove OpenSSL defaults
 if os.path.exists("/usr/local/ssl/bin/openssl"):
     openssl_exe = "/usr/local/ssl/bin/openssl"
 os.environ["SSL_CERT_DIR"]="/nonexistant"
 os.environ["SSL_CERT_FILE"]="/nonexistant"
+
+def verify_package():
+    """Returns True if package is properly installed"""
+    return os.path.exists(get_altnames_exe) and os.path.exists(openssl_exe)
 
 ################################################################
 # Implement a simple timeout
@@ -304,6 +308,7 @@ def hex_der_to_pem(val):
 
 # Uses external program to extract AltNames
 def cert_subject_alternative_names(cert):
+    assert os.path.exists(get_altnames_exe)
     cmd = [get_altnames_exe,'/dev/stdin']
     p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stdin=subprocess.PIPE)
     res = p.communicate(input=cert)[0]
@@ -359,7 +364,7 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
 
 
     else:
-        matched = hostname_match(hostname,cn)
+        matched = hostname_match(hostname0,cn)
         if matched:
             what="Hostname {} matches EE Certificate Common Name '{}'".format(hostnames,cn)
         else:
@@ -632,6 +637,8 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
         raise RuntimeError("invalid protocol")
     with timeout(seconds=MAX_TIMEOUT):
         try:
+            multi_certs = ""
+            passed = False
             def get_response(p):
                 response = ''
                 while True:
@@ -649,8 +656,8 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
             (resp,code) = get_response(p)
         except TimeoutError:
             what="Timeout fetching certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
-            multi_certs = ""
-            passed = False
+        except IOError:
+            what="IOError fetching certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
         return [ DaneTestResult(test=TEST_EECERT_HAVE,
                                 passed=passed,
                                 what=what,
@@ -1158,6 +1165,7 @@ def print_stats():
         print("{} Failed URLs:".format(len(failed)))
         for line in failed:
             print(line)
+    print("==============================")
 
 if __name__=="__main__":
     import os,sys,argparse
