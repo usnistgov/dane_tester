@@ -1,15 +1,15 @@
-#!/usr/bin/bash 
+#!/usr/bin/bash
 #
-# 
-# Centos installation script. 
+#
+# Centos installation script.
 # May be rerun without causing problems
 
 # Make the system more usable
-yum -y install mlocate emacs telnet yum-cron git python-pip httpd mod_ssl libidn-devel 
+yum -y install mlocate emacs telnet yum-cron git python-pip httpd mod_ssl libidn-devel
 
 # install needed componentst for package
 yum -y install python-setuptools openssl-devel getdns getdns-devel pytest m2crypto \
-    httpd mod_ssl expat expat-devel 
+    httpd mod_ssl expat expat-devel
 
 updatedb
 apachectl start			# start the web server
@@ -22,7 +22,7 @@ else
   curl https://bootstrap.pypa.io/get-pip.py | python3.4
 fi
 
-yum -y install python-setuptools openssl-devel getdns getdns-devel pytest m2crypto 
+yum -y install python-setuptools openssl-devel getdns getdns-devel pytest m2crypto
 
 if [ ! -r /usr/local/etc/unbound/unbound.conf ]; then
   echo Please manually download and install unbound and getdns
@@ -47,9 +47,9 @@ fi
 # Install packages required for server tester
 # note: this uses M2Crypto, so we are stuck with Python2
 
-    
+
 make /usr/lib64/python2.7/site-packages/getdns.so	# getdns for python2
-make /usr/local/ssl/bin/openssl				# openssl 1.0.2h 
+make /usr/local/ssl/bin/openssl				# openssl 1.0.2h
 make get_altnames					# make sure that it's running
 
 
@@ -62,5 +62,3 @@ firewall-cmd --permanent --add-service=https  2>&1 | grep -v 'Warning: ALREADY_E
 
 # and test it!
 py.test
-
-
