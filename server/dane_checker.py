@@ -107,7 +107,7 @@ th, td { padding: 3px }
 """
 
 valid_tests = {}
-class MakeTest:
+class DaneTest:
     def __init__(self,num,desc,section="",failed_desc=None,recommendation=False):
         assert num not in valid_tests
         self.num  = num
@@ -118,48 +118,48 @@ class MakeTest:
         valid_tests[num] = self
 
 ## 100 series - DNS queries ##
-TEST_CNAME_NOERROR     = MakeTest(101,"""If at any stage of CNAME expansion an error is detected, the lookup of the original requested records MUST be considered to have failed.""","2.1.3") 
-TEST_CNAME_EXPANSION_SECURE      = MakeTest(102,"""if at
+TEST_CNAME_NOERROR     = DaneTest(101,"""If at any stage of CNAME expansion an error is detected, the lookup of the original requested records MUST be considered to have failed.""","2.1.3") 
+TEST_CNAME_EXPANSION_SECURE      = DaneTest(102,"""if at
    any stage of recursive expansion an "insecure" CNAME record is
    encountered, then it and all subsequent results (in particular, the
    final result) MUST be considered "insecure" regardless of whether any
    earlier CNAME records leading to the "insecure" record were "secure".""","2.1.3")
-TEST_TLSA_PRESENT    = MakeTest(103,"Service hostname must have matching TLSA record")
-TEST_TLSA_DNSSEC     = MakeTest(104,"TLSA records must be secured by DNSSEC")
+TEST_TLSA_PRESENT    = DaneTest(103,"Service hostname must have matching TLSA record")
+TEST_TLSA_DNSSEC     = DaneTest(104,"TLSA records must be secured by DNSSEC")
 
 ## 200 Series - Server verification
-TEST_SMTP_CONNECT    = MakeTest(201,"Server must have working SMTP server on IP address")
-TEST_SMTP_STARTTLS   = MakeTest(202,"""Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)""","2.2")
-TEST_SMTP_TLS        = MakeTest(203,"Any connection to the MTA MUST employ TLS authentication (SMTP Server must enter TLS mode)","2.2")
-TEST_SMTP_QUIT       = MakeTest(204,"Any connection to the MTA MUST employ TLS authentication (SMTP Server must work after TLS entered)","2.2")
-TEST_EECERT_HAVE     = MakeTest(205,"Server must have End Entity Certificate")
+TEST_SMTP_CONNECT    = DaneTest(201,"Server must have working SMTP server on IP address")
+TEST_SMTP_STARTTLS   = DaneTest(202,"""Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)""","2.2")
+TEST_SMTP_TLS        = DaneTest(203,"Any connection to the MTA MUST employ TLS authentication (SMTP Server must enter TLS mode)","2.2")
+TEST_SMTP_QUIT       = DaneTest(204,"Any connection to the MTA MUST employ TLS authentication (SMTP Server must work after TLS entered)","2.2")
+TEST_EECERT_HAVE     = DaneTest(205,"Server must have End Entity Certificate")
 
 ## 300 series - Certificate verification
-TEST_SMTP_CU         = MakeTest(301,"TLSA records for port 25 SMTP service used by client MTAs SHOULD "\
+TEST_SMTP_CU         = DaneTest(301,"TLSA records for port 25 SMTP service used by client MTAs SHOULD "\
                                     "NOT include TLSA RRs with certificate usage PKIX-TA(0) or PKIX-EE(1)","3.1.3")
-TEST_TLSA_CU02_TP_FOUND = MakeTest(302,"TLSA certificate usage 0 and 2 specifies a trust point that is found in the server's certificate chain")
-TEST_TLSA_PARMS      = MakeTest(303,"TLSA Certificate Usage must be in the range 0..3, Selector in the range 0..1, and matching type in the range 0..2")
-TEST_TLSA_RR_LEAF    = MakeTest(304,"TLSA RR is not supposed to match leaf with usage 0 or 2")
-TEST_DANE_SMTP_RECOMMEND  = MakeTest(305,"""Internet-Draft RECOMMEND[s] the use of "DANE-EE(3) SPKI(1) SHA2-256(1)" with "DANE-TA(2) Cert(0) SHA2-256(1)" TLSA records as a second choice, depending on site needs.""","3.1",recommendation=True)
-TEST_EECERT_VERIFY   = MakeTest(306,"Server EE Certificate must PKIX Verify",failed_desc="Server EE Certificate does not PKIX Verify")
-TEST_EECERT_NAME_CHECK = MakeTest(307,"""When name checks are applicable (certificate usage DANE-TA(2)), if
+TEST_TLSA_CU02_TP_FOUND = DaneTest(302,"TLSA certificate usage 0 and 2 specifies a trust point that is found in the server's certificate chain")
+TEST_TLSA_PARMS      = DaneTest(303,"TLSA Certificate Usage must be in the range 0..3, Selector in the range 0..1, and matching type in the range 0..2")
+TEST_TLSA_RR_LEAF    = DaneTest(304,"TLSA RR is not supposed to match leaf with usage 0 or 2")
+TEST_DANE_SMTP_RECOMMEND  = DaneTest(305,"""Internet-Draft RECOMMEND[s] the use of "DANE-EE(3) SPKI(1) SHA2-256(1)" with "DANE-TA(2) Cert(0) SHA2-256(1)" TLSA records as a second choice, depending on site needs.""","3.1",recommendation=True)
+TEST_EECERT_VERIFY   = DaneTest(306,"Server EE Certificate must PKIX Verify",failed_desc="Server EE Certificate does not PKIX Verify")
+TEST_EECERT_NAME_CHECK = DaneTest(307,"""When name checks are applicable (certificate usage DANE-TA(2)), if
    the server certificate contains a Subject Alternative Name extension
    ([RFC5280]), with at least one DNS-ID ([RFC6125]) then only the DNS-
    IDs are matched against the client's reference identifiers.... The
    server certificate is considered matched when one of its presented
    identifiers ([RFC5280]) matches any of the client's reference
    identifiers.""","3.2.3")
-TEST_DANE2_CHAIN     = MakeTest(308,"""SMTP servers that rely on certificate usage DANE-TA(2) TLSA records for TLS authentication MUST include the TA certificate as part of the certificate chain presented in the TLS handshake server certificate message even when it is a self-signed root certificate.""","3.2.1")
+TEST_DANE2_CHAIN     = DaneTest(308,"""SMTP servers that rely on certificate usage DANE-TA(2) TLSA records for TLS authentication MUST include the TA certificate as part of the certificate chain presented in the TLS handshake server certificate message even when it is a self-signed root certificate.""","3.2.1")
 
 ### 400 series - Ensemble results
-TEST_TLSA_CU_VALIDATES = MakeTest(401,"At least one TLSA record must have a certificate usage and associated data that validates at least one EE cetficiate")
-TEST_TLSA_ATLEAST1   = MakeTest(402,"There must be at least 1 usable TLSA record for a host name")
-TEST_TLSA_ALL_IP     = MakeTest(403,"All IP addresses for a host that is TLSA protected must TLSA verify")
+TEST_TLSA_CU_VALIDATES = DaneTest(401,"At least one TLSA record must have a certificate usage and associated data that validates at least one EE cetficiate")
+TEST_TLSA_ATLEAST1   = DaneTest(402,"There must be at least 1 usable TLSA record for a host name")
+TEST_TLSA_ALL_IP     = DaneTest(403,"All IP addresses for a host that is TLSA protected must TLSA verify")
 
-TEST_TLSA_HTTP_NO_FAIL = MakeTest(404,"No HTTP DANE test may fail")
-TEST_DNSSEC_ALL      = MakeTest(405,"All DNS lookups must be secured by DNSSEC")
-TEST_ALL_SMTP_PASS   = MakeTest(406,"All DANE-related tests must pass for a SMTP host")
-TEST_MX_PREEMPTION   = MakeTest(407,""" "Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly." Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.""","2.2.1")
+TEST_TLSA_HTTP_NO_FAIL = DaneTest(404,"No HTTP DANE test may fail")
+TEST_DNSSEC_ALL      = DaneTest(405,"All DNS lookups must be secured by DNSSEC")
+TEST_ALL_SMTP_PASS   = DaneTest(406,"All DANE-related tests must pass for a SMTP host")
+TEST_MX_PREEMPTION   = DaneTest(407,""" "Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly." Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.""","2.2.1")
 
     
 ################################################################

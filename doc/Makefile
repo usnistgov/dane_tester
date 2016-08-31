@@ -10,4 +10,4 @@ rfc.bib:
 	wget http://tm.uka.de/~bless/rfc.bib
 
 clean:
-	rm *.aux *.bbl *.blg *.out *.spl 
+	rm *.aux *.bbl *.blg *.out *.spl fy16_report.pdf

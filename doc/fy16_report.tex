@@ -7,6 +7,7 @@
 \usepackage{array}
 \usepackage{url}
 \usepackage{fancyvrb}
+\usepackage{listings}
 \DefineShortVerb{\|}
 %\usepackage{lineno}
 %\modulolinenumbers[5]
@@ -225,7 +226,7 @@ Python 2.7.
 
 \subsection{File Layout}
 
-The tester is contained entirely in the {\tt tlsa/} directory of the
+The tester is contained entirely in the {\tt server/} directory of the
 git repository. It is implemented as a Python module and a CGI
 script. The tester consists of the following shown in Table~\ref{tlsa}.
 
@@ -234,7 +235,7 @@ script. The tester consists of the following shown in Table~\ref{tlsa}.
 Makefile & Targets for configuring Centos 7 base system and compiling helper programs. \\
 README.md & Documentation \\
 ca-bundle.crt & File containing multiple PEM-encoded SSL certificates of ``Well known'' Certificate Authorities. Used for Certificate Usage 0, which validates against system trust anchors. \\
-centose7-setup.bash & Script to configure Centos 7 system to run the tester. \\
+centos7-setup.bash & Script to configure Centos 7 system to run the tester. \\
 dane\_check.cgi & CGI script to run the tester from a webserver.\\
 dane\_checker.py & Python module that implements DANE tester. Called by dane\_check.cgi and runnable directly from the command line. Can output both TEXT and HTML data.\\
 dnstree.py & A program to test the getdns system.\\
@@ -242,7 +243,7 @@ get\_altnames & The compiled executable for the \emph{get\_altnames.c} program.\
 get\_altnames.c & M2Crypto provides no mechanism to read the alternative names on the X509 certificate, so this helper program gets the alt names of a certificate provided on the command line and prints the names to stdout.\\
 test\_dane.py & A test program using the py.test framework to test functions within the {\tt dane\_checker} module.\\
 \end{tabularx}
-\caption{Files in the tlsa/ tester directory}\label{tlsa}
+\caption{Files in the \texttt{server/} directory}\label{tlsa}
 \end{table*}
 
 \subsection{Installation and Operation}
@@ -250,9 +251,14 @@ test\_dane.py & A test program using the py.test framework to test functions wit
 The DANE server tester can be run from the command line using the
 |dane_checker.py| script or from a web browser by placing the
 |dane_check.cgi| script and the associated files in a
-CGI-enabled directory of a modern web server. 
+CGI-enabled directory of a modern web server. By design, the entire
+GIT repository can be cloned in the directory of the web server.
 
 \begin{enumerate}
+\item Uncomment \texttt{AddHandler cgi-script .cgi} in the webserver's
+  configuration file.
+\item Add \texttt{ExecCGI} to the \texttt{Options} directive in the
+  webserver configuration file.
 \item Set \verb|$DANESRC| to root of the cloned git repository
 \item \verb|cd $DANESRC|
 \item Run |make| to compile |get_altname|.
@@ -262,9 +268,10 @@ CGI-enabled directory of a modern web server.
 \item Run |python2.7 dane_checker.py https://bad-sig.dane.verisignlabs.com| to test one of Verisign's
   known-bad DANE https servers.
 \item Run |python2.7 dane_checker.py --test| to test all of the test vectors.
-\item Access \url{https://hostname/directory/dane_check.cgi} to run
+\item Access \texttt{https://\emph{host}/\emph{directory}/dane\_check.cgi} to run
   the web-based tester
 \end{enumerate}
+
 
 \subsection{Theory of Operation}
 
@@ -284,8 +291,9 @@ caller.
 The tests were developed by a
 close reading of the DANE specifications. Each test is given a name
 and a number. Each test description is then stored its own Python
-object. The slots of the object are:
-
+object. The slots of the object are shown in Figure~\ref{slots}; the
+test numbers ranges are shown in Table~\ref{ranges}.
+\begin{table}
 \begin{tabularx}{\textwidth}{llX}
 test.num & int & Test number, assigned by the author.\\
 test.desc & str & A description of the test, in English.\\
@@ -293,17 +301,20 @@ test.section & str & The section of the DANE RFC from which the test derives.\\
 test.failed\_desc & str & What to print if the test fails.\\
 test.recommendation & boolean & If the test is for a recommended usage, but not a mandatory usage.\\
 \end{tabularx}
+\caption{Slots in the DaneTest object}\ref{slots}\\
+\end{table}
 
-The test numbers are assigned in these ranges:
-
+\begin{table}
 \begin{tabular}{ll}
 101-104 & DNS tests \\
 201-205 & Server verification\\
 301-308 & Certificate verification\\
 401-407 & Ensemble results\\
 \end{tabular}
+\caption{Test numbers for DANE tests}\ref{ranges}
+\end{table}
 
-When |dane_checker.py| loads the \emph{MakeTest} objects are created
+When |dane_checker.py| loads the \emph{DaneTest} objects are created
 and stored in an associative array.
 
 As the test program executes, traditional imperative logic implements
@@ -316,8 +327,9 @@ then concatenated to form the final result.
 
 The \emph{DaneTestResult} object is a data structure that contains
 structured information about whether each test passes or fails. The
-slots of the object are:
+slots of the object are shown in table~\ref{testResults}.
 
+\begin{table}
 \begin{tabularx}{\textwidth}{llX}
 passed & boolean & True if the test passed \\
 dnssec & boolean & True if the test was a DNS lookup and the result was secured with DNSSEC \\
@@ -330,12 +342,15 @@ rdata & str & The DNS response data (which the getdns API calls rdata) that was 
 key & str & Additional information returned in a DNS query, such as an
 MX preference or a DANE cryptographic key. \\
 \end{tabularx}
+\caption{DaneTestResults Object}\label{testResults}
+\end{table}
 
 How this works is illustrated in this snippet of code from the
 function \emph{get\_dns\_ip} which is executed after an DNS query for
-an MX RR:
+an MX RR, shown in Figure~\ref{snippet}.
 
-\begin{lstlisting}
+\begin{figure}
+\begin{lstlisting}[basicstyle=\small,language=Python]
 if a['type'] == getdns.RRTYPE_MX == request_type:
     what = 'DNS MX lookup {} = {} {}'.format(hostname,rdata['preference'],rdata['exchange'])
     ret.append( DaneTestResult(passed=SUCCESS,
@@ -345,6 +360,8 @@ if a['type'] == getdns.RRTYPE_MX == request_type:
                                data=rdata['exchange'],
                                key=rdata['preference']))
 \end{lstlisting}
+\caption{}\label{snippet}
+\end{figure}
 
 In this example, \emph{ret} is an array of \emph{DaneTestResult}
 objects that will be returned. If an MX record is returned in the DNS
@@ -353,6 +370,10 @@ return multiple RRs in a query, and all of them are stored in
 \emph{ret[]}.  They can then be both used in later parts of the test
 and rendered for final output.
 
+\subsection{Demo}
+The tester is installed on the server dane-test.had.dnsops.gov. The
+web page \url{http://dane-test.had.dnsops.gov} is installed in the
+directory /var/www/html/
 
 \section*{References}
 
