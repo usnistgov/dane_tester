@@ -42,5 +42,5 @@ centos7-prep:
 /usr/local/ssl/bin/openssl:
 	wget https://www.openssl.org/source/openssl-1.0.2h.tar.gz
 	tar xfz openssl-1.0.2h.tar.gz
-	( cd openssl-1.0.2h && ./config && make depend && make && make test && make install )
+	( cd openssl-1.0.2h && ./config && make depend && make && make test && sudo make install )
 	/bin/rm -rf openssl-1.0.2h.tar.gz openssl-1.0.2h

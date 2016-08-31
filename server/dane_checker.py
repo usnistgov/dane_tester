@@ -308,6 +308,7 @@ def hex_der_to_pem(val):
 
 # Uses external program to extract AltNames
 def cert_subject_alternative_names(cert):
+    assert os.path.exists(get_altnames_exe)
     cmd = [get_altnames_exe,'/dev/stdin']
     p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stdin=subprocess.PIPE)
     res = p.communicate(input=cert)[0]
@@ -636,6 +637,8 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
         raise RuntimeError("invalid protocol")
     with timeout(seconds=MAX_TIMEOUT):
         try:
+            multi_certs = ""
+            passed = False
             def get_response(p):
                 response = ''
                 while True:
@@ -653,8 +656,8 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
             (resp,code) = get_response(p)
         except TimeoutError:
             what="Timeout fetching certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
-            multi_certs = ""
-            passed = False
+        except IOError:
+            what="IOError fetching certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
         return [ DaneTestResult(test=TEST_EECERT_HAVE,
                                 passed=passed,
                                 what=what,
@@ -1162,6 +1165,7 @@ def print_stats():
         print("{} Failed URLs:".format(len(failed)))
         for line in failed:
             print(line)
+    print("==============================")
 
 if __name__=="__main__":
     import os,sys,argparse
