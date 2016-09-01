@@ -24,3 +24,5 @@ tlsa/openssl*.tar.gz
 tlsa/openssl*/
 .cache
 email/bootstrap/
+email/bootstrap
+email/bootstrap*
