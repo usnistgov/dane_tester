@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8; mode: python; -*-
 #
 # common routines for NIST email tester
 # Requires PyMySQL
@@ -86,7 +87,6 @@ class Tester:
 
         c.execute("insert into tests (" + ",".join(fields) + ") values (" + ",".join(fds) +")",vals)
         self.testid = c.lastrowid
-
 
     def cursor(self):
         return self.conn.cursor()

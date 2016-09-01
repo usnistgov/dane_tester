@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8; mode: python; -*-
 #
 # programs for maintaining the database
 

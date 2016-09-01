@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8; mode: python; -*-
 
 import tempfile, smtplib, os, sys
 import tester

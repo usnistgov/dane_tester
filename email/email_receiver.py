@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8; mode: python; -*-
 #
 # email_receiver.py:
 # ingests email messages and stores them in the database

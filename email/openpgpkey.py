@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- mode: python; -*-
 #
 # DANE openpgpkey implementation
 #

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- mode: python; -*-
+# -*- coding: utf-8; mode: python; -*-
 #
 import cgitb;cgitb.enable()
 from mako.template import Template

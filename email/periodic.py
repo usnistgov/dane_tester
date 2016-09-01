@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- mode: python; -*-
 #
 # periodic queue runner
 # currently includes the test implementations as well.

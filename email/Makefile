@@ -17,3 +17,9 @@ bounce:
 clean:
 	/bin/rm -f *~
 
+
+bootstrap-3.3.7-dist.zip:
+	wget https://github.com/twbs/bootstrap/releases/download/v3.3.7/bootstrap-3.3.7-dist.zip
+	unzip bootstrap-3.3.7-dist.zip
+	ln -s bootstrap-3.3.7-dist bootstrap
+
