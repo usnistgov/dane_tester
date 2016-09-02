@@ -45,7 +45,14 @@ class Tester:
         self.testid = testid
         self.conn   = None        # make sure it's set
         self.userid = 0           # not logged in
-        assert os.path.exists(cfg_file)
+
+        # Make sure that the cfg_file exists and that it is not world or group readable
+        if not os.path.exists(cfg_file):
+            raise RuntimeError("{} does not exist".format(cfg_file))
+        if (os.stat(cfg_file).st_mode & 0o0070) != 0:
+            raise RuntimeError("{} should not be group-readable or group-writable".format(cfg_file))
+        if (os.stat(cfg_file).st_mode & 0o0007) != 0:
+            raise RuntimeError("{} should not be world-readable or world-writable".format(cfg_file))
         import configparser,sys
         cfg = configparser.ConfigParser()
         cfg.read(cfg_file)

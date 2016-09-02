@@ -88,7 +88,6 @@ if __name__=="__main__":
             print("test {} already exists".format(args.create))
 
     if args.list:
-        print("args.list=",args.list)
         if args.list.startswith("test"):
             cmd = "select testtype,name from testtypes"
         if args.list.startswith("user"):

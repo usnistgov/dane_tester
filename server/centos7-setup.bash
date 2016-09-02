@@ -7,9 +7,15 @@
 # Make the system more usable
 yum -y install mlocate emacs telnet yum-cron git python-pip httpd mod_ssl libidn-devel unzip
 
-# install needed componentst for package
+# install needed componentst for client
 yum -y install python-setuptools openssl-devel getdns getdns-devel pytest m2crypto \
     httpd mod_ssl expat expat-devel
+
+# install components for email tester
+pip3.4 install PyMySQL 
+pip3.4 install tabulate
+pip3.4 install dnspython
+pip3.4 install mako
 
 updatedb
 apachectl start			# start the web server
