@@ -1,3 +1,4 @@
+
 CFG_FILE=$(HOME)/email.cfg
 schema.sql: dbmaint.py $(CFG_FILE)
 	python3 dbmaint.py --dump > schema.sql
@@ -20,6 +21,7 @@ clean:
 
 bootstrap-3.3.7-dist.zip:
 	wget https://github.com/twbs/bootstrap/releases/download/v3.3.7/bootstrap-3.3.7-dist.zip
-	unzip bootstrap-3.3.7-dist.zip
-	ln -s bootstrap-3.3.7-dist bootstrap
+
+install: bootstrap-3.3.7-dist.zip
+	if [ ! -e bootstrap ]; then unzip bootstrap-3.3.7-dist.zip; ln -s bootstrap-3.3.7-dist bootstrap; fi
 
