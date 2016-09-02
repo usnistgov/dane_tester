@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8; mode: python; -*-
 #
 # database-based DNS module.
 # Implements DNS queries to database and response from the database
@@ -11,14 +12,11 @@ import pickle
 import dbdns
 import pymysql
 
-
 class Dbdns:
     def __init__(self,response=None):
         if response:
             self.response = response
             
-    
-
 def query(T,name,rr,replay=False):
     """Perform a query of host/rr, store results in database, and get results from db and return"""
 

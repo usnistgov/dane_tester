@@ -5,7 +5,7 @@
 # May be rerun without causing problems
 
 # Make the system more usable
-yum -y install mlocate emacs telnet yum-cron git python-pip httpd mod_ssl libidn-devel
+yum -y install mlocate emacs telnet yum-cron git python-pip httpd mod_ssl libidn-devel unzip
 
 # install needed componentst for package
 yum -y install python-setuptools openssl-devel getdns getdns-devel pytest m2crypto \
