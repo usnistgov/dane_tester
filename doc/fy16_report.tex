@@ -8,9 +8,14 @@
 \usepackage{url}
 \usepackage{fancyvrb}
 \usepackage{listings}
+\usepackage{courier}
+\usepackage{graphicx}
 \DefineShortVerb{\|}
 %\usepackage{lineno}
 %\modulolinenumbers[5]
+
+\lstset{basicstyle=\footnotesize\ttfamily,breaklines=true}
+\lstset{framextopmargin=50pt,frame=bottomline}
 
 \journal{Journal of Unpublished HAD Reports}
 
@@ -75,6 +80,8 @@ DNS-Based Authentication of Named Entities\sep DANE\sep OPENPGPKeys\sep SMIMEA\s
 \end{keyword}
 
 \end{frontmatter}
+
+\tableofcontents
 
 %\linenumbers
 
@@ -519,25 +526,27 @@ statements to the MySQL server.
 \paragraph{gpg} is used to implement the GPG encryption
 algorithm. We tested with version 1.4.16.
 
+\paragraph{Python modules} The tester uses the Python modules PyMySQL,
+dnspython, mako, and tabulate.
+
 \subsection{Test Types}
 The database-driven test system can support multiple different
 \emph{test types}. Each test type is defined by a sequence of actions
 that advance a test instance from test initiation to test
-completion. As of September 1, 2016, there are four test types:
+completion. As of September 1, 2016, there are four test types:\\
 
-\paragraph{bouncer} This test receives an email message and sends a
-response. 
-
-\paragraph{dig} This test performs a DNS lookup.
-
-\paragraph{register} This test allows a potential user to register an
-email address. 
-
-\paragraph{sendplain} This test sends a plain email message.
+\begin{center}
+\begin{tabularx}{\linewidth}{lX}
+bouncer &  This test receives an email message and sends a response. \\
+dig     &  This test performs a DNS lookup.\\
+register &  This test allows a potential user to register an email address. \\
+sendplain & This test sends a plain email message.\\
+\end{tabularx}
+\end{center}
 
 \subsection{Database layout}
 
-The database tables are in table~\ref{db}. The 
+The MySQL database tables are presented in Table~\ref{db}. 
 
 \begin{table*}
 \begin{tabular}{>{\tt}llp{4in}}
@@ -556,13 +565,28 @@ workqueue & workqueueid, testid & Tracks all actions scheduled and completed. Ea
 \caption{}\label{db}
 \end{table*}
 
-
 \subsection{File and Class Layout}
 The database-driven tester is implemented with an object oriented
 famework, with the following classes:
 
-\paragraph{Dbdns} The database DNS implementation. 
+\paragraph{Tester} The primary class manages the database entries
+created for each test instance. The |Tester()| constructor can be
+called with a |testid=|, which creates a database connection for an
+existing test instance, or without, in which case a new test instance
+is created. A second parameter allows the created connection to be
+read/write or read-only.
 
+The |Tester| object reads the configuration file and creates a
+connection to the MySQL database. If the |testid| was not provided, a
+new test instance is created.O Once created, the |Tester| object is
+passed to other functions and instances so that all of the
+transactions associated with a specific test instance are connected
+together.
+
+\paragraph{Dbdns} This module controls the database DNS
+implementation. It contains functions that perform DNS queries,
+records the results in the database, and returns the query. The
+returned object  is compatible with the Python~3.2 |dnspython| API.
 
 \begin{table*}
 \begin{tabularx}{\textwidth}{>{\tt}lX}
@@ -606,10 +630,22 @@ webcontrol.cgi    & \\
 The script |server/centos7-setup.bash| will also install the necessary
 Centos modules required to support the database-driven tester.
 
-\subsection{Installation and Operation}
+\subsection{Installation}
 The tester's files should be cloned from the git repository. On
 |dane-test| a single git repository is used for both the server tester
 and the email tester.
+
+The tester uses Bootstrap as its HTML/JavaScript/CSS framework. To
+install bootstrap, run |make install| from the email directory. Make
+sure that the Bootstrap is properly configured by displaying the
+|email/index.html| page (see~\ref{email-home}).
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=6in]{email-home}
+\end{center}
+\caption{}\label{email-home}
+\end{figure}
 
 The database can be hosted on the same host as the server or on
 another host. If the database is hosted on another Centos instance,
@@ -638,8 +674,7 @@ MariaDB [emaildb]> grant all privileges on emaildb.* to 'dbwriter'@'%';
 MariaDB [emaildb]> flush privileges;
 \end{Verbatim}
 
-Be sure to test that you can connect to the database from the other
-host:
+Be sure to test that you can connect to the database from the other host:
 
 \begin{Verbatim}
 [db1]$ mysql -udbwriter -pdbpassword -hdb1.antd.nist.gov emaildb
@@ -676,7 +711,29 @@ host=localhost
 
 After the database is created and connectivity is created, a user
 needs to be established that will run the scripts. As installed on
-|dane-test|, the |slg| user runs the tester.  
+|dane-test|, the |slg| user runs the tester.   Install the configure
+script in the user's home directory.
+
+Next the tests need to be inserted into the database. This process
+will also perform a test of the configuration file and the ability to
+connect to the back-end database. Use the |dbmaint.py| command:
+
+\begin{Verbatim}
+$ python3 dbmaint.py --create dig
+$ python3 dbmaint.py --create register
+$ python3 dbmaint.py --create sendplain
+$ python3 dbmaint.py --list tests
+Tests:
+  testtype  name
+----------  ---------
+        16  bouncer
+        17  dig
+        18  register
+        19  sendplain
+$
+\end{Verbatim}
+
+Test the installation with a database lookup:
 
 
 Finally, following line needs to be to the user's cron script
