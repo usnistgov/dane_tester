@@ -164,6 +164,59 @@ of the test corresponding to states and state transitions being
 directed by the responses from the systems undergoing test.
 
 
+\subsection{Prior Work}
+Automated Protocol testing is an old problem in networking. In
+1983, for example, Sarikaya and Bochmann modeled network protocol as a
+stimulius/response sequence, and developed algorithms for generating
+test sequences to allow for automated testing of network
+protocols\cite{Sarikaya:1983:SIP:1024840.1035264,Sarikaya:1983:SIP:1035237.1035264}.
+Follow-up work by Sabnani and Dahbura explicitly modeled protocols as
+a finite state machine\cite{Sabnani:1985:NTG:319056.319003,Sabnani:1985:NTG:318951.319003}.
+
+Shahbaz et al state that there is a
+``multi-billion dollar industry building and selling network test
+equipment for all stages of design, development and deployment.'' Not
+surprisingly, there is an extensive literature of network monitoring and measuring. 
+
+Network testing is divided into \emph{active testing}
+(e.g. \cite{Medina:2004:MIT:1028788.1028835}), and \emph{passive
+  testing} (e.g. \cite{Qian:2009:TRF:1644893.1644903}). Much of the
+literature that uses the keywords \emph{network testing} focuses on
+single packet generation and response. For example, \cite{Shahbaz:2013:AOS:2537857.2537880}
+proposes an architecture for an ``Open Source Network Tester,'' but
+the proposed tester is designed for high-performance (10GbE) network
+packet generation and is concerned with issues such as 64-bit
+timestamp generation, rather than the software architecture of the
+test framework.
+
+Tulpule describes the Google+ team's approach to testing the
+interaction between mobile clients and
+servers~\cite{Tulpule:2013:STC:2542128.2542134}. Tests are created by
+recording the behavior of actual clients and then replying them
+against a server. 
+
+
+
+Bochmann and Petrenko reviewed methods available for protocol testing
+in 1994~\cite{Bochmann:1994:PTR:186258.187153}. They discuss options
+for using specification languages for communications protocols,
+approaches for testing using Finite State Machine specifications,
+fault injection, and approaches for deriving tests from FSMs.
+
+Pike presents an approach for building protocol testers using the
+Haskell programming language.\cite{Pike:2009:RYO:1596638.1596646}
+
+Bertolino et al present an approach for testing web services\cite{Bertolino:2009:ASB:1595696.1595719}
+
+Fan et al presents a protocol tester that based on Finite State
+Machine (FSM) theory~\cite{Fan:2009:PPT:1582379.1582477}.
+
+Maag et al propose using model checking for conformance testing and
+verification of protocols~\cite{Maag:2006:TMA:1163653.1163663}.
+
+Wang et al discuss automated approaches for bringing testers to rarely
+entered parts of protocol~\cite{Wang:2011:ADP:2069131.2069166}.
+
 \subsection{Availability}
 
 The complete DANE tester is available from Github at \url{https://github.com/usnistgov/dane_tester}.
