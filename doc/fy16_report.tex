@@ -708,7 +708,7 @@ periodic.py        & The workqueue runner.\\
 schema.sql         & The database schema.\\
 smimea.py          & An SMIMEA implementation, uses \texttt{openssl} command line for cryptography.\\ 
 smtp.py            & An SMTP implementation that records all TCP interactions in the database.\\
-tester.py          & The Tester class, which stores test results in the database.\\
+tester.py          & The Tester class, which stores test results in the database, as well as configuration information.\\
 \\
 \multicolumn{2}{l}{\textbf{CGI Scripts:}}\\
 email.cgi         & Allows the user to queue an email message.\\
@@ -755,8 +755,6 @@ with the commands:
 \begin{Verbatim}[commandchars=\\\{\}]
 $ \userinput{sudo firewall-cmd --add-service=mysql}
 $ \userinput{sudo firewall-cmd --permanent --add-service=mysql}
-$ \userinput{sudo firewall-cmd --add-service=smtp}
-$ \userinput{sudo firewall-cmd --permanent --add-service=smtp}
 \end{Verbatim}
 
 The testing framework requires a single database instance for its
@@ -846,11 +844,80 @@ $
 
 \subsubsection{Receiving Email}
 
-At this point, 
+Additional configuration is required so that the tester can receive email
+
+The firewall must be opened to allow the receipt of email:
+
+\begin{Verbatim}[commandchars=\\\{\}]
+$ \userinput{sudo firewall-cmd --add-service=smtp}
+$ \userinput{sudo firewall-cmd --permanent --add-service=smtp}
+\end{Verbatim}
+
+The active interface of postfix must be modified so that postfix
+listens on |localhost| and on \texttt{\$myhostname}. Edit the file
+  \emph{/etc/postfix/main.cf} and modify the line |inet_interfaces| so
+  that it reads:
 
 
-Finally, following line needs to be to the user's cron script
-(e.g. ``crontab -e''): to run the scripts. This should be done \emph{last!}
+\begin{Verbatim}[commandchars=\\\{\}]
+inet_interfaces = $myhostname, localhost
+\end{Verbatim}
+%$
+
+Be sure to restart the mail server.
+
+Each address on which the tester receives email requires an entry in
+the file |/etc/aliases| that directs the mail to the script. (Having a
+script run when mail is received eliminates the need to poll for
+delivered email.)  Currently we are using these two addresses:
+
+\begin{Verbatim}[commandchars=\\\{\}]
+### dane EMAIL tester:
+bouncer:  ``|/var/www/html/dane_tester/email/email_receiver.py bouncer''
+register: ``|/var/www/html/dane_tester/email/email_receiver.py register''
+\end{Verbatim}
+
+To test that email is being received, send a test registration message
+to register@dane-test.had.dnsops.gov:
+
+\begin{Verbatim}[commandchars=\\\{\}]
+$ \userinput{mail register@dane-test.had.dnsops.gov}
+Subject: Register Test
+Register Me!
+.
+Cc:
+$
+\end{Verbatim}
+
+Once the email is sent, its reception can be verified with the
+|dbmaint.py| utility:
+
+\begin{Verbatim}[commandchars=\\\{\}]
+$ python3 dbmaint.py --list messages
+Tests:
+  messageid  fromaddr                                                  toaddr                                    
+-----------  --------------------------------------------------------  --------------------------------------
+        165  slg@dane-test.had.dnsops.gov (Basic)                      register@dane-test.had.dnsops.gov         
+$
+\end{Verbatim}
+
+The workqueue can be viewed with the |--list workqueue| argument:
+
+\begin{Verbatim}[commandchars=\\\{\}]
+$ \userinput{python3 dbmaint.py --list workqueue}
+Tests:
+  workqueueid  modified             task                   testid  args                                   created                completed
+-------------  -------------------  -------------------  --------  -------------------------------------  -------------------  -----------
+          233  2016-09-07 09:58:20  register_from_email       342  {``cmd'': ``register'', ``messageid'': 165}  2016-09-07 09:58:20
+$
+\end{Verbatim}
+
+
+In order to have the registration script run, it is necessary to have
+system's |cron_runner.py| script run on a regular basis. We set the
+script to run by the |cron| process every minute, by adding the
+following lines to the user's cron script with the (e.g. ``crontab
+-e'') command:
 
 \begin{Verbatim}
 #
@@ -858,8 +925,30 @@ Finally, following line needs to be to the user's cron script
 * * * * * /var/www/html/dane_tester/email/cron_runner.py
 \end{Verbatim}
 
+Note: be sure to add the |cron| command \emph{last!}
+
+After the |cron_runner.py| script is running, the workqueue will
+advance to indicate that the jobs have been run:
+
+\begin{Verbatim}[commandchars=\\\{\}]
+ $ python3 dbmaint.py --list workqueue
+Tests:
+  workqueueid  modified             task                   testid  args                                                                 created              completed
+-------------  -------------------  -------------------  --------  ---------------------------------------------------------            -------------------  -------------------
+          233  2016-09-07 16:21:01  register_from_email       342  {``cmd'': ``register'', ``messageid'': 165}                          2016-09-07 09:58:20  2016-09-07 16:21:01
+          235  2016-09-07 16:21:01  crypto_message            342  {``state'': ``WORKING'', ``cmd'': ``register'', ``messageid'': 167}  2016-09-07 16:21:01  2016-09-07 16:21:01
+          237  2016-09-07 16:21:01  send_message              342  {``state'': ``WORKING'', ``cmd'': ``register'', ``messageid'': 167}  2016-09-07 16:21:01
+You have new mail in /var/spool/mail/slg
+[dane-test ~/dane_tester/email 16:21:19](master) $
+\end{Verbatim}
 
 \subsection{Theory of Operation}
+
+\subsection{Future Work}
+\begin{itemize}
+\item All configuration information should be moved out of tester.py
+  and into email.cfg.
+\end{itemize}
 
 \section*{References}
 
