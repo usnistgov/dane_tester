@@ -26,3 +26,4 @@ tlsa/openssl*/
 email/bootstrap/
 email/bootstrap
 email/bootstrap*
+*.toc
