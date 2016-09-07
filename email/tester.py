@@ -7,14 +7,13 @@
 import os,os.path
 import pymysql.cursors
 
-SMTP_HOST = "mail.nist.gov"
+SMTP_HOST = "localhost"
 SMTP_PORT = 25
 
 # Hack to handle internal email.
 # implemented in smtp.py
 SMTP_INTERNAL_HOST = "localhost"
 SMTP_INTERNAL_DOMAIN = ".had-pilot.com"
-
 
 DB_HOST = "localhost"
 DB_NAME = "emaildb"
