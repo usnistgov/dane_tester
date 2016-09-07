@@ -5,9 +5,9 @@
 #
 # contains extra routines to make sure it isn't run twice
 
-import os,os.path,fcntl
+import os,os.path,fcntl,sys
 
-enabled_file = "/home/slg/CRON_ENABLED.txt"
+assert sys.version > '3'
 
 if __name__=="__main__":
     import argparse,sys
@@ -17,16 +17,13 @@ if __name__=="__main__":
     parser.add_argument("--list",help="List all of the tasks",action="store_true")
     args = parser.parse_args()
 
-    if not os.path.exists(enabled_file):
-        if args.debug:
-            print("{} not found".format(enabled_file))
-        exit(0)
-
+    # Try to acquire a lock on our own executable
     fd = os.open(__file__,os.O_RDONLY)
     if fd>0:
         try:
             fcntl.flock(fd,fcntl.LOCK_EX)
-            import periodic
-            periodic.periodic()
         except IOError:
             print("Could not acquire lock")
+            exit(1)
+    import periodic
+    periodic.periodic()

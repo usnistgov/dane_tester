@@ -5,6 +5,11 @@ import tempfile, smtplib, os, sys
 import tester
 
 def sendmailWithTranscript(server,port,from_header,to_headers,body):
+    """@server - string with hostname of server
+    @port - integer with port number
+    @from_header - string with sender
+    @to_headers - string 
+    @body - body of mail message"""
     # See if we should send to an internal
     if tester.SMTP_INTERNAL_DOMAIN in to_headers[0]:
         server = tester.SMTP_INTERNAL_HOST
@@ -39,4 +44,22 @@ def sendmailWithTranscript(server,port,from_header,to_headers,body):
     os.dup2(available_fd,2)
     os.close(available_fd)
     return smtp_envelope
+
+body="""
+Subject: Test email mesasge
+
+This is a test email mesasge.
+"""
+
+
+if __name__=="__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="test an email")
+    parser.add_argument("email",help="Specify email address to send a test message")
+    args = parser.parse_args()
+    from_header = "from: slg@dane-tester.had.dnsops.gov"
+    to_headers = ["to: simsong@acm.org","to: simsong@nist.gov"]
+    msg = from_header + "\n" + "\n".join(to_headers) + body
+    res = sendmailWithTranscript(tester.SMTP_HOST,tester.SMTP_PORT,from_header,to_headers,msg)
+    print(res.decode('utf-8'))
 
