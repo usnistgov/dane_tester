@@ -41,6 +41,7 @@ def email_receiver(cmd,msg):
     
 
 if __name__=="__main__":
+
     cmd = None
     parser = argparse.ArgumentParser(description="Designed to be called from a PIPE in /etc/aliases.")
     parser.add_argument("--register",help="Simulate register by email with a predefined message. REGISTER is from: address")
