@@ -511,8 +511,8 @@ and rendered for final output.
 
 \subsection{Demo}
 The tester is installed on the server dane-test.had.dnsops.gov. The
-web page \url{http://dane-test.had.dnsops.gov/dane_tester/server/} is installed in the
-directory |/var/www/html/dane_tester/server|.
+web page \url{http://dane-test.had.dnsops.gov/dane-tester/server/} is installed in the
+directory |/var/www/html/dane-tester/server|.
 
 \section{SMIMEA and OpenPGPKey Database-Driven Tester}
 In addition to storing trust information for SSL servers, DANE now
@@ -873,8 +873,8 @@ delivered email.)  Currently we are using these two addresses:
 
 \begin{Verbatim}[commandchars=\\\{\}]
 ### dane EMAIL tester:
-bouncer:  ``|/var/www/html/dane_tester/email/email_receiver.py bouncer''
-register: ``|/var/www/html/dane_tester/email/email_receiver.py register''
+bouncer:  ``|/var/www/html/dane-tester/email/email_receiver.py bouncer''
+register: ``|/var/www/html/dane-tester/email/email_receiver.py register''
 \end{Verbatim}
 
 To test that email is being received, send a test registration message
@@ -922,7 +922,7 @@ following lines to the user's cron script with the (e.g. ``crontab
 \begin{Verbatim}
 #
 # m h  dom mon dow   command
-* * * * * /var/www/html/dane_tester/email/cron_runner.py
+* * * * * /var/www/html/dane-tester/email/cron_runner.py
 \end{Verbatim}
 
 Note: be sure to add the |cron| command \emph{last!}
@@ -939,7 +939,7 @@ Tests:
           235  2016-09-07 16:21:01  crypto_message            342  {``state'': ``WORKING'', ``cmd'': ``register'', ``messageid'': 167}  2016-09-07 16:21:01  2016-09-07 16:21:01
           237  2016-09-07 16:21:01  send_message              342  {``state'': ``WORKING'', ``cmd'': ``register'', ``messageid'': 167}  2016-09-07 16:21:01
 You have new mail in /var/spool/mail/slg
-[dane-test ~/dane_tester/email 16:21:19](master) $
+[dane-test ~/dane-tester/email 16:21:19](master) $
 \end{Verbatim}
 
 \subsection{Theory of Operation}

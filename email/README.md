@@ -92,7 +92,7 @@ Activity: Mail sent to bouncer@had-ub1 results in a response to the sender
 These lines are in `/etc/aliases`:
 
     ### email-bouncer test 
-    bouncer: "|/home/slg/gits/dane_tester/email/email_receiver.py bouncer"
+    bouncer: "|/home/slg/gits/dane-tester/email/email_receiver.py bouncer"
 
 State machine:
 --------------

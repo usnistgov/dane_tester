@@ -46,7 +46,7 @@ DANE test system operating at dane-test.had.dnsops.gov.
 
 Your "hash" is below. You will use this hash to initiate tests on the DANE TEST website.
 
-URL:	http://dane-test.had.dnsops.gov/dane_tester/email/
+URL:	http://dane-test.had.dnsops.gov/dane-tester/email/
 EMAIL:	%MAILTO%
 Hash:	%HASH%
 
