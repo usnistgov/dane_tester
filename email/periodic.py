@@ -17,8 +17,7 @@ import openpgpkey
 debug = True
 logging.basicConfig(level=logging.DEBUG)
 
-#from_address = "pythentic@had-ub1.had-pilot.com"
-FROM_ADDRESS = "simson.garfinkel@nist.gov"
+FROM_ADDRESS = "dane-tester@dane-test.had.dnsops.gov"
 template0 = \
 """To: %TO%
 From: %FROM%
@@ -42,13 +41,17 @@ template2 = \
 From: %FROM%
 Subject: Re:register
 
-Thank you for registering on the had-pilot.biz test system.
-Here is your hash. Please enter it in the Paste-in-Hash field of the test form,
-with your address in the MailTo field.
+Your have successfully registered your email address "%TO%" with the 
+DANE test system operating at dane-test.had.dnsops.gov.
+
+Your "hash" is below. You will use this hash to initiate tests on the DANE TEST website.
+
+URL:	http://dane-test.had.dnsops.gov/dane_tester/email/
+EMAIL:	%MAILTO%
+Hash:	%HASH%
 
 The test system is rate limited to one message per minute, to curb spamming through our server.
-Mailto = %MAILTO%
-Paste-in-Hash = %HASH%
+
 If you register again you will get the same hash as a reminder.
 """
 

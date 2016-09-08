@@ -122,8 +122,14 @@ if __name__=="__main__":
         sys.stdout.write(Popen(cmd,stdout=PIPE).communicate()[0].decode('utf-8'))
         
     if args.message:
-        c.execute("select body from messages where messageid=%s",(args.message,))
-        print(c.fetchone()[0])
+        c.execute("select body,smtp_log from messages where messageid=%s",(args.message,))
+        (body,log) = c.fetchone()
+        print("Message Body:")
+        print(body)
+        if log:
+            print("")
+            print("SMTP Log")
+            print(log)
 
     if args.dumpsmtp:
         c.execute("select smtp_log from messages where messageid=%s",(args.dumpsmtp,))
