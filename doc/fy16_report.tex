@@ -4,6 +4,7 @@
 \usepackage{hyperref}
 \usepackage{xspace}
 \usepackage{tabularx}
+\usepackage{longtable}
 \usepackage{array}
 \usepackage{url}
 \usepackage{fancyvrb}
@@ -418,17 +419,97 @@ recommendation & boolean & If the test is for a recommended usage, but not a man
 \caption{Slots in the DaneTest object}\label{slots}
 \end{table}
 
-\begin{table}
-\centering\fbox{\begin{tabular}{ll}
-range & meaning \\
-\hline
-101-104 & DNS tests \\
-201-205 & Server verification\\
-301-308 & Certificate verification\\
-401-407 & Ensemble results\\
-\end{tabular}}
-\caption{Test numbers for DANE tests}\label{ranges}
-\end{table}
+\begin{center}
+\begin{longtable}{>{\small}l>{\small}l>{\small}p{3.25in}}
+\caption[Tests for DANE Servers]{Tests for DANE Servers}\label{tests-dane-servers} \\
+\hline \multicolumn{1}{c}{\textbf{\#}} & \multicolumn{1}{c}{\textbf{Name}} & \multicolumn{1}{c}{\textbf{Description}} \\ \hline 
+\endfirsthead
+\multicolumn{3}{c}{{\bfseries \tablename\ \thetable{} -- continued from previous page}}
+\\
+\hline \multicolumn{1}{c}{\textbf{\#}} & \multicolumn{1}{c}{\textbf{Name}} & \multicolumn{1}{c}{\textbf{Description}} \\ \hline 
+\endhead
+\hline \multicolumn{3}{r}{{Continued on next page}} \\ \hline
+\endfoot
+\hline \hline
+\endlastfoot
+\\
+\multicolumn{3}{c}{\textbf{\large 101--104: DNS tests}} \\
+101 & TEST\_CNAME\_NOERROR     & If at any stage of CNAME expansion an error is detected, the lookup of the original requested records MUST be considered to have failed.\\
+102 & TEST\_CNAME\_EXPANSION\_SECURE      & if at
+   any stage of recursive expansion an ``insecure'' CNAME record is
+   encountered, then it and all subsequent results (in particular, the
+   final result) MUST be considered ``insecure'' regardless of whether any
+   earlier CNAME records leading to the ``insecure'' record were ``secure.''\\
+103 & TEST\_TLSA\_PRESENT    & Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)\\
+104 & TEST\_TLSA\_DNSSEC     & Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)\\
+\\
+\multicolumn{3}{c}{\textbf{\large 201-205: Server verification}}\\
+201 & TEST\_SMTP\_CONNECT    & Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)\\
+202 & TEST\_SMTP\_STARTTLS   & Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)\\
+203 & TEST\_SMTP\_TLS        & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
+204 & TEST\_SMTP\_QUIT       & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
+205 & TEST\_EECERT\_HAVE     & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
+\\
+\multicolumn{3}{c}{\textbf{\large 301-308: \textbf{Certificate verification}}}\\
+301 & TEST\_SMTP\_CU         & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
+302 & TEST\_TLSA\_CU02\_TP\_FOUND & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
+303 & TEST\_TLSA\_PARMS      & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
+304 & TEST\_TLSA\_RR\_LEAF    & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
+305 & TEST\_DANE\_SMTP\_RECOMMEND  & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
+306 & TEST\_EECERT\_VERIFY   & When name checks are applicable (certificate usage DANE-TA(2)), if
+   the server certificate contains a Subject Alternative Name extension
+   ([RFC5280]), with at least one DNS-ID ([RFC6125]) then only the DNS-
+   IDs are matched against the client's reference identifiers.... The
+   server certificate is considered matched when one of its presented
+   identifiers ([RFC5280]) matches any of the client's reference
+   identifiers.\\
+308 & TEST\_DANE2\_CHAIN     & SMTP servers that rely on certificate usage DANE-TA(2) TLSA records for TLS authentication MUST include the TA certificate as part of the certificate chain presented in the TLS handshake server certificate message even when it is a self-signed root certificate.\\
+
+
+\\
+\multicolumn{3}{c}{\textbf{\large 401-407: Ensemble results}}\\
+401 & TEST\_TLSA\_CU\_VALIDATES &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
+402 & TEST\_TLSA\_ATLEAST1   &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
+403 & TEST\_TLSA\_ALL\_IP     &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
+404 & TEST\_TLSA\_HTTP\_NO\_FAIL &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
+405 & TEST\_DNSSEC\_ALL      &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
+406 & TEST\_ALL\_SMTP\_PASS   &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
+407 & TEST\_MX\_PREEMPTION   &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
+\end{longtable}
+\end{center}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 When |dane_checker.py| loads the \emph{DaneTest} objects are created
 and stored in an associative array.
