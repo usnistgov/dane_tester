@@ -300,7 +300,7 @@ git repository. It is implemented as a Python module and a CGI
 script. The tester consists of the following shown in Table~\ref{tlsa}.
 
 \begin{table*}
-\begin{tabularx}{\textwidth}{>{\tt}lX}
+\fbox{\begin{tabularx}{\textwidth}{>{\tt}lX}
 file & purpose\\
 \hline
 Makefile & Targets for configuring Centos 7 base system and compiling helper programs. \\
@@ -313,7 +313,7 @@ dnstree.py & A program to test the getdns system.\\
 get\_altnames & The compiled executable for the \emph{get\_altnames.c} program.\\
 get\_altnames.c & M2Crypto provides no mechanism to read the alternative names on the X509 certificate, so this helper program gets the alt names of a certificate provided on the command line and prints the names to stdout.\\
 test\_dane.py & A test program using the py.test framework to test functions within the {\tt dane\_checker} module.\\
-\end{tabularx}
+\end{tabularx}}
 \caption{Files in the \texttt{server/} directory}\label{tlsa}
 \end{table*}
 
@@ -339,7 +339,12 @@ directory (we chose the default installation directory,
 
 The installation program |centos7-setup.bash|
 addresses some of these issues, but we are not coding around all of
-them in the hope that the unbound and getdns distributions will be fixed.
+them in the hope that the unbound and getdns distributions will be
+fixed. The script is idempotent, meaning that it can be re-run without
+causing harm. This is especially useful if an action fails due to an
+external cause, such as the inavailability of a repository.
+
+
 \begin{enumerate}
 \item Uncomment \texttt{AddHandler cgi-script .cgi} in the webserver's
   configuration file.
@@ -420,20 +425,26 @@ recommendation & boolean & If the test is for a recommended usage, but not a man
 \end{table}
 
 \begin{center}
-\begin{longtable}{>{\small}l>{\small}l>{\small}p{3.25in}}
+\begin{longtable}{|>{\small}l>{\small}l>{\small}p{3.25in}|}
 \caption[Tests for DANE Servers]{Tests for DANE Servers}\label{tests-dane-servers} \\
-\hline \multicolumn{1}{c}{\textbf{\#}} & \multicolumn{1}{c}{\textbf{Name}} & \multicolumn{1}{c}{\textbf{Description}} \\ \hline 
+\hline \multicolumn{1}{|c}{\textbf{\#}} & 
+       \multicolumn{1}{c}{\textbf{Name}} & 
+       \multicolumn{1}{c|}{\textbf{Description}} \\ 
+\hline 
 \endfirsthead
-\multicolumn{3}{c}{{\bfseries \tablename\ \thetable{} -- continued from previous page}}
+\multicolumn{3}{|c|}{{\bfseries \tablename\ \thetable{} -- continued from previous page}}
 \\
-\hline \multicolumn{1}{c}{\textbf{\#}} & \multicolumn{1}{c}{\textbf{Name}} & \multicolumn{1}{c}{\textbf{Description}} \\ \hline 
+\hline \multicolumn{1}{|c}{\textbf{\#}} & 
+       \multicolumn{1}{c}{\textbf{Name}} & 
+       \multicolumn{1}{c|}{\textbf{Description}} \\ 
+\hline 
 \endhead
-\hline \multicolumn{3}{r}{{Continued on next page}} \\ \hline
+\hline \multicolumn{3}{|r|}{{Continued on next page}} \\ \hline
 \endfoot
 \hline \hline
 \endlastfoot
-\\
-\multicolumn{3}{c}{\textbf{\large 101--104: DNS tests}} \\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{\textbf{\large 101--104: DNS tests}} \\
 101 & TEST\_CNAME\_NOERROR     & If at any stage of CNAME expansion an error is detected, the lookup of the original requested records MUST be considered to have failed.\\
 102 & TEST\_CNAME\_EXPANSION\_SECURE      & if at
    any stage of recursive expansion an ``insecure'' CNAME record is
@@ -442,15 +453,15 @@ recommendation & boolean & If the test is for a recommended usage, but not a man
    earlier CNAME records leading to the ``insecure'' record were ``secure.''\\
 103 & TEST\_TLSA\_PRESENT    & Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)\\
 104 & TEST\_TLSA\_DNSSEC     & Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)\\
-\\
-\multicolumn{3}{c}{\textbf{\large 201-205: Server verification}}\\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{\textbf{\large 201-205: Server verification}}\\
 201 & TEST\_SMTP\_CONNECT    & Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)\\
 202 & TEST\_SMTP\_STARTTLS   & Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)\\
 203 & TEST\_SMTP\_TLS        & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
 204 & TEST\_SMTP\_QUIT       & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
 205 & TEST\_EECERT\_HAVE     & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
-\\
-\multicolumn{3}{c}{\textbf{\large 301-308: \textbf{Certificate verification}}}\\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{\textbf{\large 301-308: \textbf{Certificate verification}}}\\
 301 & TEST\_SMTP\_CU         & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
 302 & TEST\_TLSA\_CU02\_TP\_FOUND & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
 303 & TEST\_TLSA\_PARMS      & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
@@ -464,10 +475,8 @@ recommendation & boolean & If the test is for a recommended usage, but not a man
    identifiers ([RFC5280]) matches any of the client's reference
    identifiers.\\
 308 & TEST\_DANE2\_CHAIN     & SMTP servers that rely on certificate usage DANE-TA(2) TLSA records for TLS authentication MUST include the TA certificate as part of the certificate chain presented in the TLS handshake server certificate message even when it is a self-signed root certificate.\\
-
-
-\\
-\multicolumn{3}{c}{\textbf{\large 401-407: Ensemble results}}\\
+\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|c|}{\textbf{\large 401-407: Ensemble results}}\\
 401 & TEST\_TLSA\_CU\_VALIDATES &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
 402 & TEST\_TLSA\_ATLEAST1   &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
 403 & TEST\_TLSA\_ALL\_IP     &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
@@ -691,28 +700,48 @@ algorithm. We tested with version 1.4.16.
 dnspython, mako, and tabulate.
 \end{description}
 
-\subsection{Test Types}
+\subsection{Test Types and Database Layout}
 The database-driven test system can support multiple different
 \emph{test types}. Each test type is defined by a sequence of actions
 that advance a test instance from test initiation to test
-completion. As of September 1, 2016, there are four test types:\\
+completion. The test types as of September 1, 2016 are shown in
+table~\ref{testtypes}. 
 
+Each test is fundamentally a finite state machine and consists of a
+set of states and state transitions. Each state transition is
+implemented as a named python function. Each test in progress is
+stored within the MySQL database. The database also contains a record
+of each state that the test has occupied, the current state, and the
+arguments to supply to the next state transition function. The MySQL
+database tables are presented in Table~\ref{db}. 
+
+The database records all provenance associated with each test
+instance. For example, instead of a single database row that records
+the next state, multiple rows in the \emph{workqueue} table record,
+for each test instance, each state through which the test instance has
+passed, with a row indicating whether the state is pending or has been
+completed. 
+
+\begin{table}
 \begin{center}
 \begin{tabularx}{\linewidth}{lX}
-bouncer &  This test receives an email message and sends a response. \\
-dig     &  This test performs a DNS lookup.\\
-register &  This test allows a potential user to register an email address. \\
+\hline
+name & description \\
+\hline
+bouncer   & This test receives an email message and sends a response. \\
+dig       & This test performs a DNS lookup.\\
+register  & This test allows a potential user to register an email address. \\
 sendplain & This test sends a plain email message.\\
+\hline
 \end{tabularx}
 \end{center}
+\caption{Test types implemented by the database-driven test system.\ref{test-types}}
+\end{table}
 
-\subsection{Database layout}
 
-The MySQL database tables are presented in Table~\ref{db}. 
-
-\begin{table*}
-\begin{tabular}{>{\tt}llp{4in}}
-%\begin{tabularx}{\textwidth}{>{\tt}llX}
+\begin{table}
+\begin{tabular}{|>{\tt}llp{4in}|}
+\hline
 \textrm{table} & database keys & purpose \\
 \hline
 dns & dnsid, testid & Stores each DNS query and result. \\
@@ -722,10 +751,10 @@ tests & testid, testtype & Provides a unique \texttt{testid} for each test that 
 testtypes & testtype & Provides a unique name for each test type that is implemented by the system.\\
 users & userid, email & Maps unique email addresses to unique |userid|s. For each email address tracks a username and the authentication ``hash.''\\
 workqueue & workqueueid, testid & Tracks all actions scheduled and completed. Each work item is associated with a specific |testid| and has a set of arguments (|args|), stored as a JSON document.\\
-%\end{tabularx}
+\hline
 \end{tabular}
-\caption{}\label{db}
-\end{table*}
+\caption{MySQL Database tables used by the email tester.}\label{db}
+\end{table}
 
 \subsection{File and Class Layout}
 The database-driven tester is implemented with an object oriented
@@ -766,8 +795,8 @@ returned object  is compatible with the Python~3.2 |dnspython| API.
 \end{description}
 
 \begin{table*}
-\begin{tabularx}{\textwidth}{>{\tt}lX}
-%\begin{tabular}{ll}
+\begin{tabularx}{\textwidth}{|>{\tt}lX|}
+\hline
 \textrm{file} & purpose\\
 \hline
 \multicolumn{2}{l}{\textbf{HTML files:}}\\
@@ -798,24 +827,26 @@ lookup\_email.cgi & Allows users to look up a specific email message\\
 lookup\_test.cgi  & Allows users to look up a specific test results.\\
 sendmail.cgi      & Allows users to send an email message. \\
 webcontrol.cgi    & \\
+\hline
 \end{tabularx}
-%\end{tabular}
 \caption{Files in the \texttt{server/} directory}\label{tlsa}
 \end{table*}
 
-\subsection{System Preparation}
-The script |server/centos7-setup.bash| will also install the necessary
-Centos modules required to support the database-driven tester.
-
-\subsection{Installation}
-The tester's files should be cloned from the git repository. On
-|dane-test| a single git repository is used for both the server tester
-and the email tester.
+\subsection{System Preparation and Installation}
+The system preparation for the DANE server tester should also
+installed the database-driven tester. Specifically, the script |server/centos7-setup.bash| will also install the necessary
+Centos modules required to support the database-driven tester, and
+Apache configuration that serves the |$DANESRC/server/| directory on
+the web will also serve the |$DANESRC/email| directory. For our
+production system, we simply cloned the |dane-test| git repository
+into a directory that is served by the Apache web server. The file
+|index.html| in the root directory gives web visitors the option of
+running the DANE SSL client server or the email server. 
 
 \subsubsection{Web files}
 
 The tester uses Bootstrap as its HTML/JavaScript/CSS framework. To
-install bootstrap, run |make install| from the email directory. Make
+install bootstrap, run |make install| from the root or the email directory. Make
 sure that the Bootstrap is properly configured by displaying the
 |email/index.html| page (see~\ref{email-home}).
 
@@ -1038,3 +1069,4 @@ You have new mail in /var/spool/mail/slg
 \end{document}
 
 % LocalWords:  cryptographic modularization auditability exchanger MX changelog
+% LocalWords:  inavailability
