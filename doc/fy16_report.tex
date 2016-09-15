@@ -954,29 +954,41 @@ $
 \end{Verbatim}
 %$
 
-\subsubsection{Receiving Email}
+\subsubsection{Configure for Sending and Receiving Email}
 
-Additional configuration is required so that the tester can receive email
+Additional configuration is required so that the tester can send and receive email
 
-The firewall must be opened to allow the receipt of email:
+\paragraph{SMTP Server}
 
-\begin{Verbatim}[commandchars=\\\{\}]
-$ \userinput{sudo firewall-cmd --add-service=smtp}
-$ \userinput{sudo firewall-cmd --permanent --add-service=smtp}
-\end{Verbatim}
-
-The active interface of postfix must be modified so that postfix
-listens on |localhost| and on \texttt{\$myhostname}. Edit the file
+The SMTP server must be enabled and the server process must be
+configured to listen to the appropriate interface. The default CentOS
+configuration installs a \emph{postfix} process that only listened to
+the |localhost| port. It is necessary to Edit the file
   \emph{/etc/postfix/main.cf} and modify the line |inet_interfaces| so
-  that it reads:
-
+  that the server also listens on the \texttt{\$myhostname} interface:
 
 \begin{Verbatim}[commandchars=\\\{\}]
 inet_interfaces = $myhostname, localhost
 \end{Verbatim}
 %$
 
-Be sure to restart the mail server.
+Be sure to restart the mail server after changes to this file
+
+\paragraph{Firewalls.} The host-based firewall must be opened to allow the receipt of email:
+
+\begin{Verbatim}[commandchars=\\\{\}]
+$ \userinput{sudo firewall-cmd --add-service=smtp}
+$ \userinput{sudo firewall-cmd --permanent --add-service=smtp}
+\end{Verbatim}
+
+It is also important be sure that the server's IP address and SMTP
+port can be reached from the general internet. There may potentially
+be many firewalls blocking access to port 25, including firewalls
+operated by upstream providers, organizations, and VM
+infrastructures. In our case, we had to clear firewalls operated by
+our organization and our division.
+
+\paragraph{Aliases}
 
 Each address on which the tester receives email requires an entry in
 the file |/etc/aliases| that directs the mail to the script. (Having a
