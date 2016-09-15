@@ -1,5 +1,5 @@
 %\documentclass[review]{elsarticle}
-\documentclass[preprint,3p]{elsarticle}
+\documentclass[preprint,3p,11pt]{elsarticle}
 
 \usepackage{hyperref}
 \usepackage{xspace}
@@ -78,7 +78,7 @@ development time, functionality, and extensibility.
 \end{abstract}
 
 \begin{keyword}
-DNS-Based Authentication of Named Entities\sep DANE\sep OPENPGPKeys\sep SMIMEA\sep 
+DNS-Based Authentication of Named Entities\sep DANE\sep OPENPGPKeys\sep SMIMEA
 \end{keyword}
 
 \end{frontmatter}
@@ -89,84 +89,119 @@ DNS-Based Authentication of Named Entities\sep DANE\sep OPENPGPKeys\sep SMIMEA\s
 
 \section{Introduction}
 
-Public key discovery and certification has been one of the primary
-barriers to realizing the benefit of email security
-protocols. 
+Unprotected email that travels over the Internet is susceptable to monitoring and
+alteration. There are two general approaches to securing email:
+end-to-end encryption of the individual email messages, and
+point-to-point encryption of the communications between email
+servers. Because of the scale of the Internet, securing such systems
+with a symmetric encryption is unfeasible; only security systems based
+on public key
+cryptography can be adequately scaled to match the task.
+
+Public key cryptography requires that participants have some mechanism
+for discovering the public keys of their correspondents. Within a single organization,
+an enterprise directory can be used to distribute public
+keys, and PKI can be used to certify them. 
+
+DNS-Based Authentication of Named Entities\cite{rfc7671} (DANE)
+provides a general mechanism for the discovery of cryptographic keys
+associated with DNS-named. By relying on the DNSSEC\cite{rfc3833}
+trust roots, DANE delegates control of the names within an
+organization's DNS hierarchy to the administrative unit that is in
+control of the organization's DNS. Thus, DANE transforms DNS into a
+global directory for certified identities.
+
+Support for DANE has been added to OpenSSL (v. 1.1.0) and GnuTLS
+(v.3.5.4). But properly implementing DANE requires not just conforming
+software, but the generation and installation of X.509 certificates
+and/or PGP keys, the generation and installation of appropriate DNS
+records, and validating DNSSEC records. A mismatch of any of these
+records might result in the inability to properly encrypt, sign,
+validate, or deliver email. Thus, there is a significant need for an
+easy-to-use testing infrastructure, and this testing infrastructure
+must be easy-to-update as the underlying specifications evolve.
+
+\subsection{DANE for SMTP}
 
 Although many SMTP servers now implement the STARTTLS SMTP
 command\cite{rfc3207}, Mail Transfer Agents (MTAs) typically
-certificates signed by \emph{any} Certificate Authority (CA)
-(including self-signed certificates), as SMTP servers generally lack a
-list of pre-configured certificate authorities and a user interface
-that could be used to specify the disposition of mail that is being
-sent to a mail server that has a certificate that is signed by an
-unknown CA. Since mail is sent by default without encryption, this
+accept certificates signed by \emph{any} Certificate Authority (CA),
+as well as certificates that are self-signed. Since mail is sent by default without encryption, this
 so-called ``opportunitist encryption'' at least provides security
-against a passive monitoring attacker.
+against a passive monitoring attacker. However, the casual acceptance
+of certificates signed by any CA leaves unencrypted Internet email
+open to interception by an active attacker that can perform a
+man-in-the-middle attack. Such attacks can be readily performed by
+manipulating the DNS.
 
-After more than two decades of research and standards development
-(e.g. \cite{rfc1421,rfc4880,rfc5750}), two incompatiable standards
-have emerged for the exchange of encrypted Internet email: S/MIME and
-PGP. Both of these standards from the \emph{key discovery problem:} in
-order to send a recipient an encrypted message, it is necessary to
-first obtain the recipient's public key. Within a single organization,
-this problem can be solved through the use of a enterprise
-directory. S/MIME also has the advantage that digitally signed email
-messages typically include the sender's public key in the PKCS\#7
-attachment\cite{rfc2315}, allowing the recipient of a digitally signed
-message to send an encrypted reply to the sender. However, when
-sending email between organizations, there is currently no deployed
-mechanism that can be used to find the recipient's S/MIME certificate
-or PGP public key prior to the first message exchange.
+RFC7671 and RFC7672 provide a mechanism for SMTP clients to discover
+information that allows the certification of an SMTP server's public
+key\cite{rfc7671,rfc7672}. Thus, while DANE cannot prevent
+man-in-the-middle attacks, it provides a technique that an MTA can use
+to determine that a man-in-the-middle attack is taking place. Once
+detected, the server can refuse to send email.
 
-DNS-Based Authentication of Named
-Entities\cite{rfc7671} (DANE) provides a general mechanism for the
-discovery of cryptographic keys associated with DNS-named. By relying
-on the DNSSEC\cite{rfc3833} trust roots, DANE delegates control of the
-names within an organization's DNS hierarchy to the administrative
-unit that is in control of the organization's DNS. RFC7671 and RFC7672 provide a
-discovery mechanism for a domain's certified SMTP MTA public key or
-PEM certificate\cite{rfc7671,rfc7672}. Work is in progress on a mechanism for discovering
-S/MIME certificates associated with email addresses
-(|draft-ietf-dane-smime11|), and 
-an experimental RFC was recently approved for associating OpenPGPKey public keys with email addresses\cite{rfc7929}.
+Support for RFC 7672 has been incorporated into Postfix (v2.11).
 
-We created a conventional tester for HTTP and SMTP servers in
-Python. The tester consists of a python module that implements an
-instrumented client that uses \texttt{getdns}\cite{getdns} to acquire a TLSA RR for either
-an HTTP or SMTP server. The certificate is then used to verify a TLS
-server reached through either HTTP or SMTP. The tester can be run from
+\subsection{DANE for Email Encryption}
+
+End-to-end encryption of email messages is complicated by the fact
+that more than two decades of research and standards development
+(e.g. \cite{rfc1421,rfc4880,rfc5750}) has produced two incompatible
+standards have emerged for the exchange of encrypted Internet email:
+S/MIME and OpenPGP. Both of these standards require the sender of an
+encrypted message to first obtain the public key of the message's
+intended recipient. Thus, they both suffer from the \emph{key
+  discovery problem}. However, S/MIME mitigates this problem somewhat,
+as digitally signed S/MIME messages typically have the sender's public
+key embedded in the PKCS\#7 attachment\cite{rfc2315}.
+
+Work is in progress on a mechanism for discovering S/MIME certificates
+associated with email addresses (\emph{draft-ietf-dane-smime11}, and
+an experimental RFC was recently approved for associating OpenPGPKey
+public keys with email addresses\cite{rfc7929}. With these mechanisms,
+the sender of an email can fetch the recipient's S/MIME certificate or
+PGP public key and send that the recipient an encrypted message,
+without the need to first exchange a message that is digitally signed.
+
+\subsection{Our Contribution}
+
+We created a tester for DANE-enabled HTTP and SMTP servers. The
+tester, written in Python 2.7, includes an instrumented DANE
+implementation that acquires the DANE DNS Resource Record(s) (RR(s)) for
+either an HTTP or SMTP server. The tester then obtains the service
+certificate for the HTTP or SMTP server and certificate and verifies
+the certificate against the RR(s). The tester can be run from
 command line or a web interface. Testing results are incorporated into
 a data structure which can then be rendered as either text or HTML.
 
-The conventional tester was implemented using commonly accepted
+The server tester was implemented using commonly accepted
 programming practices including object-oriented design,
 modularization, and integrated tests. Nevertheless, it proved
-difficult to develop, audit, and extend to new protocols. A particular
-complication is the fact that whether a DANE validation succeeds or
-fails depends on both the server's certificate and the results of DNS
+difficult to develop, audit, and extend to new protocols. A 
+complicating factor is that a successful DANE validation depends on both the server's certificate and the results of DNS
 queries, but DNS servers frequently give different answers to the same
 questions as a result of caching, load balancing, network congestion,
-and configuration changes. Thus, it is difficult to determine the
+and configuration changes. Thus, it is sometimes difficult to determine the
 reason for code that suddenly starts or stops working.
 
-Following the development of the conventional tester, we created a
-tester for the draft SMIMEA and OpenPGP protocols. As a result of the
-experience with the conventional HTTP and SMTP testers, we developed a
-new tester framework based on the core idea of \emph{auditability},
+Following the development of the first tester, we created a
+tester for the draft SMIMEA and OpenPGPKey protocols. The second
+tester was based on the core ideas of \emph{repeatability} and \emph{auditability},
 which we define as ``the degree to which transactions can be traced
-and audited through a system.'' The core design goal of the SMIME and
-OpenPGP tester was to maintain a log of all DNS queries and responses
+and audited through a system.'' A design requirement of this tester  was to maintain a log of all DNS queries and responses
 so that the tester's edicts could be reviewed and validated. Another
 design goal was to enable a \emph{replay} capability, so that previous
 queries and responses to be used for regression testing. In the
 process of designing the new testing framework, we realized the entire
 testing agent could be implemented as a state machine, with each phase
 of the test corresponding to states and state transitions being
-directed by the responses from the systems undergoing test.
+directed by the responses from the systems undergoing test. Our second
+tester makes use of this observation to result in tests that are
+decomposed into components, making them easy to validate and audit.
 
 
-\subsection{Prior Work}
+\section{Prior Work}
 Automated Protocol testing is an old problem in networking. In
 1983, for example, Sarikaya and Bochmann modeled network protocol as a
 stimulius/response sequence, and developed algorithms for generating
@@ -175,29 +210,11 @@ protocols\cite{Sarikaya:1983:SIP:1024840.1035264,Sarikaya:1983:SIP:1035237.10352
 Follow-up work by Sabnani and Dahbura explicitly modeled protocols as
 a finite state machine\cite{Sabnani:1985:NTG:319056.319003,Sabnani:1985:NTG:318951.319003}.
 
-Shahbaz et al state that there is a
-``multi-billion dollar industry building and selling network test
-equipment for all stages of design, development and deployment.'' Not
-surprisingly, there is an extensive literature of network monitoring and measuring. 
-
-Network testing is divided into \emph{active testing}
-(e.g. \cite{Medina:2004:MIT:1028788.1028835}), and \emph{passive
-  testing} (e.g. \cite{Qian:2009:TRF:1644893.1644903}). Much of the
-literature that uses the keywords \emph{network testing} focuses on
-single packet generation and response. For example, \cite{Shahbaz:2013:AOS:2537857.2537880}
-proposes an architecture for an ``Open Source Network Tester,'' but
-the proposed tester is designed for high-performance (10GbE) network
-packet generation and is concerned with issues such as 64-bit
-timestamp generation, rather than the software architecture of the
-test framework.
-
 Tulpule describes the Google+ team's approach to testing the
 interaction between mobile clients and
 servers~\cite{Tulpule:2013:STC:2542128.2542134}. Tests are created by
 recording the behavior of actual clients and then replying them
 against a server. 
-
-
 
 Bochmann and Petrenko reviewed methods available for protocol testing
 in 1994~\cite{Bochmann:1994:PTR:186258.187153}. They discuss options
@@ -205,23 +222,24 @@ for using specification languages for communications protocols,
 approaches for testing using Finite State Machine specifications,
 fault injection, and approaches for deriving tests from FSMs.
 
-Pike presents an approach for building protocol testers using the
-Haskell programming language.\cite{Pike:2009:RYO:1596638.1596646}
 
-Bertolino et al present an approach for testing web services\cite{Bertolino:2009:ASB:1595696.1595719}
-
-Fan et al presents a protocol tester that based on Finite State
-Machine (FSM) theory~\cite{Fan:2009:PPT:1582379.1582477}.
-
-Maag et al propose using model checking for conformance testing and
+In 2006 Maag et al proposed using model checking for conformance testing and
 verification of protocols~\cite{Maag:2006:TMA:1163653.1163663}.
 
-Wang et al discuss automated approaches for bringing testers to rarely
+In 2009 Fan et al.\ developed a protocol tester based on Finite State Machine
+(FSM) theory~\cite{Fan:2009:PPT:1582379.1582477}. Also in that year,
+Bertolino et al.\ applied automated methods and model checking to
+testing web services\cite{Bertolino:2009:ASB:1595696.1595719}. Pike presented an approach for building protocol testers using the
+Haskell programming language.\cite{Pike:2009:RYO:1596638.1596646}
+
+In 2011 Wang et al.\ discussed automated approaches for bringing testers to rarely
 entered parts of protocol~\cite{Wang:2011:ADP:2069131.2069166}.
 
 \subsection{Availability}
 
-The complete DANE tester is available from Github at \url{https://github.com/usnistgov/dane_tester}.
+The complete DANE tester is available from Github at
+\url{https://github.com/usnistgov/dane_tester}. Both testers are
+operational at \url{https://dane-test.had.dnsops.gov}
 
 \section{HTTP and SMTP Server TLSA Tester}
 We created a tool to test server certificates advertised using DANE
@@ -829,7 +847,7 @@ sendmail.cgi      & Allows users to send an email message. \\
 webcontrol.cgi    & \\
 \hline
 \end{tabularx}
-\caption{Files in the \texttt{server/} directory}\label{tlsa}
+\caption{Files in the \texttt{server/} directory}\label{server-files}
 \end{table*}
 
 \subsection{System Preparation and Installation}
@@ -1081,4 +1099,4 @@ You have new mail in /var/spool/mail/slg
 \end{document}
 
 % LocalWords:  cryptographic modularization auditability exchanger MX changelog
-% LocalWords:  inavailability
+% LocalWords:  inavailability unencrypted repeatability
