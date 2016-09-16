@@ -41,8 +41,10 @@ template2 = \
 From: %FROM%
 Subject: Re: register
 
-Your have successfully registered your email address "%TO%" with the 
-DANE test system operating at dane-test.had.dnsops.gov.
+Dear %TO%,
+
+Your have successfully registered your email address "%EMAIL_ADDRESS%"
+with the DANE test system operating at dane-test.had.dnsops.gov.
 
 Your "hash" is below. You will use this hash to initiate tests on the DANE TEST website.
 
