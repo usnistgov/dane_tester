@@ -17,7 +17,7 @@
 
 \newcommand\userinput[1]{\textbf{#1}}
 \lstset{basicstyle=\footnotesize\ttfamily,breaklines=true}
-\lstset{framextopmargin=50pt,frame=bottomline}
+\lstset{frame=single}
 
 \journal{Journal of Unpublished HAD Reports}
 
@@ -841,14 +841,14 @@ returned object  is compatible with the Python~3.2 |dnspython| API.
 \hline
 \textrm{file} & purpose\\
 \hline
-\multicolumn{2}{l}{\textbf{HTML files:}}\\
+\multicolumn{2}{|l|}{\textbf{HTML files:}}\\
 bootstrap/         & installation of Bootstrap HTML, CSS and JS framework.\\
 index.html         & Home page for the tester.\\
 jumbotron.css      & Bootstrap theme customization.\\
 README.md          & The README program.\\
 sendmail.html      & The HTML template used by the \texttt{email.cgi} script.\\
 \\
-\multicolumn{2}{l}{\textbf{Python Modules and Scripts:}}\\
+\multicolumn{2}{|l|}{\textbf{Python Modules and Scripts:}}\\
 cron\_runner.py    & Python script run by cron(8) to run the next step in the work queue.  \\
 dbdns.py           & The database DNS implementation.\\
 dbmaint.py         & The database maintenance program.\\
@@ -862,7 +862,7 @@ smimea.py          & An SMIMEA implementation, uses \texttt{openssl} command lin
 smtp.py            & An SMTP implementation that records all TCP interactions in the database.\\
 tester.py          & The Tester class, which stores test results in the database, as well as configuration information.\\
 \\
-\multicolumn{2}{l}{\textbf{CGI Scripts:}}\\
+\multicolumn{2}{|l|}{\textbf{CGI Scripts:}}\\
 email.cgi         & Allows the user to queue an email message.\\
 history.cgi       & Allows users to see their interaction history with the tester.\\
 lookup\_email.cgi & Allows users to look up a specific email message\\
@@ -901,7 +901,7 @@ another host. If the database is hosted on another Centos instance,
 it will be necessary to open up the firewall on the database server
 with the commands:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 $ \userinput{sudo firewall-cmd --add-service=mysql}
 $ \userinput{sudo firewall-cmd --permanent --add-service=mysql}
 \end{Verbatim}
@@ -915,7 +915,7 @@ at a later point for statistics.
 On the database server, create the database user and the database that
 will be used:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 MariaDB [emaildb]> \userinput{create database emaildb;}
 MariaDB [emaildb]> \userinput{create user 'dbwriter@129.6.100.204' identified by 'dbpassword';}
 MariaDB [emaildb]> \userinput{grant all privileges on emaildb.* to 'dbwriter'@'dane-test.had.dnsops.gov';}
@@ -925,7 +925,7 @@ MariaDB [emaildb]> \userinput{flush privileges;}
 
 Be sure to test that you can connect to the database from the other host:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 [db1]$ \userinput{mysql -udbwriter -pdbpassword -hdb1.antd.nist.gov emaildb }
 MariaDB [emaildb]> \userinput{select version();}
 +----------------+
@@ -941,7 +941,7 @@ MariaDB [emaildb]> \userinput{quit;}
 Once the database is created, it is necessary to load the schema into
 the database. You can do this with the MySQL command:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 [db1]$ \userinput{mysql -udbwriter -pdbpassword -hdb1.antd.nist.gov emaildb < email/schema.sql}
 [db1]$
 \end{Verbatim}
@@ -957,13 +957,14 @@ user that runs the |cron_runner.py| script.
 
 Here is a simple configuration file:
 
-\begin{lstlisting}
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 [mysql]
 username=dbwriter
 password=dbpassword
 dbname=emaildb
 host=localhost
 \end{lstlisting}
+\end{Verbatim}
 
 After the database is created and connectivity is created, a user
 needs to be established that will run the scripts. As installed on
@@ -975,7 +976,7 @@ will also perform a test of the configuration file and the ability to
 connect to the back-end database. Use the |dbmaint.py| command to
 insert the tests and to test the installation with a database lookup:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 $ \userinput{python3 dbmaint.py --create dig}
 $ \userinput{python3 dbmaint.py --create register}
 $ \userinput{python3 dbmaint.py --create sendplain}
@@ -991,6 +992,8 @@ $
 \end{Verbatim}
 %$
 
+\subsubsection{Installing the PGP and S/MIME encryption keys}
+**SIMSON NEEDS TO WRITE THIS**
 \subsubsection{Configure for Sending and Receiving Email}
 
 Additional configuration is required so that the tester can send and receive email
@@ -1004,7 +1007,7 @@ the |localhost| port. It is necessary to Edit the file
   \emph{/etc/postfix/main.cf} and modify the line |inet_interfaces| so
   that the server also listens on the \texttt{\$myhostname} interface:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 inet_interfaces = $myhostname, localhost
 \end{Verbatim}
 %$
@@ -1013,7 +1016,7 @@ Be sure to restart the mail server after changes to this file
 
 \paragraph{Firewalls.} The host-based firewall must be opened to allow the receipt of email:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 $ \userinput{sudo firewall-cmd --add-service=smtp}
 $ \userinput{sudo firewall-cmd --permanent --add-service=smtp}
 \end{Verbatim}
@@ -1032,7 +1035,7 @@ the file |/etc/aliases| that directs the mail to the script. (Having a
 script run when mail is received eliminates the need to poll for
 delivered email.)  Currently we are using these two addresses:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 ### dane EMAIL tester:
 bouncer:  ``|/var/www/html/email/email_receiver.py bouncer''
 register: ``|/var/www/html/email/email_receiver.py register''
@@ -1041,7 +1044,7 @@ register: ``|/var/www/html/email/email_receiver.py register''
 To test that email is being received, send a test registration message
 to register@dane-test.had.dnsops.gov:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 $ \userinput{mail register@dane-test.had.dnsops.gov}
 Subject: Register Test
 Register Me!
@@ -1053,7 +1056,7 @@ $
 Once the email is sent, its reception can be verified with the
 |dbmaint.py| utility:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 $ python3 dbmaint.py --list messages
 Tests:
   messageid  fromaddr                                                  toaddr                                    
@@ -1064,12 +1067,12 @@ $
 
 The workqueue can be viewed with the |--list workqueue| argument:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 $ \userinput{python3 dbmaint.py --list workqueue}
 Tests:
   workqueueid  modified             task                   testid  args                                   created                completed
 -------------  -------------------  -------------------  --------  -------------------------------------  -------------------  -----------
-          233  2016-09-07 09:58:20  register_from_email       342  {``cmd'': ``register'', ``messageid'': 165}  2016-09-07 09:58:20
+          233  2016-09-07 09:58:20  register_from_email       342  {"cmd": "register", "messageid": 165}  2016-09-07 09:58:20
 $
 \end{Verbatim}
 
@@ -1077,8 +1080,8 @@ $
 In order to have the registration script run, it is necessary to have
 system's |cron_runner.py| script run on a regular basis. We set the
 script to run by the |cron| process every minute, by adding the
-following lines to the user's cron script with the (e.g. ``crontab
--e'') command:
+following lines to the user's cron script with the (e.g. "crontab
+-e") command:
 
 \begin{Verbatim}
 #
@@ -1091,14 +1094,14 @@ Note: be sure to add the |cron| command \emph{last!}
 After the |cron_runner.py| script is running, the workqueue will
 advance to indicate that the jobs have been run:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\tiny]
  $ python3 dbmaint.py --list workqueue
 Tests:
   workqueueid  modified             task                   testid  args                                                                 created              completed
 -------------  -------------------  -------------------  --------  ---------------------------------------------------------            -------------------  -------------------
-          233  2016-09-07 16:21:01  register_from_email       342  {``cmd'': ``register'', ``messageid'': 165}                          2016-09-07 09:58:20  2016-09-07 16:21:01
-          235  2016-09-07 16:21:01  crypto_message            342  {``state'': ``WORKING'', ``cmd'': ``register'', ``messageid'': 167}  2016-09-07 16:21:01  2016-09-07 16:21:01
-          237  2016-09-07 16:21:01  send_message              342  {``state'': ``WORKING'', ``cmd'': ``register'', ``messageid'': 167}  2016-09-07 16:21:01
+          233  2016-09-07 16:21:01  register_from_email       342  {"cmd": "register", "messageid": 165}                          2016-09-07 09:58:20  2016-09-07 16:21:01
+          235  2016-09-07 16:21:01  crypto_message            342  {"state": "WORKING", "cmd": "register", "messageid": 167}  2016-09-07 16:21:01  2016-09-07 16:21:01
+          237  2016-09-07 16:21:01  send_message              342  {"state": "WORKING", "cmd": "register", "messageid": 167}  2016-09-07 16:21:01
 You have new mail in /var/spool/mail/slg
 [dane-test ~/email 16:21:19](master) $
 \end{Verbatim}
