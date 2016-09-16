@@ -847,7 +847,7 @@ index.html         & Home page for the tester.\\
 jumbotron.css      & Bootstrap theme customization.\\
 README.md          & The README program.\\
 sendmail.html      & The HTML template used by the \texttt{email.cgi} script.\\
-\\
+&\\
 \multicolumn{2}{|l|}{\textbf{Python Modules and Scripts:}}\\
 cron\_runner.py    & Python script run by cron(8) to run the next step in the work queue.  \\
 dbdns.py           & The database DNS implementation.\\
@@ -861,7 +861,7 @@ schema.sql         & The database schema.\\
 smimea.py          & An SMIMEA implementation, uses \texttt{openssl} command line for cryptography.\\ 
 smtp.py            & An SMTP implementation that records all TCP interactions in the database.\\
 tester.py          & The Tester class, which stores test results in the database, as well as configuration information.\\
-\\
+&\\
 \multicolumn{2}{|l|}{\textbf{CGI Scripts:}}\\
 email.cgi         & Allows the user to queue an email message.\\
 history.cgi       & Allows users to see their interaction history with the tester.\\
@@ -1036,8 +1036,8 @@ delivered email.)  Currently we are using these two addresses:
 
 \begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 ### dane EMAIL tester:
-bouncer:  ``|/var/www/html/email/email_receiver.py bouncer''
-register: ``|/var/www/html/email/email_receiver.py register''
+bouncer:  "|/var/www/html/email/email_receiver.py bouncer"
+register: "|/var/www/html/email/email_receiver.py register"
 \end{Verbatim}
 
 To test that email is being received, send a test registration message
@@ -1056,7 +1056,7 @@ Once the email is sent, its reception can be verified with the
 |dbmaint.py| utility:
 
 \begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
-$ python3 dbmaint.py --list messages
+$ \userinput{python3 dbmaint.py --list messages}
 Tests:
   messageid  fromaddr                                                  toaddr                                    
 -----------  --------------------------------------------------------  --------------------------------------
@@ -1066,7 +1066,7 @@ $
 
 The workqueue can be viewed with the |--list workqueue| argument:
 
-\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\footnotesize]
 $ \userinput{python3 dbmaint.py --list workqueue}
 Tests:
   workqueueid  modified             task                   testid  args                                   created                completed
@@ -1082,7 +1082,7 @@ script to run by the |cron| process every minute, by adding the
 following lines to the user's cron script with the (e.g. "crontab
 -e") command:
 
-\begin{Verbatim}
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 #
 # m h  dom mon dow   command
 * * * * * /var/www/html/email/cron_runner.py
@@ -1094,11 +1094,11 @@ After the |cron_runner.py| script is running, the workqueue will
 advance to indicate that the jobs have been run:
 
 \begin{Verbatim}[commandchars=\\\{\},fontsize=\tiny]
- $ python3 dbmaint.py --list workqueue
+$ \userinput{python3 dbmaint.py --list workqueue}
 Tests:
-  workqueueid  modified             task                   testid  args                                                                 created              completed
--------------  -------------------  -------------------  --------  ---------------------------------------------------------            -------------------  -------------------
-          233  2016-09-07 16:21:01  register_from_email       342  {"cmd": "register", "messageid": 165}                          2016-09-07 09:58:20  2016-09-07 16:21:01
+  workqueueid  modified             task                   testid  args                                                       created              completed
+-------------  -------------------  -------------------  --------  ---------------------------------------------------------  -------------------  -------------------
+          233  2016-09-07 16:21:01  register_from_email       342  {"cmd": "register", "messageid": 165}                      2016-09-07 09:58:20  2016-09-07 16:21:01
           235  2016-09-07 16:21:01  crypto_message            342  {"state": "WORKING", "cmd": "register", "messageid": 167}  2016-09-07 16:21:01  2016-09-07 16:21:01
           237  2016-09-07 16:21:01  send_message              342  {"state": "WORKING", "cmd": "register", "messageid": 167}  2016-09-07 16:21:01
 You have new mail in /var/spool/mail/slg
@@ -1107,11 +1107,30 @@ You have new mail in /var/spool/mail/slg
 
 \subsection{Theory of Operation}
 
+*TK*
+
+\section{Comparison of Tester Frameworks}
+
+*TK*
+
 \subsection{Future Work}
-\begin{itemize}
-\item All configuration information should be moved out of tester.py
-  and into email.cfg.
-\end{itemize}
+
+*TK*
+
+Significant cleanup is required of the database-driven
+tester. Currently the email templates are stored as string contents in
+the source code; they should be moved to independent
+files. Currently the template replacement is performed with a
+non-standard template system; this should be changed to use a
+standard template system.
+
+For usability, all configuration information should be moved out of tester.py
+  and into the existing configuration file.
+
+\section{Conclusion}
+
+*TK*
+
 
 \section*{References}
 
