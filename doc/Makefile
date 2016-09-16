@@ -1,4 +1,4 @@
-fy16_report.pdf: fy16_report.tex
+fy16_report.pdf: fy16_report.tex $(wildcard *.png)
 	pdflatex fy16_report
 	bibtex fy16_report
 	pdflatex fy16_report

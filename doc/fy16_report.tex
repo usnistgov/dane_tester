@@ -17,7 +17,7 @@
 
 \newcommand\userinput[1]{\textbf{#1}}
 \lstset{basicstyle=\footnotesize\ttfamily,breaklines=true}
-\lstset{framextopmargin=50pt,frame=bottomline}
+\lstset{frame=single}
 
 \journal{Journal of Unpublished HAD Reports}
 
@@ -215,7 +215,7 @@ resulting in code that was easier to validate and audit.
 
 The complete DANE tester is available from Github at
 \url{https://github.com/usnistgov/dane_tester}. Both testers are
-operational at \url{https://dane-test.had.dnsops.gov}
+operational at \url{https://dane-test.had.dnsops.gov} (Figure~\ref{tester-home}).
 
 \newcommand\sgraphic[2]{
 \begin{figure}
@@ -226,7 +226,7 @@ operational at \url{https://dane-test.had.dnsops.gov}
 \end{figure}
 }
 
-\sgraphic{email-home}{The DANE email testers are available at \url{https://dane-test.had.dnsops.gov}}
+\sgraphic{tester-home}{The DANE email testers are available at \url{https://dane-test.had.dnsops.gov}}
 
 \section{Prior Work}
 Automated protocol testing is a longstanding goal in network design
@@ -272,14 +272,17 @@ against a server.
 We created a tool to test server certificates advertised using DANE
 for availability, validity and protocol conformance. The server tester
 tests both HTTP and SMTP servers, and can easily be adapted to servers
-for other SSL-based protocols should they become available.
+for other SSL-based protocols should they become available. The tester
+is currently operational at
+\url{https://dane-test.had.dnsops.gov/server/dane_check.cgi} (Figure~\ref{tester-server}).
+
+\sgraphic{tester-server}{The DANE Server tester will test both SMTP
+  and HTTPS servers. It is at \url{https://dane-test.had.dnsops.gov/server/dane_check.cgi}}
 
 \subsection{Overview}
 
-The tool compares the certificates provided by the
-SSL server(s) associated with a webserver or email server are
-consistent with the records provided by one or more DNSSEC TLSA
-RRs. It does so by following these rough steps. 
+The tool verifies that the DNS TLSA RR(s) associated with a domain
+match the SSL certificates provided by the server. It does so by following these steps. 
 
 \begin{enumerate}
 \item The user specifies a service to test (either an HTTPS URL or an
@@ -289,6 +292,10 @@ RRs. It does so by following these rough steps.
 \item The tester connects to the service and reports if the server's
   public key is validated by any of the   certificates or public keys
   advertised through DNS TLSA records. 
+\item As the tests execute, the tester builds a list of objects, where
+  each object records the test that was performed and the test result.
+\item At the conclusion of the test, the list is rendered as text or
+  HTML.
 \end{enumerate}
 
 To perform these tests, the tester contains its own DANE
@@ -303,9 +310,28 @@ including:
   DNS name and the name pointed to be the CNAME chain.
 \item If the mail delivery host specifies a mail exchanger (MX)
   record, then both the primary name and the exchangers are tested.
+\item For ever DNS lookup, the tester notes if the lookups that were
+  relied upon for the DANE certification were
+  properly authenticated with DNSSEC. This information is preserved in
+  the data structure and rendered at the conclusion of the test. 
 \end{itemize}
 
+As a result of user feedback, the tester indicates at the top of the
+page whether or not the test was successful (Figure~\ref{results-unixadm-short}). It then provides
+additional information regarding the test results (Figure~\ref{results-unixadm-long}).
+
+\sgraphic{results-unixadm-short}{The short results of testing the SMTP server
+  unixadm.org with the DANE server tester.}
+
+\sgraphic{results-unixadm-long}{The full results of testing the SMTP server
+  unixadm.org with the DANE server tester.}
+
 \subsection{System Requirements}
+
+Getting the Server Tester to work required assembling software that
+could perform DNSSEC lookups and verify the wide range of certificate
+conditions required by the DANE standard. This ended up being a
+non-trivial task, requiring specific versions of specific software products:
 
 \begin{description}
 \item[OpenSSL v 1.0.2h]
@@ -321,27 +347,28 @@ currently OpenSSL version 0.9.8zh, the installing scripts download and
 install a private copy of OpenSSL version 1.0.2h in the
 \verb+/usr/local/ssl+ directory.
 
-\item[Python 2.7]
-The TLSA tester also required that Python modules \verb+getdns+ and
-\verb+M2Crypto+ be installed. The only version of Python that supports
-both is Python 2.7, so these modules are added to the Python 2.7
-installation, even if a version of Python 3 is installed.
-
-\item[M2Crypto] The Python package M2Crypto is used for some
-certificate manipulations.
+\item[Python 2.7 and M2Crypto] The Python package M2Crypto is used for some
+certificate manipulations. M2Crypto is not available for Python 3, so
+using M2Crypto prevents moving this tester to Python 3.
 
 \item[getdns] The TLSA tester uses getdns and Verisign's getdns Python
-bindings. Numerous problems resulted from the decision to use getdns
-and it was not used in the follow-on tester.
+bindings. We decided to use getdns because it provides more control
+over DNS queries and more information about the response of DNS
+servers. However, several bugs were discovered with getdns during
+development. All bugs that were discovered were reported to the getdns
+team, and we were able to find workarounds for all of the bugs, but
+those workarounds require that additional DNS queries be
+executed. This in part contributions to the slow speed of the tester. 
 
 \item[py.test] The Python test framework \texttt{py.test} is used
-for unit tests. Be sure to use version Python 2.7.
+for unit tests. 
 \end{description}
 
 \subsection{File Layout}
 
-The tester is contained entirely in the {\tt server/} directory of the
-git repository. It is implemented as a Python module and a CGI
+The tester's is contained entirely in the {\tt server/} directory of the
+git repository.\footnote{Note that the server's HTML pages rely on a bootstrap installation
+being present in the {\tt email/} directory.} The tester is implemented as a Python module and a CGI
 script. The tester consists of the following shown in Table~\ref{tlsa}.
 
 \begin{table*}
@@ -353,6 +380,7 @@ README.md & Documentation \\
 ca-bundle.crt & File containing multiple PEM-encoded SSL certificates of ``Well known'' Certificate Authorities. Used for Certificate Usage 0, which validates against system trust anchors. \\
 centos7-setup.bash & Script to configure Centos 7 system to run the tester. \\
 dane\_check.cgi & CGI script to run the tester from a webserver.\\
+dane\_check\_template.html & The Bootstrap template for the CGI tester.\\
 dane\_checker.py & Python module that implements DANE tester. Called by dane\_check.cgi and runnable directly from the command line. Can output both TEXT and HTML data.\\
 dnstree.py & A program to test the getdns system.\\
 get\_altnames & The compiled executable for the \emph{get\_altnames.c} program.\\
@@ -365,24 +393,31 @@ test\_dane.py & A test program using the py.test framework to test functions wit
 \subsection{System Preparation}
 
 Preparing the system for the DANE server tester is complicated by the
-tester's use of getdns. The version of getdns that is distributed with
+tester's use of \emph{getdns}. The version of \emph{getdns} that is distributed with
 Centos7 has a bug that prevents the verification of DNSSEC signatures
-on CNAME RRs. Unfortunately, the version of getdns on the download
+on CNAME RRs. Unfortunately, the version of \emph{getdns} on the download
 site does not compile with the version of Unbound that is in the
 Centos7 ``yum'' package repositories. Therefore it is necessary to
 download and install unbound and getdns. A further complication is
-that the current version of getdns (getdns-1.0.0b2) requires the
-\#include file |unbound-event.h|, which the unbound installer does not
+that the current version of \emph{getdns} (getdns-1.0.0b2) requires the
+\#include file \emph{unbound-event.h}, which the unbound installer does not
 install by default. 
 
-Another complication is that the server tester requires a 
-version of OpenSSL more recent than 1.0.2h. However, we could not get
-getdns to compile with this version. Thus it is necessary to install
-unbound and getdns, and then install OpenSSL 1.0.2h in a non-standard
-directory (we chose the default installation directory,
-|/usr/local/ssl|). 
+Another complication is that the server tester requires a version of
+OpenSSL more recent than 1.0.2h to perform partial certificate chain
+validations. However, we could not get getdns to compile with this
+version.\footnote{On the github forum, the maintainers of getdns
+  assert that getdns should compile with the stock Centos7 unbound any
+  version of OpenSSL, and further state that the OpenSSL should be
+  specified with the \texttt{--with-ssl=} configuration option, rather
+  than using the \texttt{-I} and \texttt{-L} compiler flags to specify
+  the location for the include files and the library,
+  respectively. This assertion has not been tested.} Thus it is
+necessary to install unbound and getdns, and then install OpenSSL
+1.0.2h in a non-standard directory (we chose the default installation
+directory, \emph{/usr/local/ssl}).
 
-The installation program |centos7-setup.bash|
+The installation program \emph{centos7-setup.bash}
 addresses some of these issues, but we are not coding around all of
 them in the hope that the unbound and getdns distributions will be
 fixed. The script is idempotent, meaning that it can be re-run without
@@ -407,12 +442,6 @@ external cause, such as the inavailability of a repository.
   to complete the installation.
 \end{enumerate}
 
-\emph{Note: On the github forum, the maintainers of getdns assert that
-getdns should compile with the stock Centos7 unbound any version of
-OpenSSL, and further state that the OpenSSL should be specified with
-the \texttt{--with-ssl=} configuration option, rather than using the
-\texttt{-I} and \texttt{-L} compiler flags to specify the location for the include
-files and the library, respectively. This assertion has not been tested.}
 
 \subsection{Installation and Operation}
 
@@ -477,7 +506,7 @@ recommendation & boolean & If the test is for a recommended usage, but not a man
        \multicolumn{1}{c|}{\textbf{Description}} \\ 
 \hline 
 \endfirsthead
-\multicolumn{3}{|c|}{{\bfseries \tablename\ \thetable{} -- continued from previous page}}
+\multicolumn{3}{c}{{\tablename\ \thetable{}---continued from previous page}}
 \\
 \hline \multicolumn{1}{|c}{\textbf{\#}} & 
        \multicolumn{1}{c}{\textbf{Name}} & 
@@ -531,38 +560,6 @@ recommendation & boolean & If the test is for a recommended usage, but not a man
 407 & TEST\_MX\_PREEMPTION   &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
 \end{longtable}
 \end{center}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 When |dane_checker.py| loads the \emph{DaneTest} objects are created
@@ -646,8 +643,8 @@ and rendered for final output.
 
 \subsection{Demo}
 The tester is installed on the server dane-test.had.dnsops.gov. The
-web page \url{http://dane-test.had.dnsops.gov/dane-tester/server/} is installed in the
-directory |/var/www/html/dane-tester/server|.
+web page \url{http://dane-test.had.dnsops.gov/server/} is installed in the
+directory |/var/www/html/server|.
 
 \section{SMIMEA and OpenPGPKey Database-Driven Tester}
 In addition to storing trust information for SSL servers, DANE now
@@ -844,14 +841,14 @@ returned object  is compatible with the Python~3.2 |dnspython| API.
 \hline
 \textrm{file} & purpose\\
 \hline
-\multicolumn{2}{l}{\textbf{HTML files:}}\\
+\multicolumn{2}{|l|}{\textbf{HTML files:}}\\
 bootstrap/         & installation of Bootstrap HTML, CSS and JS framework.\\
 index.html         & Home page for the tester.\\
 jumbotron.css      & Bootstrap theme customization.\\
 README.md          & The README program.\\
 sendmail.html      & The HTML template used by the \texttt{email.cgi} script.\\
-\\
-\multicolumn{2}{l}{\textbf{Python Modules and Scripts:}}\\
+&\\
+\multicolumn{2}{|l|}{\textbf{Python Modules and Scripts:}}\\
 cron\_runner.py    & Python script run by cron(8) to run the next step in the work queue.  \\
 dbdns.py           & The database DNS implementation.\\
 dbmaint.py         & The database maintenance program.\\
@@ -864,8 +861,8 @@ schema.sql         & The database schema.\\
 smimea.py          & An SMIMEA implementation, uses \texttt{openssl} command line for cryptography.\\ 
 smtp.py            & An SMTP implementation that records all TCP interactions in the database.\\
 tester.py          & The Tester class, which stores test results in the database, as well as configuration information.\\
-\\
-\multicolumn{2}{l}{\textbf{CGI Scripts:}}\\
+&\\
+\multicolumn{2}{|l|}{\textbf{CGI Scripts:}}\\
 email.cgi         & Allows the user to queue an email message.\\
 history.cgi       & Allows users to see their interaction history with the tester.\\
 lookup\_email.cgi & Allows users to look up a specific email message\\
@@ -893,14 +890,9 @@ running the DANE SSL client server or the email server.
 The tester uses Bootstrap as its HTML/JavaScript/CSS framework. To
 install bootstrap, run |make install| from the root or the email directory. Make
 sure that the Bootstrap is properly configured by displaying the
-|email/index.html| page (see~\ref{email-home}).
+|email/index.html| page (see~\ref{tester-email}).
 
-\begin{figure}
-\begin{center}
-\includegraphics[width=6in]{email-home}
-\end{center}
-\caption{}\label{email-home}
-\end{figure}
+\sgraphic{tester-email}{The Email tester page}
 
 \subsubsection{Database Setup}
 
@@ -909,7 +901,7 @@ another host. If the database is hosted on another Centos instance,
 it will be necessary to open up the firewall on the database server
 with the commands:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 $ \userinput{sudo firewall-cmd --add-service=mysql}
 $ \userinput{sudo firewall-cmd --permanent --add-service=mysql}
 \end{Verbatim}
@@ -923,7 +915,7 @@ at a later point for statistics.
 On the database server, create the database user and the database that
 will be used:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 MariaDB [emaildb]> \userinput{create database emaildb;}
 MariaDB [emaildb]> \userinput{create user 'dbwriter@129.6.100.204' identified by 'dbpassword';}
 MariaDB [emaildb]> \userinput{grant all privileges on emaildb.* to 'dbwriter'@'dane-test.had.dnsops.gov';}
@@ -933,7 +925,7 @@ MariaDB [emaildb]> \userinput{flush privileges;}
 
 Be sure to test that you can connect to the database from the other host:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 [db1]$ \userinput{mysql -udbwriter -pdbpassword -hdb1.antd.nist.gov emaildb }
 MariaDB [emaildb]> \userinput{select version();}
 +----------------+
@@ -949,7 +941,7 @@ MariaDB [emaildb]> \userinput{quit;}
 Once the database is created, it is necessary to load the schema into
 the database. You can do this with the MySQL command:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 [db1]$ \userinput{mysql -udbwriter -pdbpassword -hdb1.antd.nist.gov emaildb < email/schema.sql}
 [db1]$
 \end{Verbatim}
@@ -965,13 +957,13 @@ user that runs the |cron_runner.py| script.
 
 Here is a simple configuration file:
 
-\begin{lstlisting}
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 [mysql]
 username=dbwriter
 password=dbpassword
 dbname=emaildb
 host=localhost
-\end{lstlisting}
+\end{Verbatim}
 
 After the database is created and connectivity is created, a user
 needs to be established that will run the scripts. As installed on
@@ -983,7 +975,7 @@ will also perform a test of the configuration file and the ability to
 connect to the back-end database. Use the |dbmaint.py| command to
 insert the tests and to test the installation with a database lookup:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 $ \userinput{python3 dbmaint.py --create dig}
 $ \userinput{python3 dbmaint.py --create register}
 $ \userinput{python3 dbmaint.py --create sendplain}
@@ -999,6 +991,8 @@ $
 \end{Verbatim}
 %$
 
+\subsubsection{Installing the PGP and S/MIME encryption keys}
+**SIMSON NEEDS TO WRITE THIS**
 \subsubsection{Configure for Sending and Receiving Email}
 
 Additional configuration is required so that the tester can send and receive email
@@ -1012,7 +1006,7 @@ the |localhost| port. It is necessary to Edit the file
   \emph{/etc/postfix/main.cf} and modify the line |inet_interfaces| so
   that the server also listens on the \texttt{\$myhostname} interface:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 inet_interfaces = $myhostname, localhost
 \end{Verbatim}
 %$
@@ -1021,7 +1015,7 @@ Be sure to restart the mail server after changes to this file
 
 \paragraph{Firewalls.} The host-based firewall must be opened to allow the receipt of email:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 $ \userinput{sudo firewall-cmd --add-service=smtp}
 $ \userinput{sudo firewall-cmd --permanent --add-service=smtp}
 \end{Verbatim}
@@ -1040,16 +1034,16 @@ the file |/etc/aliases| that directs the mail to the script. (Having a
 script run when mail is received eliminates the need to poll for
 delivered email.)  Currently we are using these two addresses:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 ### dane EMAIL tester:
-bouncer:  ``|/var/www/html/dane-tester/email/email_receiver.py bouncer''
-register: ``|/var/www/html/dane-tester/email/email_receiver.py register''
+bouncer:  "|/var/www/html/email/email_receiver.py bouncer"
+register: "|/var/www/html/email/email_receiver.py register"
 \end{Verbatim}
 
 To test that email is being received, send a test registration message
 to register@dane-test.had.dnsops.gov:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 $ \userinput{mail register@dane-test.had.dnsops.gov}
 Subject: Register Test
 Register Me!
@@ -1061,8 +1055,8 @@ $
 Once the email is sent, its reception can be verified with the
 |dbmaint.py| utility:
 
-\begin{Verbatim}[commandchars=\\\{\}]
-$ python3 dbmaint.py --list messages
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
+$ \userinput{python3 dbmaint.py --list messages}
 Tests:
   messageid  fromaddr                                                  toaddr                                    
 -----------  --------------------------------------------------------  --------------------------------------
@@ -1072,12 +1066,12 @@ $
 
 The workqueue can be viewed with the |--list workqueue| argument:
 
-\begin{Verbatim}[commandchars=\\\{\}]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\footnotesize]
 $ \userinput{python3 dbmaint.py --list workqueue}
 Tests:
   workqueueid  modified             task                   testid  args                                   created                completed
 -------------  -------------------  -------------------  --------  -------------------------------------  -------------------  -----------
-          233  2016-09-07 09:58:20  register_from_email       342  {``cmd'': ``register'', ``messageid'': 165}  2016-09-07 09:58:20
+          233  2016-09-07 09:58:20  register_from_email       342  {"cmd": "register", "messageid": 165}  2016-09-07 09:58:20
 $
 \end{Verbatim}
 
@@ -1085,13 +1079,13 @@ $
 In order to have the registration script run, it is necessary to have
 system's |cron_runner.py| script run on a regular basis. We set the
 script to run by the |cron| process every minute, by adding the
-following lines to the user's cron script with the (e.g. ``crontab
--e'') command:
+following lines to the user's cron script with the (e.g. "crontab
+-e") command:
 
-\begin{Verbatim}
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 #
 # m h  dom mon dow   command
-* * * * * /var/www/html/dane-tester/email/cron_runner.py
+* * * * * /var/www/html/email/cron_runner.py
 \end{Verbatim}
 
 Note: be sure to add the |cron| command \emph{last!}
@@ -1099,25 +1093,44 @@ Note: be sure to add the |cron| command \emph{last!}
 After the |cron_runner.py| script is running, the workqueue will
 advance to indicate that the jobs have been run:
 
-\begin{Verbatim}[commandchars=\\\{\}]
- $ python3 dbmaint.py --list workqueue
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\tiny]
+$ \userinput{python3 dbmaint.py --list workqueue}
 Tests:
-  workqueueid  modified             task                   testid  args                                                                 created              completed
--------------  -------------------  -------------------  --------  ---------------------------------------------------------            -------------------  -------------------
-          233  2016-09-07 16:21:01  register_from_email       342  {``cmd'': ``register'', ``messageid'': 165}                          2016-09-07 09:58:20  2016-09-07 16:21:01
-          235  2016-09-07 16:21:01  crypto_message            342  {``state'': ``WORKING'', ``cmd'': ``register'', ``messageid'': 167}  2016-09-07 16:21:01  2016-09-07 16:21:01
-          237  2016-09-07 16:21:01  send_message              342  {``state'': ``WORKING'', ``cmd'': ``register'', ``messageid'': 167}  2016-09-07 16:21:01
+  workqueueid  modified             task                   testid  args                                                       created              completed
+-------------  -------------------  -------------------  --------  ---------------------------------------------------------  -------------------  -------------------
+          233  2016-09-07 16:21:01  register_from_email       342  {"cmd": "register", "messageid": 165}                      2016-09-07 09:58:20  2016-09-07 16:21:01
+          235  2016-09-07 16:21:01  crypto_message            342  {"state": "WORKING", "cmd": "register", "messageid": 167}  2016-09-07 16:21:01  2016-09-07 16:21:01
+          237  2016-09-07 16:21:01  send_message              342  {"state": "WORKING", "cmd": "register", "messageid": 167}  2016-09-07 16:21:01
 You have new mail in /var/spool/mail/slg
-[dane-test ~/dane-tester/email 16:21:19](master) $
+[dane-test ~/email 16:21:19](master) $
 \end{Verbatim}
 
 \subsection{Theory of Operation}
 
+*TK*
+
+\section{Comparison of Tester Frameworks}
+
+*TK*
+
 \subsection{Future Work}
-\begin{itemize}
-\item All configuration information should be moved out of tester.py
-  and into email.cfg.
-\end{itemize}
+
+*TK*
+
+Significant cleanup is required of the database-driven
+tester. Currently the email templates are stored as string contents in
+the source code; they should be moved to independent
+files. Currently the template replacement is performed with a
+non-standard template system; this should be changed to use a
+standard template system.
+
+For usability, all configuration information should be moved out of tester.py
+  and into the existing configuration file.
+
+\section{Conclusion}
+
+*TK*
+
 
 \section*{References}
 
