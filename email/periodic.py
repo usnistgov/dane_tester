@@ -39,7 +39,7 @@ Here is the message you sent:
 template2 = \
 """To: %TO%
 From: %FROM%
-Subject: Re:register
+Subject: Re: register
 
 Your have successfully registered your email address "%TO%" with the 
 DANE test system operating at dane-test.had.dnsops.gov.
