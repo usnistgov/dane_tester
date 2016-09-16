@@ -47,7 +47,7 @@ DANE test system operating at dane-test.had.dnsops.gov.
 Your "hash" is below. You will use this hash to initiate tests on the DANE TEST website.
 
 URL:	http://dane-test.had.dnsops.gov/dane-tester/email/
-EMAIL:	%MAILTO%
+EMAIL:	%EMAIL_ADDRESS%
 Hash:	%HASH%
 
 The test system is rate limited to one message per minute, to curb spamming through our server.
@@ -92,10 +92,12 @@ def register_from_email(T,args):
     for (body,) in c.fetchall():
         msg = email.message_from_string(body)
         sender = msg['from']
+        (full_name,email_address) = email.utils.parseaddr(sender)
+        hashcode = dbmaint.user_hash(T.conn,userid=dbmaint.user_register(T.conn,email_address))
         response = template2.replace("%TO%",sender) \
                             .replace("%FROM%",FROM_ADDRESS) \
-                            .replace("%MAILTO%",sender) \
-                            .replace("%HASH%",dbmaint.user_hash(T.conn,userid=dbmaint.user_register(T.conn,sender)))
+                            .replace("%EMAIL_ADDRESS%",email_address) \
+                            .replace("%HASH%",hashcode)
         args['messageid'] = T.insert_email_message(tester.EMAIL_TAG_AUTOMATED_RESPONSE,response)
         T.insert_task(tester.TASK_CRYPTO_MESSAGE,args)
         T.commit()
