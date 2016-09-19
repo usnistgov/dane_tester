@@ -53,6 +53,16 @@
 \bibliographystyle{elsarticle-num}
 %%%%%%%%%%%%%%%%%%%%%%%
 
+% http://aty.sdsu.edu/bibliog/latex/floats.html
+\renewcommand{\dbltopfraction}{0.9}% fit big float above 2-col. text
+\renewcommand{\textfraction}{0.07}% allow minimal text w. figs
+    %   Parameters for FLOAT pages (not text pages):
+\renewcommand{\floatpagefraction}{0.7}% require fuller float pages
+% N.B.: floatpagefraction MUST be less than topfraction !!
+\renewcommand{\dblfloatpagefraction}{0.7}% require fuller float pages
+
+
+
 \begin{document}
 
 \begin{frontmatter}
@@ -397,7 +407,7 @@ tester's use of \emph{getdns}. The version of \emph{getdns} that is distributed 
 Centos7 has a bug that prevents the verification of DNSSEC signatures
 on CNAME RRs. Unfortunately, the version of \emph{getdns} on the download
 site does not compile with the version of Unbound that is in the
-Centos7 ``yum'' package repositories. Therefore it is necessary to
+Centos7 default package repositories. Therefore, it is necessary to
 download and install unbound and getdns. A further complication is
 that the current version of \emph{getdns} (getdns-1.0.0b2) requires the
 \#include file \emph{unbound-event.h}, which the unbound installer does not
@@ -420,21 +430,22 @@ directory, \emph{/usr/local/ssl}).
 The installation program \emph{centos7-setup.bash}
 addresses some of these issues, but we are not coding around all of
 them in the hope that the unbound and getdns distributions will be
-fixed. The script is idempotent, meaning that it can be re-run without
+fixed. The script is idempotent, in that that it can be re-run without
 causing harm. This is especially useful if an action fails due to an
-external cause, such as the inavailability of a repository.
+external cause, such as the inavailability of a repository or an
+undocumented perquisite.
 
 
 \begin{enumerate}
 \item Uncomment \texttt{AddHandler cgi-script .cgi} in the webserver's
   configuration file.
 \item Add \texttt{ExecCGI} to the \texttt{Options} directive in the
-  webserver configuration file.
+  webserver configuration file \emph{/etc/httpd/conf/httpd.conf}.
+\item Restart the webserver (e.g. |apachectl graceful|).
 \item Run the |centos7-setup.bash| script.
 \item Set \verb|$DANESRC| to root of the cloned git repository.
 \item Run the script |$DANESRC/server/centos7-setup.bash| %$ to install 
   the major Centos library modules that you need.
-\item The script will stop. 
 \item Download and install the current versions of unbound. Install
   the additional header directory |unbound-event.h|.
 \item Download and install getdns.
@@ -449,7 +460,7 @@ The DANE server tester can be run from the command line using the
 |dane_checker.py| script or from a web browser by placing the
 |dane_check.cgi| script and the associated files in a
 CGI-enabled directory of a modern web server. By design, the entire
-GIT repository can be cloned in the directory of the web server.
+GIT repository can be cloned into the root document directory of the web server.
 
 \begin{enumerate}
 \item Set \verb|$DANESRC| to root of the cloned git repository
@@ -468,8 +479,8 @@ GIT repository can be cloned in the directory of the web server.
 
 \subsection{Theory of Operation}
 
-To test a DANE server, the Python file |dane_checker.py| contains a
-DANE implementation in Python. The test is coded as a series of
+The Python file |dane_checker.py| contains the
+DANE implementation in Python. The client tester is coded as a series of
 imperative statements that determine the name of the remote server,
 perform DNS lookups to discover the IP address(es) on which the server
 is running, fetch the server certificates, and then compare the server
@@ -479,13 +490,19 @@ Rather than printing out the results of the tests as they happen, the
 testing infrastructure creates a data structure that contains a record
 of each test that was performed and the results of the test. The
 data structure can then be rendered as text or HTML as required by the
-caller. 
+caller. This has the advantage of separating the test logic, the
+generation of the test results, and the display of the test results
+into different sections of code. The disadvantage (at least as
+currently implemented), is that the test must complete before any
+results are displayed. However, the data structure could be rendered
+in real time by another thread (or incrementally as the intermediate
+results are generated) if real-time display were a priority.
 
 The tests were developed by a
 close reading of the DANE specifications. Each test is given a name
 and a number. Each test description is then stored its own Python
 object. The slots of the object are shown in Figure~\ref{slots}; the
-test numbers ranges are shown in Table~\ref{ranges}.
+test numbers ranges are shown in Table~\ref{tests-dane-servers}.
 \begin{table}
 \centering\fbox{\begin{tabularx}{\textwidth}{llX}
 slot & type & description \\
@@ -517,8 +534,8 @@ recommendation & boolean & If the test is for a recommended usage, but not a man
 \endfoot
 \hline \hline
 \endlastfoot
-\multicolumn{3}{|c|}{}\\
-\multicolumn{3}{|c|}{\textbf{\large 101--104: DNS tests}} \\
+%\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|l|}{\textbf{101--104: DNS tests}} \\
 101 & TEST\_CNAME\_NOERROR     & If at any stage of CNAME expansion an error is detected, the lookup of the original requested records MUST be considered to have failed.\\
 102 & TEST\_CNAME\_EXPANSION\_SECURE      & if at
    any stage of recursive expansion an ``insecure'' CNAME record is
@@ -527,15 +544,15 @@ recommendation & boolean & If the test is for a recommended usage, but not a man
    earlier CNAME records leading to the ``insecure'' record were ``secure.''\\
 103 & TEST\_TLSA\_PRESENT    & Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)\\
 104 & TEST\_TLSA\_DNSSEC     & Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)\\
-\multicolumn{3}{|c|}{}\\
-\multicolumn{3}{|c|}{\textbf{\large 201-205: Server verification}}\\
+%\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|l|}{\textbf{201-205: Server verification}}\\
 201 & TEST\_SMTP\_CONNECT    & Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)\\
 202 & TEST\_SMTP\_STARTTLS   & Any connection to the MTA MUST employ TLS authentication (SMTP Server must offer STARTTLS)\\
 203 & TEST\_SMTP\_TLS        & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
 204 & TEST\_SMTP\_QUIT       & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
 205 & TEST\_EECERT\_HAVE     & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
-\multicolumn{3}{|c|}{}\\
-\multicolumn{3}{|c|}{\textbf{\large 301-308: \textbf{Certificate verification}}}\\
+%\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|l|}{\textbf{301-308: \textbf{Certificate verification}}}\\
 301 & TEST\_SMTP\_CU         & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
 302 & TEST\_TLSA\_CU02\_TP\_FOUND & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
 303 & TEST\_TLSA\_PARMS      & Internet-Draft RECOMMEND[s] the use of ``DANE-EE(3) SPKI(1) SHA2-256(1)'' with ``DANE-TA(2) Cert(0) SHA2-256(1)'' TLSA records as a second choice, depending on site needs.\\
@@ -549,8 +566,8 @@ recommendation & boolean & If the test is for a recommended usage, but not a man
    identifiers ([RFC5280]) matches any of the client's reference
    identifiers.\\
 308 & TEST\_DANE2\_CHAIN     & SMTP servers that rely on certificate usage DANE-TA(2) TLSA records for TLS authentication MUST include the TA certificate as part of the certificate chain presented in the TLS handshake server certificate message even when it is a self-signed root certificate.\\
-\multicolumn{3}{|c|}{}\\
-\multicolumn{3}{|c|}{\textbf{\large 401-407: Ensemble results}}\\
+%\multicolumn{3}{|c|}{}\\
+\multicolumn{3}{|l|}{\textbf{401-407: Ensemble results}}\\
 401 & TEST\_TLSA\_CU\_VALIDATES &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
 402 & TEST\_TLSA\_ATLEAST1   &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
 403 & TEST\_TLSA\_ALL\_IP     &  ``Domains that want secure inbound mail delivery need to ensure that all their SMTP servers and MX records are configured accordingly.'' Specifically, MX records that do not have DANE protection should not preempt MX servers that have DANE protection.\\
@@ -562,8 +579,10 @@ recommendation & boolean & If the test is for a recommended usage, but not a man
 \end{center}
 
 
-When |dane_checker.py| loads the \emph{DaneTest} objects are created
-and stored in an associative array.
+When |dane_checker.py| starts up, the \emph{DaneTest} objects are created
+and stored in an associative array. These objects are not changed and
+could be made immutable in a future version.\footnote{Perhaps using
+  the proposal for an @immutable decorator at \url{http://stackoverflow.com/questions/4828080/how-to-make-an-immutable-object-in-python}}.
 
 As the test program executes, traditional imperative logic implements
 the DANE client and tests the server for correct responses. Whereas a
@@ -575,30 +594,12 @@ then concatenated to form the final result.
 
 The \emph{DaneTestResult} object is a data structure that contains
 structured information about whether each test passes or fails. For
-example, the code shown in Figure~\ref{snipped-pem} calls |pem_verify|
+example, the code shown in Figure~\ref{pem-snippet} calls |pem_verify|
 to determine if an EE certificate verifies or not, and then stores the
 results in a |DaneTestResult| object. A list of several such objects
 is returned by the function. The slots of the object are shown in table~\ref{testResults}.
 
 
-
-\begin{table}
-\centering\fbox{\begin{tabularx}{\textwidth}{llX}
-slot & type & description \\
-\hline
-passed & boolean & True if the test passed \\
-dnssec & boolean & True if the test was a DNS lookup and the result was secured with DNSSEC \\
-dnsrelied & boolean & True if the DNS lookup was relied upon. (Some DNS lookups may not be relied upon. For example, a DNS name may map to two IP addresses, but only one may have a functioning server.)\\
-hostname & str & The relevant hostname.\\
-ipaddr & str & The relevant IP address \\
-test & DaneTestResult & A reference to the (immutable) \emph{DaneTestResult} object that corresponds to the test.\\
-what & str & The context of what was being tested when the test took place.\\
-rdata & str & The DNS response data (which the getdns API calls rdata) that was used in the test, if the test involves a DNS query.\\
-key & str & Additional information returned in a DNS query, such as an
-MX preference or a DANE cryptographic key. \\
-\end{tabularx}}
-\caption{DaneTestResults Object}\label{testResults}
-\end{table}
 
 How this works is illustrated in this snippet of code from the
 function \emph{get\_dns\_ip} which is executed after an DNS query for
@@ -646,28 +647,50 @@ The tester is installed on the server dane-test.had.dnsops.gov. The
 web page \url{http://dane-test.had.dnsops.gov/server/} is installed in the
 directory |/var/www/html/server|.
 
+\begin{table}
+\centering\fbox{\begin{tabularx}{\textwidth}{llX}
+slot & type & description \\
+\hline
+passed & boolean & True if the test passed \\
+dnssec & boolean & True if the test was a DNS lookup and the result was secured with DNSSEC \\
+dnsrelied & boolean & True if the DNS lookup was relied upon. (Some DNS lookups may not be relied upon. For example, a DNS name may map to two IP addresses, but only one may have a functioning server.)\\
+hostname & str & The relevant hostname.\\
+ipaddr & str & The relevant IP address \\
+test & DaneTestResult & A reference to the (immutable) \emph{DaneTestResult} object that corresponds to the test.\\
+what & str & The context of what was being tested when the test took place.\\
+rdata & str & The DNS response data (which the getdns API calls rdata) that was used in the test, if the test involves a DNS query.\\
+key & str & Additional information returned in a DNS query, such as an
+MX preference or a DANE cryptographic key. \\
+\end{tabularx}}
+\caption{DaneTestResults Object}\label{testResults}
+\end{table}
+
 \section{SMIMEA and OpenPGPKey Database-Driven Tester}
-In addition to storing trust information for SSL servers, DANE now
-supports the storing of S/MIME certificates and OpenPGP and public keys. This use
-of DANE makes it possible for a DANE-aware Mail User Agent (MUA) to
-fetch certificate or public key associated with an email address,
-making it possible to send encrypted email and to verify digitally
-signed mail without the need to use a Public Key Infrastructure (PKI)
-or to obtain certificates through a manual process.
+In addition to storing trust information for SSL servers, there are
+now approaches for using DANE to store S/MIME certificates and OpenPGP
+and public keys. This use of DANE makes it possible for a DANE-aware
+Mail User Agent (MUA) to fetch certificate or public key associated
+with an email address and use it to encrypt an email message or verify
+a digital signature without the need to use a Public Key
+Infrastructure (PKI) or to obtain certificates through a manual
+process.
 
 We created a tester for SMIMEA and OpenPGPKey protocols. The goal of
 these tests was to implement an end-to-end test of mail systems that
 use SMIMEA and OpenPGPKey. Thus, in addition to obtaining and verify
 keys, the testers needed to be able to send encrypted mail and to
 receive and verify digitally signed mail. In total, the 
-SMIMEA and OpenPGPKey testers require the following functionality:
+SMIMEA and OpenPGPKey testers implement the following functionality:
 
 \begin{itemize}
-\item Finding and fetching the S/MIME certificate or OpenPGP public
+\item Composing an email message with a specified recipient. 
+\item Find and fetch the S/MIME certificate or OpenPGP public
   key associated with an email address using the SMIMEA or OpenPGPKey
-  protocol.
-\item Encrypting a message using S/MIME or PGP.
-\item Sending email messages that are not encrypted or encrypted.
+  specification. This requires transforming an email address into a
+  DNS name, fetching the TLSA RR using DNS, and verifying the DNSSEC
+  signatures on the DNS RR.
+\item (Optionally) encrypting a message using S/MIME or PGP.
+\item Sending email messages email message. 
 \item Automatically processing incoming email messages.
 \item Determining if an email message is signed and verifying the
   corresponding signature. 
@@ -720,36 +743,36 @@ relation mapper (ORM) framework.
 \subsection{System Requirements}
 
 \begin{description}
-\item[OpenSSL] is used to implement S/MIME encryption and
-signatures. The system was tested with version 1.0.2h, although any
+\item[OpenSSL] performs the S/MIME encryption and
+signatures. The system was tested with OpenSSL version 1.0.2h, although any
 version of OpenSSL should work that is more recent than 0.9.8n and
-1.0.0 [29 Mar 2010], since there have been no changes made to the
-S/MIME implementation since then according to the OpenSSL changelog. 
+1.0.0 [29 Mar 2010], the last time that changes were made to the OpenSSL
+S/MIME implementation (according to the OpenSSL changelog). 
 
-\item[python3] is used as the implementation language. This
-implementation was tested with Python3.4 and Python3.5. 
+\item[python3] the implementation language. The tester was developed
+  with Python3.4.
 
-\item[MySQL] is used as the database. We used MySQL version 5.1,
+\item[MySQL] version 5.1 is the system database,
 although any modern version should work. 
 
-\item[pymysql] is used to prepare and send the embedded SQL
+\item[pymysql] is the python module used to prepare and send the embedded SQL
 statements to the MySQL server.
 
-\item[gpg] is used to implement the GPG encryption
-algorithm. We tested with version 1.4.16.
+\item[gpg] implements the PGP encryption
+algorithm. We tested with GPG version 1.4.16.
 
 \item[Python modules] The tester uses the Python modules PyMySQL,
 dnspython, mako, and tabulate.
 \end{description}
 
 \subsection{Test Types and Database Layout}
-The database-driven test system can support multiple different
+The database-driven test system supports multiple different
 \emph{test types}. Each test type is defined by a sequence of actions
 that advance a test instance from test initiation to test
-completion. The test types as of September 1, 2016 are shown in
-table~\ref{testtypes}. 
+completion. The implemented test types as of September 1, 2016 are shown in
+Table~\ref{test-types}. 
 
-Each test is fundamentally a finite state machine and consists of a
+Each test is a finite state machine and consists of a
 set of states and state transitions. Each state transition is
 implemented as a named python function. Each test in progress is
 stored within the MySQL database. The database also contains a record
@@ -777,7 +800,7 @@ sendplain & This test sends a plain email message.\\
 \hline
 \end{tabularx}
 \end{center}
-\caption{Test types implemented by the database-driven test system.\ref{test-types}}
+\caption{Test types implemented by the database-driven test system.\label{test-types}}
 \end{table}
 
 
@@ -875,13 +898,21 @@ webcontrol.cgi    & \\
 \end{table*}
 
 \subsection{System Preparation and Installation}
-The system preparation for the DANE server tester should also
-installed the database-driven tester. Specifically, the script |server/centos7-setup.bash| will also install the necessary
+The system preparation for the DANE server tester (described in the
+previous section) will also
+install the perquisites necessary for the database-driven
+tester. Specifically, the script |server/centos7-setup.bash| will also
+install the necessary 
 Centos modules required to support the database-driven tester, and
 Apache configuration that serves the |$DANESRC/server/| directory on
 the web will also serve the |$DANESRC/email| directory. For our
 production system, we simply cloned the |dane-test| git repository
-into a directory that is served by the Apache web server. The file
+into a directory that is served by the Apache web server. Cloning the
+implementation is this matter makes it easy to develop code on a
+development system and then simply do a |git pull| on the production
+system. If there are changes made on the production system, they can
+be committed and pushed back to the repository and pulled back to the
+development system. The file
 |index.html| in the root directory gives web visitors the option of
 running the DANE SSL client server or the email server. 
 
@@ -899,15 +930,21 @@ sure that the Bootstrap is properly configured by displaying the
 
 \subsubsection{Database Setup}
 
-The database can be hosted on the same host as the server or on
-another host. If the database is hosted on another Centos instance,
-it will be necessary to open up the firewall on the database server
-with the commands:
+Setting up the database-driven testing infrastructure is complicated
+by the need to set up a database. The database can be hosted on the
+same host as the server or on another host. If the database is hosted
+on another Centos instance, it will be necessary to open up the
+firewall on the database server with the commands:
 
 \begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 $ \userinput{sudo firewall-cmd --add-service=mysql}
 $ \userinput{sudo firewall-cmd --permanent --add-service=mysql}
 \end{Verbatim}
+
+For our purposes, we hosted the database-driven tester at
+\emph{dane-test.had.dnsops.gov} and the database at
+\emph{db1.antd.nist.gov}. This provides additional security, as the
+database can only be reached by internal systems.
 
 The testing framework requires a single database instance for its
 tables. We recommend having two users that have access to the
@@ -965,7 +1002,7 @@ Here is a simple configuration file:
 username=dbwriter
 password=dbpassword
 dbname=emaildb
-host=localhost
+host=db1.antd.nist.gov
 \end{Verbatim}
 
 After the database is created and connectivity is created, a user
@@ -994,8 +1031,42 @@ $
 \end{Verbatim}
 %$
 
-\subsubsection{Installing the PGP and S/MIME encryption keys}
-**SIMSON NEEDS TO WRITE THIS**
+\subsubsection{Installing the S/MIME and PGP encryption keys}
+Because it sends email messages that are digitally signed, the email
+tester requires a public/private keypairs. These keys are not
+distributed with the source code, but must instead be created for each
+installation system. They should not be added to the git
+repository. Instead, they should be stored in a special directory that
+is only accessible to the testing system. 
+
+Currently, the directories and filenames are hard-coded into the
+source code, but the intent is for directories and filenames to be specified in the
+configuration file. Currently, the keys are all made manually; this
+process could be automated if the source code were being distributed
+for others to set up working testers.  The certificates must also be
+manually installed into the DNS. The planned list of filenames for the
+keystore directory appear in Table~\ref{crypto-files}. 
+
+\begin{table}
+\begin{tabular}{|ll|}
+\hline
+file & description\\
+\hline
+\multicolumn{2}{|l|}{S/MIME files:}\\
+email-tester-cert.pem & S/MIME certificate \\
+email-tester-key.pem & S/MIME private key (unencrypted)\\
+&\\
+\multicolumn{2}{|l|}{GPG files:}\\
+gpg.conf & GPG configuration file\\
+pubring.gpg & GPG public key ring\\
+secring.gpg & GPG secret key ring\\
+\hline
+\end{tabular}
+\caption{Files used to support public key cryptography}\label{crypto-files}
+\end{table}
+
+
+
 \subsubsection{Configure for Sending and Receiving Email}
 
 Additional configuration is required so that the tester can send and receive email
@@ -1198,5 +1269,5 @@ For usability, all configuration information should be moved out of tester.py
 \end{document}
 
 % LocalWords:  cryptographic modularization auditability exchanger MX changelog
-% LocalWords:  inavailability unencrypted repeatability infeasible
+% LocalWords:  inavailability unencrypted repeatability infeasible decrypts
 % LocalWords:  misconfigured
