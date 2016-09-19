@@ -892,7 +892,10 @@ install bootstrap, run |make install| from the root or the email directory. Make
 sure that the Bootstrap is properly configured by displaying the
 |email/index.html| page (see~\ref{tester-email}).
 
-\sgraphic{tester-email}{The Email tester page}
+\sgraphic{tester-email}{The Email tester page.}
+
+\sgraphic{tester-email2}{The Email tester page with details exposed.}
+
 
 \subsubsection{Database Setup}
 
@@ -1091,23 +1094,79 @@ following lines to the user's cron script with the (e.g. "crontab
 Note: be sure to add the |cron| command \emph{last!}
 
 After the |cron_runner.py| script is running, the workqueue will
-advance to indicate that the jobs have been run:
+advance to indicate that the jobs have been run:\footnote{Note: the
+  output of this command has been altered to make it fit on a line.}
 
 \begin{Verbatim}[commandchars=\\\{\},fontsize=\tiny]
 $ \userinput{python3 dbmaint.py --list workqueue}
 Tests:
-  workqueueid  modified             task                   testid  args                                                       created              completed
--------------  -------------------  -------------------  --------  ---------------------------------------------------------  -------------------  -------------------
-          233  2016-09-07 16:21:01  register_from_email       342  {"cmd": "register", "messageid": 165}                      2016-09-07 09:58:20  2016-09-07 16:21:01
-          235  2016-09-07 16:21:01  crypto_message            342  {"state": "WORKING", "cmd": "register", "messageid": 167}  2016-09-07 16:21:01  2016-09-07 16:21:01
-          237  2016-09-07 16:21:01  send_message              342  {"state": "WORKING", "cmd": "register", "messageid": 167}  2016-09-07 16:21:01
+workqueueid  modified             task                 testid  args                                   created              completed
+-----------  -------------------  -------------------  ------  -------------------------------------  -------------------  -------------------
+        233  2016-09-07 16:21:01  register_from_email     342  {"cmd": "register", "messageid": 165}  2016-09-07 16:21:00  2016-09-07 16:21:01
+        235  2016-09-07 16:21:01  crypto_message          342  {"cmd": "register", "messageid": 167}  2016-09-07 16:21:01  2016-09-07 16:21:01
+        237  2016-09-07 16:21:01  send_message            342  {"cmd": "register", "messageid": 167}  2016-09-07 16:21:01
 You have new mail in /var/spool/mail/slg
 [dane-test ~/email 16:21:19](master) $
 \end{Verbatim}
 
-\subsection{Theory of Operation}
+In this example, the initial email message to register the email
+address (messageID 165) was received at 2016-09-07T16:21:00. That
+triggered the task |register_from_email| to run, which it did at
+09:58:21. That task triggered the |crypto_message| (which performs
+cryptographic processing) task to run, which in turn ran the task
+|send_message|. 
 
-*TK*
+\subsection{User Interaction}
+Users can interact with the Email tester by the web or by sending
+email. Because the system can send mail, the system requires that
+users register email addresses and obtain an ``hash,'' which is
+really just a 128-bit randomly generated number that is encoded as a
+Base64 string.
+
+Tasks can also be submitted to the testing framework on the web page
+\url{http://dane-test.had.dnsops.gov/email/}
+(Figure~\ref{tester-email}). The tasks are are:
+
+\begin{description}
+\item[Unencrypted] Sends a plain message that can be unsigned, S/MIME
+  signed, or PGP-signed. This uses many of the same finite state
+  machine steps as the registration process. 
+\item[SMIMEA] Fetches the encryption key with SMIMEA and sends the
+  user a message that is either unsigned or S/MIME-signed.
+\item[OpenPGP] Fetches the encryption key with SMIMEA and sends the
+  user a message that is either unsigned or S/MIME-signed.
+\item[Lookup] Reports the SMIMEA and OPENPGPKEY DNS records associated
+  with an email address.
+\item[History] Provides a report of all interactions with the tester
+  for a specific hash code.
+\end{description}
+
+The Unencrypted, SMIMEA and OpenPGP tasks create entries in
+the workqueue for resolution, whereas the Lookup and History tasks are
+handled immediately by the system. 
+
+Examples of the messages that are
+sent by the system are shown in Figures~\ref{email-registration},
+\ref{email-smime} and \ref{email-pgp}.
+
+\sgraphic{email-registration}{The sample registration message sent from the tester}
+\sgraphic{email-smime}{A S/MIME-signed email message sent by the
+  tester. Apple mail is unable to verify the message signature becasue
+it is signed with a self-signed certificate.}
+\sgraphic{email-pgp}{An OpenPGP-signed message sent by the tester}
+\end{figure}
+
+When a hash history is looked up, a a record of each test is displayed
+at the bottom of the test window (Figure~\ref{test-history}). Clicking
+on the test ID shows any DNS queries and the SMTP log associated with
+the test. For example, Figure~\ref{test-351} shows that sending the
+email message to simson.garfinkel@nist.gov resulted in no
+DANE-specific DNS lookups; the SMTP log is also displayed.
+
+\sgraphic{test-history}{The results for hash \texttt{aBUlIOj2768=}.}
+\sgraphic{test-351}{The additional test information associated with
+  test 351.}
+
 
 \section{Comparison of Tester Frameworks}
 
