@@ -457,8 +457,8 @@ undocumented perquisite.
 \subsection{Installation and Operation}
 
 The DANE server tester can be run from the command line using the
-|dane_checker.py| script or from a web browser by placing the
-|dane_check.cgi| script and the associated files in a
+\emph{dane\_checker.py} script or from a web browser by placing the
+\emph{dane\_check.cgi} script and the associated files in a
 CGI-enabled directory of a modern web server. By design, the entire
 GIT repository can be cloned into the root document directory of the web server.
 
@@ -479,7 +479,7 @@ GIT repository can be cloned into the root document directory of the web server.
 
 \subsection{Theory of Operation}
 
-The Python file |dane_checker.py| contains the
+The Python file \emph{dane\_checker.py} contains the
 DANE implementation in Python. The client tester is coded as a series of
 imperative statements that determine the name of the remote server,
 perform DNS lookups to discover the IP address(es) on which the server
@@ -579,7 +579,7 @@ recommendation & boolean & If the test is for a recommended usage, but not a man
 \end{center}
 
 
-When |dane_checker.py| starts up, the \emph{DaneTest} objects are created
+When \emph{dane\_checker.py} starts up, the \emph{DaneTest} objects are created
 and stored in an associative array. These objects are not changed and
 could be made immutable in a future version.\footnote{Perhaps using
   the proposal for an @immutable decorator at \url{http://stackoverflow.com/questions/4828080/how-to-make-an-immutable-object-in-python}}.
@@ -993,7 +993,7 @@ so that the username and password do not need to reside in the source
 code. \emph{This file should not be stored in the webserver
   hierarchy because it contains the database username, password, and
   host!} Instead, it should be stored in the home directory of the
-user that runs the |cron_runner.py| script.
+user that runs the \emph{cron\_runner.py} script.
 
 Here is a simple configuration file:
 
@@ -1012,7 +1012,7 @@ script in the user's home directory.
 
 Next the tests need to be inserted into the database. This process
 will also perform a test of the configuration file and the ability to
-connect to the back-end database. Use the |dbmaint.py| command to
+connect to the back-end database. Use the \emph{dbmaint.py} command to
 insert the tests and to test the installation with a database lookup:
 
 \begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
@@ -1127,31 +1127,31 @@ $
 \end{Verbatim}
 
 Once the email is sent, its reception can be verified with the
-|dbmaint.py| utility:
+\emph{dbmaint.py} utility:
 
 \begin{Verbatim}[commandchars=\\\{\},fontsize=\small]
 $ \userinput{python3 dbmaint.py --list messages}
 Tests:
-  messageid  fromaddr                                                  toaddr                                    
------------  --------------------------------------------------------  --------------------------------------
-        165  slg@dane-test.had.dnsops.gov (Basic)                      register@dane-test.had.dnsops.gov         
+  messageid  fromaddr                                toaddr                                    
+-----------  --------------------------------------  ---------------------------------
+        165  slg@dane-test.had.dnsops.gov (Basic)    register@dane-test.had.dnsops.gov         
 $
 \end{Verbatim}
 
 The workqueue can be viewed with the |--list workqueue| argument:
 
-\begin{Verbatim}[commandchars=\\\{\},fontsize=\footnotesize]
+\begin{Verbatim}[commandchars=\\\{\},fontsize=\tiny]
 $ \userinput{python3 dbmaint.py --list workqueue}
 Tests:
-  workqueueid  modified             task                   testid  args                                   created                completed
--------------  -------------------  -------------------  --------  -------------------------------------  -------------------  -----------
-          233  2016-09-07 09:58:20  register_from_email       342  {"cmd": "register", "messageid": 165}  2016-09-07 09:58:20
+workqueueid  modified             task                 testid  args                                   created              completed
+-----------  -------------------  -------------------  ------  -------------------------------------  -------------------  -----------
+        233  2016-09-07 09:58:20  register_from_email     342  \{"cmd": "register", "messageid": 165\}  2016-09-07 09:58:20
 $
 \end{Verbatim}
 
 
 In order to have the registration script run, it is necessary to have
-system's |cron_runner.py| script run on a regular basis. We set the
+system's \emph{cron\_runner.py} script run on a regular basis. We set the
 script to run by the |cron| process every minute, by adding the
 following lines to the user's cron script with the (e.g. "crontab
 -e") command:
@@ -1162,9 +1162,9 @@ following lines to the user's cron script with the (e.g. "crontab
 * * * * * /var/www/html/email/cron_runner.py
 \end{Verbatim}
 
-Note: be sure to add the |cron| command \emph{last!}
+Note: be sure to add the |cron| command \emph{last!} As soon as the cron entry is created, the \emph{cron\_runner.py} will start running every minute, and many email messages containing Python runtimes errors will end up in your mailbox if the rest of the system is not properly configured.
 
-After the |cron_runner.py| script is running, the workqueue will
+After the \emph{cron\_runner.py} script is running, the workqueue will
 advance to indicate that the jobs have been run:\footnote{Note: the
   output of this command has been altered to make it fit on a line.}
 
@@ -1173,9 +1173,9 @@ $ \userinput{python3 dbmaint.py --list workqueue}
 Tests:
 workqueueid  modified             task                 testid  args                                   created              completed
 -----------  -------------------  -------------------  ------  -------------------------------------  -------------------  -------------------
-        233  2016-09-07 16:21:01  register_from_email     342  {"cmd": "register", "messageid": 165}  2016-09-07 16:21:00  2016-09-07 16:21:01
-        235  2016-09-07 16:21:01  crypto_message          342  {"cmd": "register", "messageid": 167}  2016-09-07 16:21:01  2016-09-07 16:21:01
-        237  2016-09-07 16:21:01  send_message            342  {"cmd": "register", "messageid": 167}  2016-09-07 16:21:01
+        233  2016-09-07 16:21:01  register_from_email     342  \{"cmd": "register", "messageid": 165\}  2016-09-07 16:21:00  2016-09-07 16:21:01
+        235  2016-09-07 16:21:01  crypto_message          342  \{"cmd": "register", "messageid": 167\}  2016-09-07 16:21:01  2016-09-07 16:21:01
+        237  2016-09-07 16:21:01  send_message            342  \{"cmd": "register", "messageid": 167\}  2016-09-07 16:21:01
 You have new mail in /var/spool/mail/slg
 [dane-test ~/email 16:21:19](master) $
 \end{Verbatim}
@@ -1196,7 +1196,7 @@ Base64 string.
 
 Tasks can also be submitted to the testing framework on the web page
 \url{http://dane-test.had.dnsops.gov/email/}
-(Figure~\ref{tester-email}). The tasks are are:
+(Figure~\ref{tester-email}). The tasks are:
 
 \begin{description}
 \item[Unencrypted] Sends a plain message that can be unsigned, S/MIME
@@ -1214,20 +1214,22 @@ Tasks can also be submitted to the testing framework on the web page
 
 The Unencrypted, SMIMEA and OpenPGP tasks create entries in
 the workqueue for resolution, whereas the Lookup and History tasks are
-handled immediately by the system. 
-
-Examples of the messages that are
-sent by the system are shown in Figures~\ref{email-registration},
-\ref{email-smime} and \ref{email-pgp}.
+handled immediately by the system.  To register, users send email to
+the address \url{register@dane-test.had.dnsops.gov}, and receive a
+response (e.g. Figure~\ref{email-registration}) within a few
+seconds. (Note: Although the system claims that email is currently
+rate limited to once message per minute, that logic has not yet been
+implemented.) When sending email, the system can
+send email that is plain, S/MIME-signed (Figure~\ref{email-smime}), or
+signed with OpenPGP (Figure~\ref{email-pgp}).
 
 \sgraphic{email-registration}{The sample registration message sent from the tester}
 \sgraphic{email-smime}{A S/MIME-signed email message sent by the
   tester. Apple mail is unable to verify the message signature becasue
 it is signed with a self-signed certificate.}
 \sgraphic{email-pgp}{An OpenPGP-signed message sent by the tester}
-\end{figure}
 
-When a hash history is looked up, a a record of each test is displayed
+When a hash history is looked up, a record of each test is displayed
 at the bottom of the test window (Figure~\ref{test-history}). Clicking
 on the test ID shows any DNS queries and the SMTP log associated with
 the test. For example, Figure~\ref{test-351} shows that sending the
@@ -1241,7 +1243,18 @@ DANE-specific DNS lookups; the SMTP log is also displayed.
 
 \section{Comparison of Tester Frameworks}
 
-*TK*
+We wrote both testing frameworks between October 2015 and September 2016,
+having first surveyed the literature on protocol testing and examined
+the source code for other testing systems. Both systems took roughly
+the same amount of effort to create. Both testers also take pains to
+separate the output of the testers, the presentation of the output (in
+text or HTML), and HTML style issues.
+
+The DANE client tester is a significantly simpler design and performs
+fewer tests. But the logic for the DANE client test itself was
+complex because of the need to potentially test multiple IP addresses
+(associated with both the mail server's domain name and the domain name of the MX
+server) against one or more DANE TLSA RRs.
 
 \subsection{Future Work}
 
