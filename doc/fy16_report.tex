@@ -202,7 +202,7 @@ the command line or a web interface. Testing results are incorporated into
 a data structure which can then be rendered as either text or HTML.
 
 The server tester was implemented using commonly accepted
-programming practices including object-oriented design,
+programming practices including a model/view/controller object-oriented design,
 modularization, and integrated tests. Nevertheless, we found
 it difficult to develop, audit, and extend the tester to new protocols. A 
 complicating factor is that a successful DANE validation depends on both the server's certificate and the results of DNS
@@ -210,7 +210,9 @@ queries, but DNS servers frequently give different answers to the same
 questions as a result of caching, load balancing, network congestion,
 and configuration changes. Thus, it was frequently difficult to
 determine to replicate the tester's verdict regarding the correctness
-of an organization's DANE deployment.
+of an organization's DANE deployment. In this document this tester is called the MVC
+(model/view/controller) tester to distinguish it from the
+database-driven tester that will be introduced in Section~\ref{database-driven-tester}.
 
 Following the development of the first tester, we created a
 tester for the draft SMIMEA and OpenPGPKey protocols. The second
@@ -286,7 +288,7 @@ tests by recording the behavior of actual clients and then replying them
 against a server, although it does not use model checking or formal
 methods to do so. 
 
-\section{HTTPS and SMTP Server TLSA Tester}
+\section{The HTTPS and SMTP Model View Controller TLSA Tester}
 We created a tool to test server certificates advertised using DANE
 for availability, validity and protocol conformance. The server tester
 tests both HTTPS and SMTP servers, and can easily be adapted to servers
@@ -348,7 +350,7 @@ additional information regarding the test results (Figure~\ref{results-unixadm-l
 
 \subsection{System Requirements}
 
-Getting the Server Tester to work required assembling software that
+Getting the MVC to work required assembling software that
 could perform DNSSEC lookups and verify the wide range of certificate
 conditions required by the DANE standard. This ended up being a
 non-trivial task, requiring specific versions of specific software products:
@@ -643,7 +645,7 @@ and rendered for final output.
                             against {}".format(cn,against)) ]
 
 \end{lstlisting}
-\caption{An excerpt of the logic used by the DANE Server Tester to
+\caption{An excerpt of the logic used by the MVC DANE Server Tester to
   verify a PEM certificate against and record the results.}\label{pem-snippet}
 \end{figure}
 
@@ -659,7 +661,7 @@ if a['type'] == getdns.RRTYPE_MX == request_type:
                                data=rdata['exchange'],
                                key=rdata['preference']))
 \end{lstlisting}
-\caption{An excerpt of the logic used by the DANE Server Tester to
+\caption{An excerpt of the logic used by the MVC DANE Server Tester to
   record the results of a DNS lookup of an MX record }\label{snippet}
 \end{figure}
 
@@ -687,7 +689,7 @@ MX preference or a DANE cryptographic key. \\
 \caption{DaneTestResults Object}\label{testResults}
 \end{table}
 
-\section{SMIMEA and OpenPGPKey Database-Driven Tester}
+\section{The SMIMEA and OpenPGPKey Database-Driven Tester}\ref{database-driven-tester}
 In addition to storing trust information for TLS servers, there are
 now approaches for using DANE to store S/MIME certificates and OpenPGP
 and public keys. This use of DANE makes it possible for a DANE-aware
