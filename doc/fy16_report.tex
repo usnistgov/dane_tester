@@ -691,10 +691,9 @@ MX preference or a DANE cryptographic key. \\
 In addition to storing trust information for TLS servers, there are
 now approaches for using DANE to store S/MIME certificates and OpenPGP
 and public keys. This use of DANE makes it possible for a DANE-aware
-Mail User Agent (MUA) to fetch certificate or public key associated
+Mail User Agent (MUA) to fetch the certificate or public key associated
 with an email address and use it to encrypt an email message or verify
-a digital signature without the need to use a Public Key
-Infrastructure (PKI) or to obtain certificates through a manual
+a digital signature without the need to use a manual
 process.
 
 We created a tester for SMIMEA and OpenPGPKey protocols. The goal of
@@ -827,7 +826,7 @@ version of OpenSSL should work that is more recent than 0.9.8n and
 S/MIME implementation (according to the OpenSSL changelog). 
 
 \item[python3] the implementation language. The tester was developed
-  with Python3.4.
+  with Python~3.4 but runs equally well on Python~3.5.
 
 \item[MySQL] version 5.1 is the system database,
 although any modern version should work. 
@@ -978,27 +977,27 @@ webcontrol.cgi    & \\
 The system preparation for the DANE server tester (described in the
 previous section) will also
 install the perquisites necessary for the database-driven
-tester. Specifically, the script |server/centos7-setup.bash| will also
+tester. Specifically, the script \emph{server/centos7-setup.bash} will also
 install the necessary 
 Centos modules required to support the database-driven tester, and
-Apache configuration that serves the |$DANESRC/server/| directory on
-the web will also serve the |$DANESRC/email| directory. For our
-production system, we simply cloned the |dane-test| git repository
+Apache configuration that serves the \emph{\$DANESRC/server/} directory on
+the web will also serve the \emph{\$DANESRC/email} directory. For our
+production system, we simply cloned the \emph{dane-test} git repository
 into a directory that is served by the Apache web server. Cloning the
 implementation is this matter makes it easy to develop code on a
 development system and then simply do a |git pull| on the production
 system. If there are changes made on the production system, they can
 be committed and pushed back to the repository and pulled back to the
 development system. The file
-|index.html| in the root directory gives web visitors the option of
+\emph{index.html} in the root directory gives web visitors the option of
 running the DANE TLS client server or the email server. 
 
 \subsubsection{Web files}
 
 The tester uses Bootstrap as its HTML/JavaScript/CSS framework. To
-install bootstrap, run |make install| from the root or the email directory. Make
+install Bootstrap, run |make install| from the root of the \emph{/email} directory. Make
 sure that the Bootstrap is properly configured by displaying the
-|email/index.html| page (see~\ref{tester-email}).
+\emph{email/index.html} page (see Figure~\ref{tester-email}).
 
 \sgraphic{tester-email}{The Email tester page.}
 
@@ -1314,7 +1313,7 @@ DNS queries the certificates obtained via the HTTPS and SMTPTLS
 exchanges. 
 
 Analysis and reporting tools could be added on top of the
-database-driven tester. In particular, the tester could report:
+database-driven tester. In particular, the tester could include:
 \begin{itemize}
 \item Management reports, such as the number of tests performed over
   time, the number of new registrations, and whether registered users continue to
@@ -1322,6 +1321,9 @@ database-driven tester. In particular, the tester could report:
 \item Differential DNS reports. For example, the tester could report
   how the results of a DNS query have changed from the previous time
   that the query was performed.
+\item A web interface for performing, explaining, and logging DNS queries,
+  especially queries involving the TLSA RR type.
+\item A web interface for making DANE TLSA RRs.
 \end{itemize}
 
 Significant cleanup is required of the database-driven
@@ -1340,6 +1342,11 @@ standard template system such as \emph{mako}.
 \item The testing architecture can be used to implement other tests
   that involve DNS lookups and the exchange of information over TCP
   sockets.
+\item The Bootstrap files should be moved to a different locations.
+\item The email tester should also have specific named tests, each
+  with a test number, and the results of these tests should be stored
+  in an additional table.
+
 \end{itemize}
 
 \section{Conclusion}
