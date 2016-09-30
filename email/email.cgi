@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- mode: python; -*-
 #
+# CGI module to queue an email mesasge 
 import cgitb;cgitb.enable()
 from mako.template import Template
 from tester import Tester

@@ -13,6 +13,9 @@ centos-install:
 	echo target for installing necessary packages on a centos build
 	yum install -y gcc-c++
 
+install:
+	@echo No web files need to be installed in the server directory
+
 centos-slg:
 	echo target for installing useful packages for development
 	yum install -y mlocate
@@ -44,3 +47,4 @@ centos7-prep:
 	tar xfz openssl-1.0.2h.tar.gz
 	( cd openssl-1.0.2h && ./config && make depend && make && make test && sudo make install )
 	/bin/rm -rf openssl-1.0.2h.tar.gz openssl-1.0.2h
+

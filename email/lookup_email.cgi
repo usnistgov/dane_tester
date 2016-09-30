@@ -20,7 +20,7 @@ import smimea
 import openpgpkey
 
 ANONYMOUS_USER="anonymous"
-ANONYMOUS_HASH="Oijb1q03QNM="
+ANONYMOUS_HASH="iuabfuXHVpg="
 
 def testid_html(testid,hash):
    return "<a href='lookup_test.cgi?testid={}&hash={}' target='_blank'>{}</a>".format(testid,hash,testid)

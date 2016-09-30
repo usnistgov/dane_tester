@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- mode: python; -*-
 #
-# DANE openpgpkey implementation
+# DANE OPENPGP [RFC 7929] implementation
+# Can be used as an imported module; see __main__ for command-line testing options.
+# Also includes a python cover for GPG (easier at the moment than using GPG module)
 #
 import pytest,unittest
 import dns
@@ -16,9 +18,11 @@ from mako.template import Template
 
 smtp_server = "mail.nist.gov"
 dns_resolver = "8.8.8.8"
+HOMEDIR = "/home/slg/keystore"
+PUBRING_KEY_FILE = "/home/slg/keystore/pubring.gpg"
 SIGNING_KEY_FILE = "/home/slg/keystore/nistsecretkey.asc"
-
-my_email="simson.garfinkel@nist.gov"
+GPG = "gpg"                     # GPG executable
+MY_EMAIL = "openpgpkey@dane-test.had.dnsops.gov"
 
 email_template="""To: %TO%
 Subject: This is a test %KIND% message
@@ -59,6 +63,10 @@ def make_file(buf):
     kfile.flush()
     yield kfile.name
 
+def my_gpg_public_key_block():
+    """Returns my GPG public key block"""
+    return Popen([GPG,'--homedir',HOMEDIR,'--batch','--no-tty','--no-permission-warning','--armor','--export'],stdout=PIPE).communicate()[0].decode('utf-8')
+
 def email_to_dns(email):
     """Given an email address, return the OPENPGPKEY encoding."""
     import hashlib
@@ -94,7 +102,7 @@ def get_pubkey(T,email):
 def import_key(tempdir,kfile):
     "Imports a key to the keyring in tempdir and returns the keyid"
     import re
-    out = Popen(['gpg','--homedir',tempdir,'--import',kfile],stderr=PIPE).communicate()[1].decode('utf-8')
+    out = Popen([GPG,'--homedir',tempdir,'--import',kfile],stderr=PIPE).communicate()[1].decode('utf-8')
     m = re.search("gpg: key ([0-9A-F]+).*imported",out.replace("\n"," "))
     if m:
         return m.group(1)
@@ -106,8 +114,8 @@ def pubkey_to_txt(key):
     tempdir = tempfile.mkdtemp()  # location for temporary keyfiles
     with make_file(key) as kfile:
         keyid = import_key(tempdir,kfile)
-        msg  = Popen(['gpg','--batch','--homedir',tempdir,'--list-sigs',keyid],stdout=PIPE).communicate()[0].decode('utf-8')
-        msg += Popen(['gpg','--batch','--homedir',tempdir,'-a','--export',keyid],stdout=PIPE).communicate()[0].decode('utf-8')
+        msg  = Popen([GPG,'--batch','--homedir',tempdir,'--list-sigs',keyid],stdout=PIPE).communicate()[0].decode('utf-8')
+        msg += Popen([GPG,'--batch','--homedir',tempdir,'-a','--export',keyid],stdout=PIPE).communicate()[0].decode('utf-8')
         return msg
 
 def pgp_process1(msg,signing_key_file=None,encrypting_key=None):
@@ -116,7 +124,7 @@ def pgp_process1(msg,signing_key_file=None,encrypting_key=None):
     # If we are signing, need to import the key into the signing_key_file
     if signing_key_file:
         # Import the key into the temporary keychain
-        cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'--import',signing_key_file]
+        cmd = [GPG,'--batch','--trust-model','always','--homedir',tempdir,'--import',signing_key_file]
         call(cmd)
 
     # If we are encrypting, need to import the encrypting key
@@ -125,9 +133,9 @@ def pgp_process1(msg,signing_key_file=None,encrypting_key=None):
             encrypting_keyid = import_key(tempdir,encrypting_key_file)
 
             if signing_key_file:
-                cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'--armor','--sign','--encrypt','--recipient',encrypting_keyid]
+                cmd = [GPG,'--batch','--trust-model','always','--homedir',tempdir,'--armor','--sign','--encrypt','--recipient',encrypting_keyid]
             else:
-                cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'--armor','--encrypt','--recipient',encrypting_keyid]
+                cmd = [GPG,'--batch','--trust-model','always','--homedir',tempdir,'--armor','--encrypt','--recipient',encrypting_keyid]
             p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
             (res,res_error) = p.communicate(msg.encode('utf-8'))
             if res_error:
@@ -136,7 +144,7 @@ def pgp_process1(msg,signing_key_file=None,encrypting_key=None):
                 
     # Only signing
     # Use the temporary keychain to sign the message
-    cmd = ['gpg','--batch','--trust-model','always','--homedir',tempdir,'--armor','--clearsign']
+    cmd = [GPG,'--batch','--trust-model','always','--homedir',tempdir,'--armor','--clearsign']
     p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
     (res,res_error) = p.communicate(msg.encode('utf-8'))
     if res_error:
@@ -165,17 +173,19 @@ class MyTest(unittest.TestCase):
 
 
 
-
-
 if __name__=="__main__":
     import argparse,sys
     from tester import Tester
 
     parser = argparse.ArgumentParser(description="smimea tester")
     parser.add_argument("--print",help="get and print a certificate for an email address")
-    parser.add_argument("--send",help="send test emails email to an address")
+    parser.add_argument("--send",help="send test emails email to the address provided")
     parser.add_argument("--debug",help="print the test email messages, but don't send them",action='store_true')
     parser.add_argument("--smtpdebug",help="enable SMTP debugging",action='store_true')
+    parser.add_argument("--type61",help="Create a Type61 [RFC 7929] record; specify email address on command line")
+    parser.add_argument("--pubkey",help="Dump GPG public key block",action='store_true')
+
+
     args = parser.parse_args()
     T = Tester()
     T.newtest(testname="dig")
@@ -195,10 +205,18 @@ if __name__=="__main__":
             s = smtplib.SMTP("mail.nist.gov")
             if args.smtpdebug:
                 s.set_debuglevel(True)
-        s.sendmail(my_email,[args.send],pgp_process(make_message(to=args.send,sender=my_email,kind='signed',template=email_template),
+        s.sendmail(MY_EMAIL,[args.send],pgp_process(make_message(to=args.send,sender=MY_EMAIL,kind='signed',template=email_template),
                                                     signing_key_file=SIGNING_KEY_FILE))
-        s.sendmail(my_email,[args.send],pgp_process(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
+        s.sendmail(MY_EMAIL,[args.send],pgp_process(make_message(to=args.send,sender=MY_EMAIL,kind='encrypted',template=email_template),
                                                     encrypting_key=encrypting_key))
-        s.sendmail(my_email,[args.send],pgp_process(make_message(to=args.send,sender=my_email,kind='encrypted',template=email_template),
+        s.sendmail(MY_EMAIL,[args.send],pgp_process(make_message(to=args.send,sender=MY_EMAIL,kind='encrypted',template=email_template),
                                                     signing_key_file=SIGNING_KEY_FILE,
                                                     encrypting_key=encrypting_key))
+    if args.type61:
+        email = args.type61
+        print("Enter PGP public key for {}:".format(email))
+        pubkey_asc = sys.stdin.read()
+
+    if args.pubkey:
+        print(my_gpg_public_key_block())
+        

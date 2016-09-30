@@ -27,3 +27,4 @@ email/bootstrap/
 email/bootstrap
 email/bootstrap*
 *.toc
+.DS_Store

@@ -40,12 +40,15 @@ times = 0
 
 if __name__=="__main__":
    cgitb.enable()
+   template = open("dane_check_template.html","r").read()
+   (top,bottom) = template.split("%%INSERT%%")
    print "Content-type: text/html\r\n\r\n"
-   print "<html><title>DANE Server Checker</title>"
+   print(top)
 
    if not dane_checker.verify_package():
       print("<p>Required <tt>dane_checker executable</tt>(s) not installed.</p>")
       print("<p>Run <tt>make</tt> in installation directory.</p>")
+      print(bottom)
       exit(0)
 
    form = cgi.FieldStorage()
@@ -71,6 +74,7 @@ if __name__=="__main__":
       print "Compare with <a href='https://dane.sys4.de/smtp/{}'>dane.sys4.de</a>".format(host)
 
    print "<p>"
+   print "Enter a DOMAIN to test an SMTP server.<br/> Enter a URL to test HTTPS server.<br/>"
    print "<form>"
    print "<input type='text' name='host'><br>"
    print "<input type='submit' value='Submit'>"
@@ -87,5 +91,6 @@ if __name__=="__main__":
    print "<li><a href='https://dane.sys4.de/'>https://dane.sys4.de/</a> (SMTP only)"
    print "<li><a href='https://www.had-pilot.com/dane/danelaw.html'>https://www.had-pilot.com/dane/danelaw.html</a> (HTTPS only)."
    print "</ul>"
-   print "</html>"
+   print(bottom)
+
    

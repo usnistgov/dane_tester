@@ -1,3 +1,13 @@
+Files in this package
+=====================
+
+email.cgi - add an email message to the queue
+lookup_email.cgi - looks up the messages associated with an email address
+lookup_test.cgi - Prints all of the transactions associated with a specific testid 
+
+Background
+==========
+
 A "test" is an instance of a user requesting a test of the tester.
 
 The "workqueue" is a list of work to be execute. If we had a large
@@ -92,7 +102,7 @@ Activity: Mail sent to bouncer@had-ub1 results in a response to the sender
 These lines are in `/etc/aliases`:
 
     ### email-bouncer test 
-    bouncer: "|/home/slg/gits/dane_tester/email/email_receiver.py bouncer"
+    bouncer: "|/home/slg/gits/dane-tester/email/email_receiver.py bouncer"
 
 State machine:
 --------------
@@ -111,7 +121,7 @@ Activity: users register online, receive a hash, enter the hash and the email ad
 Alternative registration:
 
 3. email_register.py <emailaddress>
-4. 
+
 
 
 These lines are in `/etc/aliases`:

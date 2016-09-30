@@ -1,0 +1,6 @@
+Things to do next:
+
+* Add explicit tests to email tester
+* Web pages for creating TLSA RRs
+* Be able to receive sigend amil & check certs
+* Have numbered tests

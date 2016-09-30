@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8; mode: python; -*-
 #
-# Perform a testid lookup
+# Prints all of the transactions associated with a specific testid 
 #
 import cgitb;cgitb.enable()
 from mako.template import Template
