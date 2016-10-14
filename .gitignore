@@ -23,8 +23,8 @@ tlsa/getdns-python-bindings/
 tlsa/openssl*.tar.gz
 tlsa/openssl*/
 .cache
-email/bootstrap/
-email/bootstrap
-email/bootstrap*
+bootstrap/
+bootstrap
+bootstrap*
 *.toc
 .DS_Store
