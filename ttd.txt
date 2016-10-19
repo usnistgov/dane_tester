@@ -1,6 +1,16 @@
 Things to do next:
 
-* Add explicit tests to email tester
-* Web pages for creating TLSA RRs
-* Be able to receive sigend amil & check certs
-* Have numbered tests
+- modify server/ tester:
+  - use new framework
+    - stop using getdns; use dbdns
+    - create a test instance object
+    - Anonymous user, unless there is a login (for web)
+- Modify tester framework:
+  - have numbered test steps
+
+- modify email/ tester:
+  - Add explicit tests to email tester
+  - Web pages for creating TLSA RRs
+  - Be able to receive sigened meail
+  - Check certs
+  - Have numbered tests
