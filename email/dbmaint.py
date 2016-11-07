@@ -10,6 +10,8 @@ import pymysql.err
 from tabulate import tabulate
 import periodic
 
+assert sys.version > '3'
+
 def make_hash(email):
     "These are called hashes, but they are actually random nonces."
     import os,base64

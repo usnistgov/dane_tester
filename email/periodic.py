@@ -13,6 +13,9 @@ import dbmaint
 import smtp
 import smimea
 import openpgpkey
+import sys
+
+assert sys.version > '3'
 
 debug = True
 logging.basicConfig(level=logging.DEBUG)

@@ -10,6 +10,8 @@ import tester
 import cgi
 import sys,io,codecs
 
+assert sys.version > '3'
+
 from subprocess import call,Popen,PIPE
 
 # Force output to be encoded in UTF8

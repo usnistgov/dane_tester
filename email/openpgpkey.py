@@ -10,8 +10,12 @@ import dns
 import dns,dns.resolver,dns.query,dns.zone,dns.message
 import dbdns
 import tempfile
+import sys
 from subprocess import Popen,PIPE,call
 from mako.template import Template
+
+assert sys.version > '3'
+
 
 # Info on command line
 # http://www.spywarewarrior.com/uiuc/gpg/gpg-com-4.htm#4-2c

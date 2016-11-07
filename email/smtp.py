@@ -4,6 +4,9 @@
 import tempfile, smtplib, os, sys
 import tester
 
+assert sys.version > '3'
+
+
 def sendmailWithTranscript(server,port,from_header,to_headers,body):
     """@server - string with hostname of server
     @port - integer with port number

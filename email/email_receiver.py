@@ -6,7 +6,6 @@
 # Usage:  email_receiver.py [testqueue] <message
 #
 
-
 from tester import Tester                   # get my routine
 import argparse
 import tester
@@ -14,6 +13,8 @@ import logging
 import sys
 import email
 import json
+
+assert sys.version > '3'
 
 logging.basicConfig(level=logging.DEBUG)
 

@@ -6,6 +6,11 @@
 
 import os,os.path
 import pymysql.cursors
+import sys
+
+assert sys.version > '3'
+
+
 
 SMTP_HOST = "localhost"
 SMTP_PORT = 25

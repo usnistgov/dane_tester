@@ -11,6 +11,9 @@ import dns,dns.resolver,dns.query,dns.zone,dns.message
 import pickle
 import dbdns
 import pymysql
+import sys
+
+assert sys.version > '3'
 
 class Dbdns:
     def __init__(self,response=None):

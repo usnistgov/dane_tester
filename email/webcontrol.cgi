@@ -3,8 +3,10 @@
 #
 import cgi,cgitb
 cgitb.enable()
-
 import sys,os,os.path
+assert sys.version > '3'
+
+
 #sys.path.append(os.path.expanduser("~/gits/dane_tester/email"))
 sys.path.append("/var/www/html/dane-tester/email") # should grab from config file
 

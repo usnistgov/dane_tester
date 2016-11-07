@@ -8,6 +8,10 @@ import dns
 import dns,dns.resolver,dns.query,dns.zone,dns.message
 import dbdns
 from subprocess import Popen,PIPE
+import sys
+
+assert sys.version > '3'
+
 
 smtp_server = "mail.nist.gov"
 dns_resolver = "8.8.8.8"

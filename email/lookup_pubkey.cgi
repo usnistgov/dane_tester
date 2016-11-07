@@ -15,6 +15,8 @@ import sys
 ANONYMOUS_USER="anonymous"
 ANONYMOUS_HASH="iuabfuXHVpg="
 
+assert sys.version > '3'
+
 # Force output to be encoded in UTF8
 # http://stackoverflow.com/questions/14860034/python-cgi-utf-8-doesnt-work
 import codecs; sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
