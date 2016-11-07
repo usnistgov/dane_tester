@@ -7,13 +7,12 @@ def test_get_certificate_chain():
     assert len(www_certs)>0
 
 def test_smtp_works():
-    sys4_smtp = get_service_certificate_chain("sys4.de","mail.sys4.de",25,'smtp')
-    print(sys4_smtp)
+    sys4_smtp = get_service_certificate_chain("mail.sys4.de","mail.sys4.de",25,'smtp')
+    assert len(sys4_smtp)>0
 
-    
 def test_get_tlsa():
     n = get_dns_tlsa("www.had-pilot.com",443)
-    assert tlsa_str(n[0].rdata).upper() == "1 0 1 E5024FB9FBF366850138836E22EAD22728F2E7950ACFE75971D0099571C5E4D0"
+    assert tlsa_str(n[0].rdata) == "1 0 1 E5024FB9FBF366850138836E22EAD22728F2E7950ACFE75971D0099571C5E4D0"
 
 def test_get_dns_ip():
     n = get_dns_ip("www.had-pilot.com.")
@@ -192,14 +191,20 @@ def test_pem_verify():
     assert pem_verify(certs[-1],google_chain,google_cert)==True
 
 def test_good_dane_verisignlabs_com():
-    ret = tlsa_https_verify("good.dane.verisignlabs.com")
-    assert ret.passed == True
+    ret = tlsa_https_verify("https://good.dane.verisignlabs.com/")
+    print("ret:",len(ret))
+    print(ret)
+    print(ret[-1].passed)
+    assert ret[-1].passed == True
 
 def test_bad_sig_dane_verisignlabs_com():
-    ret = tlsa_https_verify("bad-sig.dane.verisignlabs.com")
-    assert ret.passed == False
+    ret = tlsa_https_verify("https://bad-sig.dane.verisignlabs.com/")
+    assert ret[-1].passed == False
 
 
 if __name__=="__main__":
+    tlsa_https_verify("good.dane.verisignlabs.com")
+    test_good_dane_verisignlabs_com()
+    test_bad_sig_dane_verisignlabs_com()
+    test_pem_verify()
     test_smtp_works()
-

@@ -2,7 +2,7 @@
 # see https://github.com/getdnsapi/getdns-python-bindings/issues/33
 
 import sys
-if sys.version >= '3':
+if sys.version < '3':
     exit(0)
 
 import getdns

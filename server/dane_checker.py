@@ -54,6 +54,9 @@ openssl_exe = 'openssl'
 openssl_cafile = 'ca-bundle.crt'
 global openssl_debug
 openssl_debug = False
+BEGIN_PEM_CERTIFICATE="-----BEGIN CERTIFICATE-----"
+END_PEM_CERTIFICATE="-----END CERTIFICATE-----"
+
 
 # See if a better openssl exists; remove OpenSSL defaults
 if os.path.exists("/usr/local/ssl/bin/openssl"):
@@ -69,11 +72,11 @@ def verify_package():
 # 
 # Use OpenSSL for a command on a certificate, take input from stdin, return output from stdout.
 # If anything goes to stderr, generate an errror
-def openssl_cmd(cmd,cert="",get_returncode=False):
+def openssl_cmd(cmd,cert="",get_returncode=False,output=str):
     if openssl_debug:
         sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
     p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
-    (stdout,stderr) = p.communicate(cert)
+    (stdout,stderr) = p.communicate(cert.encode('utf8'))
     if get_returncode:
         return p.returncode
     if len(stderr)>0 or p.returncode!=0:
@@ -87,6 +90,8 @@ def openssl_cmd(cmd,cert="",get_returncode=False):
         sys.stderr.write(stderr+"\n")
         sys.stderr.write("RETURN CODE: {}\n".format(p.returncode))
         assert False
+    if output==str:
+        return stdout.decode('utf8')
     return stdout
         
 
@@ -216,7 +221,7 @@ class DaneTestResult:
 
 # Count the number of results in an array
 def count_passed(ret,v):
-    return len(filter(lambda a:a.passed==v,ret))
+    return len(list(filter(lambda a:a.passed==v,ret)))
 
 def find_result(ret,what):
     for r in ret:
@@ -231,8 +236,14 @@ def find_first_test(ret,test):
 
 ################################################################
 ## Simple conversion routines
-def hexdump(str, separator=''):
-    return separator.join(hex(ord(x)).upper()[2:4] for x in str)
+def hexdump(s, separator=''):
+    if type(s)==str:
+        return separator.join("{:02X}".format(ord(x)) for x in s)
+    if type(s)==bytes:
+        return separator.join("{:02X}".format(x) for x in s)
+    if type(s)==memoryview:
+        return separator.join("{:02X}".format(x) for x in bytes(s))
+    raise RuntimeError("Unknown type for hexdump: {}".format(type(s)))
 
 def is_ldh_hostname(hostname):
     for ch in hostname.lower():
@@ -296,22 +307,29 @@ def openssl_version():
 def test_openssl_version():
     assert openssl_version() >= "1.0.2"
 
+def is_pem(cert):
+    return (type(cert)==str) and (BEGIN_PEM_CERTIFICATE in cert) and (END_PEM_CERTIFICATE in cert)
+
+
 def pem_verify(anchor_cert,cert_chain,ee_cert):
     # Verify certificates using openssl
+    assert not anchor_cert or is_pem(anchor_cert)
+    assert not cert_chain  or is_pem(cert_chain)
+    assert not ee_cert     or is_pem(ee_cert)
     import tempfile
     with tempfile.NamedTemporaryFile(delete=not openssl_debug) as chainfile:
         with tempfile.NamedTemporaryFile(delete=not openssl_debug) as eefile:
             with tempfile.NamedTemporaryFile(delete=not openssl_debug) as acfile:
-                eefile.write(ee_cert)
+                eefile.write(ee_cert.encode('utf8'))
                 eefile.flush()
 
-                chainfile.write(cert_chain)
+                chainfile.write(cert_chain.encode('utf8'))
                 chainfile.flush()
 
                 cmd = [openssl_exe,'verify','-purpose','sslserver','-trusted_first','-partial_chain']
                 cmd += ['-CApath','/etc/no-subdir']
                 if anchor_cert:
-                    acfile.write(anchor_cert)
+                    acfile.write(anchor_cert.encode('utf8'))
                     acfile.flush()
                     cmd += ['-CAfile',acfile.name]
                 else:
@@ -464,9 +482,9 @@ def tlsa_cert_select(selector,pem_cert):
     assert selector in [0,1]
     assert "-----BEGIN CERTIFICATE-----" in pem_cert
     if selector==0:             # The full certificate, in DER
-        return openssl_cmd([openssl_exe,'x509','-inform','pem','-outform','der'],pem_cert)
+        return openssl_cmd([openssl_exe,'x509','-inform','pem','-outform','der'],pem_cert,output=bytes)
     if selector==1:             # Just the public key
-        pubkey = openssl_cmd([openssl_exe,'x509','-inform','pem','-modulus','-noout'],pem_cert)
+        pubkey = openssl_cmd([openssl_exe,'x509','-inform','pem','-modulus','-noout'],pem_cert,output=str)
         return pubkey.replace("Modulus=","")
     
 
@@ -819,11 +837,15 @@ dnssec_status = {getdns.DNSSEC_SECURE:"SECURE",
 
 
 def tlsa_str(rdata):
-    return "%s %s %s %s" % (rdata['certificate_usage'],rdata['selector'],
-                            rdata['matching_type'],hexdump(rdata['certificate_association_data']))
+    """Return a normalized (all caps TLSA string associated with a DNS response"""
+    ret = "%s %s %s %s" % (rdata['certificate_usage'],rdata['selector'],
+                           rdata['matching_type'],hexdump(rdata['certificate_association_data']))
+    return ret.upper()
 
-def v(bin_addr):
-    return '.'.join(map(str, map(ord, bin_addr)))
+def ipv4_to_str(bin_addr):
+    """Convert a 4-byte array that's an IPv4 address to a printable string by
+    converting each byte to a string and joining them with periods...."""
+    return '.'.join(map(str, bin_addr))
 
 def hexdata(rdata):
     def hex2(f):
@@ -832,13 +854,13 @@ def hexdata(rdata):
 
 ctx = getdns.Context()
 def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
-    
+    assert type(hostname)==str
+    assert len(hostname)>0
     ## getdns bug workaround:
     ## If TLSA, do a A query first and ignore the results
     ## Not sure why, but this seems required for the NIST DNS server
     if request_type==getdns.RRTYPE_TLSA:
         ctx.general(name=hostname,request_type=getdns.RRTYPE_A,extensions=extensions)
-
     ret = []
     SUCCESS=""
     results = ctx.general(name=hostname,request_type=request_type,extensions=extensions)
@@ -847,7 +869,7 @@ def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
             dstat = reply.get('dnssec_status')
             rdata = a['rdata']
             if a['type'] == getdns.RRTYPE_A == request_type:
-                ipv4 = v(rdata['ipv4_address'])
+                ipv4 = ipv4_to_str(rdata['ipv4_address'])
                 ret.append( DaneTestResult(passed=SUCCESS,
                                            what='DNS A lookup {} = {}'.format(hostname,ipv4),
                                            dnssec=dstat,data=ipv4, rdata=rdata, key=ipv4) )
@@ -893,7 +915,7 @@ def chase_dns_cname(hostname):
     results = []
     depth = 0
     secure = True
-    while depth < MAX_CNAME_DEPTH:
+    while depth < MAX_CNAME_DEPTH and hostname:
         cname_results = get_dns_cname(hostname)
         if cname_results==[]:
             if depth>0:
@@ -1023,7 +1045,7 @@ def apply_dnssec_test(ret):
 
 
 def tlsa_https_verify(url):
-    from urlparse import urlparse
+    from urllib.parse import urlparse
     ret = []
 
     # Find the host and port
@@ -1031,6 +1053,7 @@ def tlsa_https_verify(url):
     
     port = o.port
     if not port: port = 443
+
     ret += tlsa_service_verify(desc="HTTP",hostname=o.hostname,port=port,protocol='https')
     apply_dnssec_test(ret)
     # Make sure that none of the DANE tests were a hard fail
@@ -1237,6 +1260,7 @@ if __name__=="__main__":
     parser.add_argument("--test",help="Self test",action='store_true')
     parser.add_argument("--debug",help="Debug OpenSSL commands",action='store_true')
     parser.add_argument("--gethttpcert",help="Get the certificate for HTTP server (for testing)")
+    parser.add_argument("--getdnstlsa",help="Get the DNS TLSA")
     parser.add_argument("names",nargs="*")
     args = parser.parse_args()
 
@@ -1258,6 +1282,13 @@ if __name__=="__main__":
     if args.gethttpcert:
         for r in get_service_certificate_chain(args.gethttpcert,args.gethttpcert,443,'https'):
             print(r)
+        exit(0)
+
+    if args.getdnstlsa:
+        n = get_dns_tlsa(args.getdnstlsa,443)
+        a = tlsa_str(n[0].rdata)
+        b = "1 0 1 E5024FB9FBF366850138836E22EAD22728F2E7950ACFE75971D0099571C5E4D0"
+        assert(a==b)
         exit(0)
 
     def check(fn):

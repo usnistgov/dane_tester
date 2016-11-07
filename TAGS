@@ -1,0 +1,225 @@
+
+email/dbdns.py,178
+class Dbdns:Dbdns15,333
+    def __init__(16,346
+def query(20,455
+def test_query_MX(47,1668
+def test_query_A(53,1822
+def test_query_SPF(58,1939
+def test_roundTrip(64,2062
+
+email/dbmaint.py,95
+def make_hash(13,246
+def user_register(19,402
+def user_lookup(34,951
+def user_hash(46,1311
+
+email/openpgpkey.py,395
+class DebugSendmail:DebugSendmail34,968
+    def sendmail(35,989
+def make_message(44,1228
+def make_file(58,1709
+def my_gpg_public_key_block(66,1916
+def email_to_dns(70,2147
+def get_pubkey(79,2451
+def import_key(102,3093
+def pubkey_to_txt(112,3473
+def pgp_process1(121,3929
+def pgp_process(155,5544
+def openpgpkey_to_txt(162,5805
+class MyTest(169,5942
+    def test_openpgp(170,5975
+
+email/smimea.py,287
+def make_message(27,685
+def email_to_dns(33,908
+def get_file(42,1207
+def get_cert_for_email(45,1259
+def get_certdb(71,2134
+def cert_to_txt(97,2905
+def der_to_text(100,3050
+def smime_crypto(103,3195
+def smimea_to_txt(137,4206
+class MyTest(144,4403
+    def test_smimea(145,4436
+
+email/smtp.py,34
+def sendmailWithTranscript(7,112
+
+email/email_receiver.py,27
+def email_receiver(20,380
+
+email/tester.py,309
+class Tester:Tester40,981
+    def __init__(41,995
+    def login(71,2303
+    def newtest(78,2567
+    def cursor(93,3070
+    def dictcursor(96,3127
+    def get_test_type(99,3214
+    def insert_email_message(107,3493
+    def set_smtp_log(118,3991
+    def insert_task(127,4436
+    def commit(134,4704
+
+email/periodic.py,185
+def compose_simple_message(66,1401
+def compose_simple_response(78,1936
+def register_from_email(95,2649
+def crypto_message(114,3545
+def send_message(147,5084
+def periodic(165,5754
+
+server/dnstree.py,138
+def v(12,108
+def walk_host(26,560
+def walk_host_cname(51,1575
+def get_tlsa(76,2595
+    def tohex(86,2912
+        def hexnum(87,2934
+
+server/test_dane.py,286
+def test_get_certificate_chain(4,42
+def test_smtp_works(9,240
+def test_get_tlsa(14,372
+def test_get_dns_ip(18,556
+def test_cname(22,659
+def test_mx(26,757
+def test_pem_verify(190,9142
+def test_good_dane_verisignlabs_com(194,9268
+def test_bad_sig_dane_verisignlabs_com(198,9396
+
+server/test_getdns.py,24
+def test_getdns(22,622
+
+server/dane_checker.py,1945
+def verify_package(64,2552
+def openssl_cmd(72,2920
+class TimeoutError(107,3948
+class timeout:timeout110,3992
+    def __init__(111,4007
+    def handle_timeout(114,4141
+    def __enter__(116,4233
+    def __exit__(120,4374
+class DaneTest:DaneTest143,4953
+    def __init__(144,4969
+class DaneTestResult:DaneTestResult201,9494
+    def __init__(202,9516
+    def __repr__(214,9981
+def count_passed(218,10125
+def find_result(221,10200
+def find_first_test(227,10350
+def hexdump(234,10545
+def is_ldh_hostname(237,10643
+def is_wild_or_ldh_hostname(243,10811
+def name_clean(247,10954
+def hostname_match(256,11193
+def test_hexdump(268,11481
+def test_is_ldh_hostname(271,11538
+def test_is_wild_or_ldh_hostname(275,11657
+def test_name_clean(279,11809
+def test_hostname_match(282,11878
+def openssl_version(292,12225
+def test_openssl_version(296,12384
+def pem_verify(299,12453
+def hex_der_to_pem(333,13940
+def cert_subject_alternative_names(344,14485
+def cert_verify(356,14906
+def tlsa_select(449,19160
+def tlsa_cert_select(459,19613
+def upperhex(474,20291
+def tlsa_match(484,20458
+def tlsa_verify(522,22015
+def split_certs(675,29137
+def get_service_certificate_chain(684,29421
+            def get_response(701,30131
+def validate_remote_smtp(731,31540
+def tlsa_str(819,35609
+def v(823,35804
+def hexdata(826,35872
+    def hex2(827,35892
+def get_dns_ip(832,36004
+def get_dns_mx(868,38009
+def get_dns_cname(871,38098
+def tlsa_hostname(874,38193
+def get_dns_tlsa(877,38267
+def chase_dns_cname(889,38660
+def get_tlsa_records(913,39616
+def tlsa_service_verify(921,39841
+def apply_dnssec_test(1013,44017
+def tlsa_https_verify(1023,44303
+def tlsa_smtp_host_verify(1044,45080
+def tlsa_smtp_verify(1052,45507
+def print_test_results(1110,48336
+    def dnssec(1111,48383
+    def passed(1114,48466
+            def fixnone(1167,50442
+def process(1203,51600
+def print_stats(1215,51992
+    def check(1260,53507
+
+server/dane_checker.bak.py,1871
+def verify_package(65,2540
+class TimeoutError(78,2918
+class timeout:timeout81,2962
+    def __init__(82,2977
+    def handle_timeout(85,3111
+    def __enter__(87,3203
+    def __exit__(91,3344
+class DaneTest:DaneTest114,3923
+    def __init__(115,3939
+class DaneTestResult:DaneTestResult172,8464
+    def __init__(173,8486
+    def __repr__(185,8951
+def count_passed(189,9095
+def find_result(192,9170
+def find_first_test(198,9320
+def hexdump(205,9515
+def is_ldh_hostname(209,9605
+def is_wild_or_ldh_hostname(215,9773
+def name_clean(219,9916
+def hostname_match(228,10155
+def test_hexdump(240,10443
+def test_is_ldh_hostname(243,10500
+def test_is_wild_or_ldh_hostname(247,10619
+def test_name_clean(251,10771
+def test_hostname_match(254,10840
+def openssl_version(264,11187
+def test_openssl_version(268,11316
+def pem_verify(271,11385
+def hex_der_to_pem(303,12827
+def cert_subject_alternative_names(310,13101
+def cert_verify(322,13555
+def tlsa_select(414,17736
+def upperhex(419,17866
+def tlsa_match(429,18033
+def tlsa_verify(467,19590
+def split_certs(616,26475
+def get_service_certificate_chain(625,26759
+            def get_response(642,27469
+def validate_remote_smtp(672,28895
+def tlsa_str(760,32964
+def v(764,33159
+def hexdata(767,33227
+    def hex2(768,33247
+def get_dns_ip(773,33359
+def get_dns_mx(809,35364
+def get_dns_cname(812,35453
+def tlsa_hostname(815,35548
+def get_dns_tlsa(818,35622
+def chase_dns_cname(830,36015
+def get_tlsa_records(854,36971
+def tlsa_service_verify(862,37196
+def apply_dnssec_test(954,41372
+def tlsa_https_verify(964,41658
+def tlsa_smtp_host_verify(985,42435
+def tlsa_smtp_verify(993,42862
+def print_test_results(1051,45691
+    def dnssec(1052,45738
+    def passed(1055,45821
+            def fixnone(1108,47797
+def process(1144,48955
+def print_stats(1156,49347
+    def check(1193,50497
+
+email/cron_runner.py,0
