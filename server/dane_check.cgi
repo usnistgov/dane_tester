@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 # -*- coding: utf-8; mode: python; -*-
 #
 # NIST-developed software is provided by NIST as a public service. You
@@ -35,6 +35,7 @@
 
 import cgi,cgitb,subprocess,sys,os,re
 import dane_checker
+assert sys.version > '3'
 
 times = 0
 

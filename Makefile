@@ -15,3 +15,7 @@ install-bootstrap: bootstrap-3.3.7-dist.zip
 	if [ ! -e bootstrap ]; then unzip bootstrap-3.3.7-dist.zip; ln -s bootstrap-3.3.7-dist bootstrap; fi
 
 install: install-bootstrap
+
+tags:
+	find . -type f -name '*.py' | xargs etags
+

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # NIST-developed software is provided by NIST as a public service. You
@@ -39,6 +39,7 @@ import os,os.path
 import subprocess
 from subprocess import Popen,call,PIPE
 
+assert sys.version > '3'
 
 MAX_CNAME_DEPTH=20
 MAX_TIMEOUT=30
@@ -231,8 +232,7 @@ def find_first_test(ret,test):
 ################################################################
 ## Simple conversion routines
 def hexdump(str, separator=''):
-    return separator.join(x.encode('hex') for x in str)
-
+    return separator.join(hex(ord(x)).upper()[2:4] for x in str)
 
 def is_ldh_hostname(hostname):
     for ch in hostname.lower():
@@ -290,7 +290,7 @@ def test_hostname_match():
 ## Verify PEM certificate chain and end entity certificates in PEM format using OpenSSL
 ##
 def openssl_version():
-    res = subprocess.check_output([openssl_exe,'version'])
+    res = subprocess.check_output([openssl_exe,'version'.encode('utf8')]).decode('utf8')
     return res.strip().replace("OpenSSL ","")
 
 def test_openssl_version():
@@ -682,6 +682,7 @@ def split_certs(multi_certs):
     return cert_list[0:-1]
 
 def get_service_certificate_chain(ipaddr,hostname,port,protocol):
+    """"Returns a list of DaneTestResult objects for looking up a chain"""
     from subprocess import Popen,PIPE,STDOUT
     cmd = None
     inbuf = None
@@ -699,19 +700,20 @@ def get_service_certificate_chain(ipaddr,hostname,port,protocol):
             multi_certs = ""
             passed = False
             def get_response(p):
-                response = ''
+                "Get the response and convert to UNICODE"
+                response = b''
                 while True:
                     line = p.stdout.readline()
                     response += line
-                    if line[3:4]==' ':
-                        return (response,line[0:3])
-                    
+                    if line[3:4]==b' ':
+                        return (response.decode('utf8'),line[0:3])
+
             p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
             (multi_certs,code) = get_response(p)
             what="Fetching EE Certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
             passed="END CERTIFICATE" in multi_certs
             # Just QUIT; we will test QUIT conformance elsewhere.
-            p.stdin.write("QUIT\r\n")
+            p.stdin.write(b"QUIT\r\n")
             (resp,code) = get_response(p)
         except TimeoutError:
             what="Timeout fetching certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
@@ -1234,6 +1236,7 @@ if __name__=="__main__":
     parser.add_argument("--html",help="output in HTML",action='store_true')
     parser.add_argument("--test",help="Self test",action='store_true')
     parser.add_argument("--debug",help="Debug OpenSSL commands",action='store_true')
+    parser.add_argument("--gethttpcert",help="Get the certificate for HTTP server (for testing)")
     parser.add_argument("names",nargs="*")
     args = parser.parse_args()
 
@@ -1251,6 +1254,11 @@ if __name__=="__main__":
             print(w.fill(test.desc))
         exit(0)
     
+
+    if args.gethttpcert:
+        for r in get_service_certificate_chain(args.gethttpcert,args.gethttpcert,443,'https'):
+            print(r)
+        exit(0)
 
     def check(fn):
         print("\n==== {} ====".format(fn))
