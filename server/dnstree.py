@@ -1,3 +1,8 @@
+#!/usr/bin/env python2.7
+#
+# getdns test program
+#
+
 import pytest
 import getdns
 import sys
@@ -99,9 +104,6 @@ def get_tlsa(host,port):
                     print(rdata.selector)
                     break
     
-
-
-
 if __name__=="__main__":
     host = sys.argv[1]
     ctx = getdns.Context()

@@ -33,13 +33,12 @@
 # subject to copyright protection within the United States.
 
 import sys
-if sys.version>='3':
-    raise RuntimeError("Requires Python 2.7")
-
 import getdns
 import pytest
 import M2Crypto
-import subprocess,os,os.path
+import os,os.path
+import subprocess
+from subprocess import Popen,call,PIPE
 
 
 MAX_CNAME_DEPTH=20
@@ -65,6 +64,36 @@ os.environ["SSL_CERT_FILE"]="/nonexistant"
 def verify_package():
     """Returns True if package is properly installed"""
     return os.path.exists(get_altnames_exe) and os.path.exists(openssl_exe)
+
+################################################################
+# 
+# Use OpenSSL for a command on a certificate, take input from stdin, return output from stdout.
+# If anything goes to stderr, generate an errror
+def openssl_cmd(cmd,cert="",get_returncode=False):
+    if openssl_debug:
+        sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
+    p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
+    (stdout,stderr) = p.communicate(cert)
+    if get_returncode:
+        return p.returncode
+    if len(stderr)>0 or p.returncode!=0:
+        sys.stderr.write("**** OPENSSL ERROR ****\n")
+        sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
+        sys.stderr.write("INPUT:\n")
+        sys.stderr.write(cert+"\n")
+        sys.stderr.write("STDOUT:\n")
+        sys.stderr.write(stdout+"\n")
+        sys.stderr.write("STDERR:\n")
+        sys.stderr.write(stderr+"\n")
+        sys.stderr.write("RETURN CODE: {}\n".format(p.returncode))
+        assert False
+    return stdout
+        
+
+        
+
+
+
 
 ################################################################
 # Implement a simple timeout
@@ -291,26 +320,33 @@ def pem_verify(anchor_cert,cert_chain,ee_cert):
 
                 cmd += ['-untrusted',chainfile.name,eefile.name]
                 try:
-                    if openssl_debug:sys.stderr.write("CMD: "+" ".join(cmd)+"\n")
-                    p = subprocess.Popen(cmd,stdout=subprocess.PIPE)
-                    res = p.communicate()[0]
-                    if openssl_debug:sys.stderr.write("return code={} RES: {}\n".format(p.returncode,res))
-                    if p.returncode==0:
+                    returncode = openssl_cmd(cmd,get_returncode=True)
+                    #p = Popen(cmd,stdout=PIPE)
+                    #res = p.communicate()[0]
+                    #if openssl_debug:sys.stderr.write("return code={} RES: {}\n".format(p.returncode,res))
+                    #if p.returncode==0:
+                    #    return True
+                    if returncode==0:
                         return True
                 except subprocess.CalledProcessError:
                     return False
 
 def hex_der_to_pem(val):
-    from M2Crypto import X509
-    val = val.replace(" ","").replace("\r","").replace("\n","").replace("\t","")
-    x509 = X509.load_cert_string(val.decode("hex"),X509.FORMAT_DER)
-    return x509.as_pem()
+    """Convert a hex representation of a certificate to PEM format"""
+    #from M2Crypto import X509
+    #val = val.replace(" ","").replace("\r","").replace("\n","").replace("\t","")
+    #x509 = X509.load_cert_string(val.decode("hex"),X509.FORMAT_DER)
+    #return x509.as_pem()
+    print("HEX:",val)
+    val = val.replace(" ","").decode("hex")   # remove spaces
+    cmd = [openssl_exe,'x509','-inform','DER','-outform','PEM']
+    return Popen(cmd,stdout=PIPE,stdin=PIPE).communicate(input=val)[0]
 
 # Uses external program to extract AltNames
 def cert_subject_alternative_names(cert):
     assert os.path.exists(get_altnames_exe)
     cmd = [get_altnames_exe,'/dev/stdin']
-    p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stdin=subprocess.PIPE)
+    p = Popen(cmd,stdout=PIPE,stdin=PIPE)
     res = p.communicate(input=cert)[0]
     if p.returncode!=0: return [] # error condition
     r = set(res.split("\n"))
@@ -328,8 +364,9 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
                                 hostname=hostname0,ipaddr=ipaddr,
                                 what="No EE Certificate presented") ]
 
-    eecert = M2Crypto.X509.load_cert_string(certs[0])
-    cn = eecert.get_subject().CN
+    # Get the subject of the certificate
+    cmd = [openssl_exe,'x509','-noout','-subject']
+    cn = Popen(cmd,stdin=PIPE,stdout=PIPE).communicate(certs[0])[0]
 
     ret = []
     against = "TLSA-provided anchors"  if anchor_cert else "system anchors"
@@ -412,9 +449,29 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
 # 0 - Full Certificate
 # 1 - Just the public key
 def tlsa_select(s, cert):
+    """Given a certificate object, return the component specified by the TLSA Selector"""
+    assert False                # this doesn't work anymore, since the "cert" object is M2Crypto
     assert s in [0,1]
     if s==0: return cert.as_der()
     if s==1: return cert.get_pubkey().as_der()
+
+# DER = Binary DER (Distinguished Encoding Rules) encoded certificates. 
+# PEM = Privacy Enhanced Mail (a certificate encoding format)
+
+def tlsa_cert_select(selector,pem_cert):
+    """Return the TLSA selector for a given certificate.
+    @Param s - the TLSA selector. 0=Full Certificate (as DER), 1 = Pubkey (as DER)
+    @Param cert - the certificate, as a PEM string
+    """
+    assert selector in [0,1]
+    assert "-----BEGIN CERTIFICATE-----" in pem_cert
+    if selector==0:             # The full certificate, in DER
+        return openssl_cmd([openssl_exe,'x509','-inform','pem','-outform','der'],pem_cert)
+    if selector==1:             # Just the public key
+        pubkey = openssl_cmd([openssl_exe,'x509','-inform','pem','-modulus','-noout'],pem_cert)
+        return pubkey.replace("Modulus=","")
+    
+
 
 def upperhex(s):
     s = s.replace(' ','')
@@ -515,10 +572,11 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostnames,ipaddr, protocol):
     # NOTE: For certificate usage 2, selector 0, matching 0,
     # the certificate in the TLSA record should be added to the certificate chain
     if cert_usage==2 and selector==0 and mtype==0:
-        from M2Crypto import X509
-        der = ct.replace(" ","").decode("hex")
-        x509 = X509.load_cert_string(der,X509.FORMAT_DER)
-        cert_chain += x509.as_pem()
+        #from M2Crypto import X509
+        #der = ct.replace(" ","").decode("hex")
+        #x509 = X509.load_cert_string(der,X509.FORMAT_DER)
+        #cert_chain += x509.as_pem()
+        cert_chain += hex_der_to_pem(ct)
 
     certs = split_certs(cert_chain)
     if len(certs)==0:           # nothing to verify???
@@ -530,10 +588,11 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostnames,ipaddr, protocol):
     if cert_usage in [0, 2]: 
         ret_not_matching = []
         for count in range(len(certs)):
-            cert = certs[count]
+            cert = certs[count]         # certificate in PEM format, as returned by OpenSSL command line
             cert_name = "EE certificate" if count==0 else "Chain certificate {}".format(count)
-            cert_obj = M2Crypto.X509.load_cert_string(cert)
-            cert_data = tlsa_select(selector, cert_obj)
+            #cert_obj = M2Crypto.X509.load_cert_string(cert)
+            #cert_data = tlsa_select(selector, cert_obj)
+            cert_data = tlsa_cert_select(selector, cert)
             tm = tlsa_match(mtype, cert_data, ct)
             if tm[0].passed:
                 ret += [ DaneTestResult(test=TEST_TLSA_CU02_TP_FOUND,
@@ -567,8 +626,10 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostnames,ipaddr, protocol):
 
     # Cert usages 1 and 3 specify the EE certificate
     if cert_usage in [1,3]:
-        eecert = M2Crypto.X509.load_cert_string(certs[0])
-        cert_data = tlsa_select(selector, eecert)
+        #eecert = M2Crypto.X509.load_cert_string(certs[0])
+        #cert_data = tlsa_select(selector, eecert)
+        cert_data = tlsa_cert_select(selector, certs[0])
+
         tm = tlsa_match(mtype, cert_data, ct)
         if tm[0].passed:
             # next line commented out so we do not print the whole matching certificate
@@ -1174,9 +1235,13 @@ if __name__=="__main__":
     parser.add_argument("--list",help="List tests",action='store_true')
     parser.add_argument("--html",help="output in HTML",action='store_true')
     parser.add_argument("--test",help="Self test",action='store_true')
+    parser.add_argument("--debug",help="Debug OpenSSL commands",action='store_true')
     parser.add_argument("names",nargs="*")
     args = parser.parse_args()
 
+    if args.debug:
+        global openssl_debug
+        openssl_debug = True
     format = 'text' if args.html==False else 'html'
 
     if args.list:
@@ -1213,7 +1278,7 @@ if __name__=="__main__":
 
         # These test vectors from
         # http://www.internetsociety.org/deploy360/resources/dane-test-sites/
-        for domain in ["dougbarton.us","spodhuis.org", "jhcloos.com", "nlnetlabs.nl", "nlnet.nl"
+        for domain in ["spodhuis.org", "jhcloos.com", "nlnetlabs.nl", "nlnet.nl"
                        ]:
             print("=== {} ===".format(domain))
             process(domain,format=format)
