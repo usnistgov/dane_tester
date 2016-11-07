@@ -35,7 +35,6 @@
 import sys
 import getdns
 import pytest
-import M2Crypto
 import os,os.path
 import subprocess
 from subprocess import Popen,call,PIPE
@@ -52,8 +51,8 @@ PROGRESS="PROGRESS"
 get_altnames_exe = './get_altnames'
 openssl_exe = 'openssl' 
 openssl_cafile = 'ca-bundle.crt'
+global openssl_debug
 openssl_debug = False
-
 
 # See if a better openssl exists; remove OpenSSL defaults
 if os.path.exists("/usr/local/ssl/bin/openssl"):
@@ -337,7 +336,6 @@ def hex_der_to_pem(val):
     #val = val.replace(" ","").replace("\r","").replace("\n","").replace("\t","")
     #x509 = X509.load_cert_string(val.decode("hex"),X509.FORMAT_DER)
     #return x509.as_pem()
-    print("HEX:",val)
     val = val.replace(" ","").decode("hex")   # remove spaces
     cmd = [openssl_exe,'x509','-inform','DER','-outform','PEM']
     return Popen(cmd,stdout=PIPE,stdin=PIPE).communicate(input=val)[0]
@@ -1240,7 +1238,6 @@ if __name__=="__main__":
     args = parser.parse_args()
 
     if args.debug:
-        global openssl_debug
         openssl_debug = True
     format = 'text' if args.html==False else 'html'
 
