@@ -1,0 +1,11 @@
+#
+# Master configuration file for NIST DANE testers
+#
+
+
+[mysql]
+username=<yourusername>
+password=<yourpassword>
+dbname=<databasename>
+host=<hostwheredatabaseislocated>
+

@@ -10,8 +10,6 @@ import sys
 
 assert sys.version > '3'
 
-
-
 SMTP_HOST = "localhost"
 SMTP_PORT = 25
 

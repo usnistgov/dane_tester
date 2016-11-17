@@ -22,22 +22,25 @@ class Dbdns:
             
 def query(T,name,rr,replay=False):
     """Perform a query of host/rr, store results in database, and get results from db and return"""
-
     c = T.conn.cursor()
     if T.rw and replay==False:
         try:
             a = dns.resolver.query(name,rr)
             response_text = a.response.to_text()
-            c.execute("insert into dns (testid,queryname,queryrr,answer) values (%s,%s,%s,%s)",(T.testid,name,rr,response_text))
+            c.execute("insert into dns (testid,queryname,queryrr,answer) values (%s,%s,%s,%s)",
+                      (T.testid,name,rr,response_text))
             return a
         except dns.resolver.NXDOMAIN as e:
-            c.execute("insert into dns (testid,queryname,queryrr,NXDOMAIN) values (%s,%s,%s,True)",(T.testid,name,rr))
+            c.execute("insert into dns (testid,queryname,queryrr,NXDOMAIN) values (%s,%s,%s,True)",
+                      (T.testid,name,rr))
             raise e
         except dns.resolver.Timeout as e:
-            c.execute("insert into dns (testid,queryname,queryrr,Timeout) values (%s,%s,%s,True)",(T.testid,name,rr))
+            c.execute("insert into dns (testid,queryname,queryrr,Timeout) values (%s,%s,%s,True)",
+                      (T.testid,name,rr))
             raise e
     else:
-        c.execute("select answer,NXDOMAIN,Timeout from dns where testid=%s and queryname=%s and queryrr=%s",(T.testid,name,rr))
+        c.execute("select answer,NXDOMAIN,Timeout from dns where testid=%s and queryname=%s and queryrr=%s",
+                  (T.testid,name,rr))
         (response_text,NXDOMAIN,Timeout) = c.fetchone()[0]
         if NXDOMAIN:
             raise dns.resolver.NXDOMAIN

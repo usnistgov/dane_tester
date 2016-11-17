@@ -52,8 +52,6 @@ PROGRESS="PROGRESS"
 get_altnames_exe = './get_altnames'
 openssl_exe = 'openssl' 
 openssl_cafile = 'ca-bundle.crt'
-global openssl_debug
-openssl_debug = False
 BEGIN_PEM_CERTIFICATE="-----BEGIN CERTIFICATE-----"
 END_PEM_CERTIFICATE="-----END CERTIFICATE-----"
 
@@ -68,26 +66,34 @@ def verify_package():
     """Returns True if package is properly installed"""
     return os.path.exists(get_altnames_exe) and os.path.exists(openssl_exe)
 
+def openssl_debug():
+    return "OPENSSL_DEBUG" in os.environ
+
 ################################################################
 # 
 # Use OpenSSL for a command on a certificate, take input from stdin, return output from stdout.
 # If anything goes to stderr, generate an errror
 def openssl_cmd(cmd,cert="",get_returncode=False,output=str):
-    if openssl_debug:
+    if openssl_debug():
         sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
     p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
     (stdout,stderr) = p.communicate(cert.encode('utf8'))
     if get_returncode:
         return p.returncode
+    # ignore error on stderr that we can't seem to get rid of
+    print("len()={}".format(len(stderr)))
+    for s in stderr:
+        print(chr(s),s)
+    if stderr==b"writing RSA key\n": stderr=""               
     if len(stderr)>0 or p.returncode!=0:
         sys.stderr.write("**** OPENSSL ERROR ****\n")
         sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
         sys.stderr.write("INPUT:\n")
         sys.stderr.write(cert+"\n")
         sys.stderr.write("STDOUT:\n")
-        sys.stderr.write(stdout+"\n")
+        sys.stderr.write(stdout.decode('latin1')+"\n")
         sys.stderr.write("STDERR:\n")
-        sys.stderr.write(stderr+"\n")
+        sys.stderr.write(stderr.decode('latin1')+"\n")
         sys.stderr.write("RETURN CODE: {}\n".format(p.returncode))
         assert False
     if output==str:
@@ -317,9 +323,9 @@ def pem_verify(anchor_cert,cert_chain,ee_cert):
     assert not cert_chain  or is_pem(cert_chain)
     assert not ee_cert     or is_pem(ee_cert)
     import tempfile
-    with tempfile.NamedTemporaryFile(delete=not openssl_debug) as chainfile:
-        with tempfile.NamedTemporaryFile(delete=not openssl_debug) as eefile:
-            with tempfile.NamedTemporaryFile(delete=not openssl_debug) as acfile:
+    with tempfile.NamedTemporaryFile(delete=not openssl_debug()) as chainfile:
+        with tempfile.NamedTemporaryFile(delete=not openssl_debug()) as eefile:
+            with tempfile.NamedTemporaryFile(delete=not openssl_debug()) as acfile:
                 eefile.write(ee_cert.encode('utf8'))
                 eefile.flush()
 
@@ -348,13 +354,12 @@ def pem_verify(anchor_cert,cert_chain,ee_cert):
                 except subprocess.CalledProcessError:
                     return False
 
-def hex_der_to_pem(val):
+def der_to_pem(val):
     """Convert a hex representation of a certificate to PEM format"""
     #from M2Crypto import X509
     #val = val.replace(" ","").replace("\r","").replace("\n","").replace("\t","")
     #x509 = X509.load_cert_string(val.decode("hex"),X509.FORMAT_DER)
     #return x509.as_pem()
-    val = val.replace(" ","").decode("hex")   # remove spaces
     cmd = [openssl_exe,'x509','-inform','DER','-outform','PEM']
     return Popen(cmd,stdout=PIPE,stdin=PIPE).communicate(input=val)[0]
 
@@ -481,11 +486,20 @@ def tlsa_cert_select(selector,pem_cert):
     """
     assert selector in [0,1]
     assert "-----BEGIN CERTIFICATE-----" in pem_cert
+    #print("TLSA_CERT_SELECT(selector={},pem_cert={})".format(selector,pem_cert))
+    print("PEM_CERT:")
+    print(pem_cert)
     if selector==0:             # The full certificate, in DER
-        return openssl_cmd([openssl_exe,'x509','-inform','pem','-outform','der'],pem_cert,output=bytes)
+        der = openssl_cmd([openssl_exe,'x509','-inform','pem','-outform','der'],pem_cert,output=bytes)
+        return der
     if selector==1:             # Just the public key
-        pubkey = openssl_cmd([openssl_exe,'x509','-inform','pem','-modulus','-noout'],pem_cert,output=str)
-        return pubkey.replace("Modulus=","")
+        #pubkey_hex = openssl_cmd([openssl_exe,'x509','-inform','pem','-modulus','-noout'],pem_cert,output=str)
+        #pubkey_hex = pubkey_hex.replace("Modulus=","").replace("\r","").replace("\n","")
+        #pubkey     = bytes.fromhex(pubkey_hex)
+        pubkey_pem = openssl_cmd([openssl_exe,'x509','-pubkey'],pem_cert)
+        pubkey_der = openssl_cmd([openssl_exe,'rsa','-inform','pem','-pubin','-outform','der'],pubkey_pem,output=bytes)
+        print("pubkey_der=",pubkey_der)
+        return pubkey_der
     
 
 
@@ -495,23 +509,24 @@ def upperhex(s):
 
 
 # matching type:
-# 0 - raw certificate in DNS
+# 0 - raw certificate in DNS, in binary
 # 1 - SHA256 is in the DNS
 # 2 - SHA512 is in the DNS
 
-def tlsa_match(mtype, cert_data, from_dns):
+def tlsa_match(mtype, cert_data, dns_data):
+    print("tlsa_match({},{},{})".format(mtype, cert_data, dns_data))
     import hashlib
     assert mtype in [0,1,2]
-    hex_data = hexdump(cert_data)
+    comp_data = cert_data       # data to compare
     if mtype == 1:
-        hex_data = hashlib.sha256(cert_data).hexdigest()
+        comp_data = hashlib.sha256(cert_data).digest()
     if mtype == 2:
-        hex_data = hashlib.sha512(cert_data).hexdigest()
-    hex_data = upperhex(hex_data)
-    from_dns = upperhex(from_dns)
-    matches = True if upperhex(hex_data) == upperhex(from_dns) else None
+        comp_data = hashlib.sha512(cert_data).digest()
+    print("comp_data:",comp_data)
+    print("dns_data:",dns_data)
+    matches = True if comp_data == dns_data else None
     return [ DaneTestResult(passed=matches,
-                            what="TLSA mtype {}:  hex_data={} from_dns={}".format(mtype,hex_data,from_dns)) ]
+                            what="TLSA ** mtype {}:  hex_data={} from_dns={}".format(mtype,hexdump(cert_data),hexdump(dns_data))) ]
     
 
 
@@ -583,7 +598,9 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostnames,ipaddr, protocol):
                  
     usage_good    = False
     trust_anchors = ""
-    ct = hexdump(tlsa_rdata['certificate_association_data'])
+    ct = bytes(tlsa_rdata['certificate_association_data'])
+
+    print("cert_usage={} selector={} mtype={}".format(cert_usage,selector,mtype))
 
     # NOTE: For certificate usage 2, selector 0, matching 0,
     # the certificate in the TLSA record should be added to the certificate chain
@@ -592,7 +609,7 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostnames,ipaddr, protocol):
         #der = ct.replace(" ","").decode("hex")
         #x509 = X509.load_cert_string(der,X509.FORMAT_DER)
         #cert_chain += x509.as_pem()
-        cert_chain += hex_der_to_pem(ct)
+        cert_chain += der_to_pem(ct)
 
     certs = split_certs(cert_chain)
     if len(certs)==0:           # nothing to verify???
@@ -646,7 +663,11 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostnames,ipaddr, protocol):
         #cert_data = tlsa_select(selector, eecert)
         cert_data = tlsa_cert_select(selector, certs[0])
 
+        print("cert_data=",cert_data)
+        print("ct=",ct)
+
         tm = tlsa_match(mtype, cert_data, ct)
+        print("tm:",tm)
         if tm[0].passed:
             # next line commented out so we do not print the whole matching certificate
             # ret += tm
@@ -887,8 +908,6 @@ def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
     ret.sort(key=lambda x:x.key)
     return ret
 
-
-
 def get_dns_mx(hostname):
     return get_dns_ip(hostname,request_type=getdns.RRTYPE_MX)
 
@@ -1075,11 +1094,14 @@ def tlsa_smtp_host_verify(hostname,delivery_hostname,delivery_tlsa_records,host_
     
 
 def tlsa_smtp_verify(destination_hostname):
+    print("tlsa_smtp_verify({})".format(destination_hostname))
+
     # Get a list of hosts from either the MX list or the hostname
     ret = []
     delivery_tlsa = []
     mx_data  = get_dns_mx(destination_hostname)
     if not mx_data:
+        print("no mx")
         ret += [ DaneTestResult(what='no MX record for {}'.
                                 format(destination_hostname))]
         ret += tlsa_smtp_host_verify(destination_hostname,None,None,'non-MX')
@@ -1091,11 +1113,14 @@ def tlsa_smtp_verify(destination_hostname):
     delivery_tlsa_records   = get_tlsa_records(destination_tlsa_ret)
     ret += destination_tlsa_ret + mx_data
 
+    print("ret=",ret)
+
     # Get the MX hosts
     first = True
     mx_rets = []
     smtp_tlsa_status = None
     for hostname in [h.rdata['exchange'] for h in mx_data]:
+        print("hostname=",hostname)
         this_ret       = tlsa_smtp_host_verify(hostname,destination_hostname,delivery_tlsa_records,'MX')
         all_tests_pass = True if count_passed(this_ret,True)>0 and count_passed(this_ret,False)==0 else False
         if first:
@@ -1265,7 +1290,7 @@ if __name__=="__main__":
     args = parser.parse_args()
 
     if args.debug:
-        openssl_debug = True
+          os.environ['OPENSSL_DEBUG'] = "TRUE"
     format = 'text' if args.html==False else 'html'
 
     if args.list:

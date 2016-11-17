@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+#
+# Test for py.test to make sure that the DANE code works
+
 import pytest
 from dane_checker import *
 
@@ -19,6 +23,7 @@ def test_get_dns_ip():
     assert n[0].data=="129.6.100.200"
 
 def test_cname():
+    # This works because Simson set up a cname for a.nitroba.org to point to b.nitroba.org
     n = get_dns_cname("a.nitroba.org.")
     assert n[0].data=="b.nitroba.org."
 
