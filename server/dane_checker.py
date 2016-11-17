@@ -1230,7 +1230,6 @@ passed = []
 failed = []
 
 def process(domain,format="text"):
-    print("process({})".format(domain))
     if "http" in domain:
         ret = tlsa_https_verify(domain)
     else:
