@@ -47,6 +47,10 @@ static void dump_alt_names(const X509 *server_cert,int nid,const char *prefix) {
 }
 
 
+/*
+ * Take an input certificate an X509 format and print its alt name.
+ * This interface is not available from the openssl command line
+ */
 int main(int argc,const char **argv)
 {
     const char *path = argv[1];
