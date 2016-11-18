@@ -73,6 +73,7 @@ def openssl_debug():
 # 
 # Use OpenSSL for a command on a certificate, take input from stdin, return output from stdout.
 # If anything goes to stderr, generate an errror
+OPENSSL_IGNORES = [b"writing RSA key\n"]
 def openssl_cmd(cmd,cert="",get_returncode=False,output=str):
     if openssl_debug():
         sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
@@ -81,7 +82,7 @@ def openssl_cmd(cmd,cert="",get_returncode=False,output=str):
     if get_returncode:
         return p.returncode
     # ignore error on stderr that we can't seem to get rid of
-    if stderr==b"writing RSA key\n": stderr=""               
+    if stderr in OPENSSL_IGNORES: stderr=""               
     if len(stderr)>0 or p.returncode!=0:
         sys.stderr.write("**** OPENSSL ERROR ****\n")
         sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
@@ -97,11 +98,6 @@ def openssl_cmd(cmd,cert="",get_returncode=False,output=str):
         return stdout.decode('utf8')
     return stdout
         
-
-        
-
-
-
 
 ################################################################
 # Implement a simple timeout

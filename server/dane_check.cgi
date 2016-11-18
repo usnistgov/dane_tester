@@ -40,8 +40,6 @@ assert sys.version > '3'
 # http://stackoverflow.com/questions/14860034/python-cgi-utf-8-doesnt-work
 import codecs; sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 
-times = 0
-
 if __name__=="__main__":
    cgitb.enable()
    template = open("dane_check_template.html","r",encoding='utf8').read()
@@ -74,27 +72,29 @@ if __name__=="__main__":
       sys.stdout.flush()
       dane_checker.process(host,format='html')
       sys.stdout.flush()
-      print("<p>")
-      print("Compare with <a href='https://dane.sys4.de/smtp/{}'>dane.sys4.de</a>".format(host))
+      print("<p>Compare with <a href='https://dane.sys4.de/smtp/{}'>dane.sys4.de</a></p>".format(host))
 
-   print("<p>")
-   print("Enter a DOMAIN to test an SMTP server.<br/> Enter a URL to test HTTPS server.<br/>")
-   print("<form>")
-   print("<input type='text' name='host'><br>")
-   print("<input type='submit' value='Submit'>")
-   print("</form>")
-   print("Or try some of these test points:<br>")
    def murl(x):
       return "<a href='{}?host={}'>{}</a>".format(os.environ["SCRIPT_NAME"],x,x)
+   print("""
+<p>Enter a DOMAIN to test an SMTP server.<br/> Enter a URL to test HTTPS server.</p>
+<form>
+<input type='text' name='host'><br>
+<input type='submit' value='Submit'>
+</form>
+Or try some of these test points:<br>
+""")
    print("<ul>")
    print("<li>",murl("unixadm.org"),"<i>Email tester</i></li>")
    print("<li>",murl("https://www.freebsd.org/"),"<i>https tester</i></li>")
    print("</ul>")
-   print("<p>Other DANE SMTP checkers:")
-   print("<ul>")
-   print("<li><a href='https://dane.sys4.de/'>https://dane.sys4.de/</a> (SMTP only)")
-   print("<li><a href='https://www.had-pilot.com/dane/danelaw.html'>https://www.had-pilot.com/dane/danelaw.html</a> (HTTPS only).")
-   print("</ul>")
+   print("""
+<p>Other DANE SMTP checkers:</p>
+<ul>
+<li><a href='https://dane.sys4.de/'>https://dane.sys4.de/</a> (SMTP only)</li>
+<li><a href='https://www.had-pilot.com/dane/danelaw.html'>
+   https://www.had-pilot.com/dane/danelaw.html</a> (HTTPS only).</li>
+</ul>""")
    print(bottom)
 
    

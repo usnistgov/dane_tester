@@ -63,7 +63,7 @@ if __name__=="__main__":
     from tester import Tester
 
     parser = argparse.ArgumentParser(description="database maintenance")
-    parser.add_argument("--create",help="Create a new test")
+    parser.add_argument("--createtest",help="Create a new test")
     parser.add_argument("--list",help="List something [tests, users, messages, workqueue]")
     parser.add_argument("--dump",help="Dump database",action="store_true")
     parser.add_argument("--dumpsmtp",help="Dump an SMTP transaction")
@@ -82,12 +82,14 @@ if __name__=="__main__":
     c = T.cursor()
     
 
-    if args.create:
+    if args.createtest:
         try:
-            c.execute("insert into testtypes (name) values (%s)",(args.create,))
+            c.execute("insert into testtypes (name) values (%s)",(args.createtest,))
             T.commit()
+            print("test {} created".format(args.createtest))
         except pymysql.err.IntegrityError as e:
-            print("test {} already exists".format(args.create))
+            print("test {} already exists".format(args.createtest))
+
 
     if args.list:
         if args.list.startswith("test"):

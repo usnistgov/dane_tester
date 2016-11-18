@@ -5,15 +5,28 @@
 # Implements DNS queries to database and response from the database
 # See: https://github.com/rthalley/dnspython/issues/134
 # 
+# Checks DNSSEC on all queries
+# http://stackoverflow.com/questions/26137036/programmatically-check-if-domains-are-dnssec-protected
+
+# force Python3
+import sys
+assert sys.version > '3'
 
 import pytest
-import dns,dns.resolver,dns.query,dns.zone,dns.message
 import pickle
 import dbdns
 import pymysql
-import sys
 
-assert sys.version > '3'
+import dns.name
+import dns.query
+import dns.dnssec
+import dns.message
+import dns.resolver
+import dns.rdatatype
+import dns.zone
+
+
+nsaddr = "8.8.8.8"              # default nameserver address
 
 class Dbdns:
     def __init__(self,response=None):
@@ -21,12 +34,48 @@ class Dbdns:
             self.response = response
             
 def query(T,name,rr,replay=False):
-    """Perform a query of host/rr, store results in database, and get results from db and return"""
+    """Perform a query of host/rr, store results in database, and get results from db and return.
+    @param name - string - what you will query
+    @param rr   - string - the resource records that you want
+    @param replay - boolean - whether to read from the database (True) or write to the data (False; default)
+
+    Note returned object is type <dns.resolver.Answer>
+    Answers are in ret.rrset (which is type dns.rrset.RRset).
+    For each element in the set:
+      TXT records - rdata.strings
+      CNAME records - rdata.target
+      MX records: rdata.preference, rdata.exchange
+      A records: rdata.address
+      AAAA records: rdata.address
+      TLSA records: 
+    
+    """
     c = T.conn.cursor()
     if T.rw and replay==False:
         try:
+            # Old, without dnssec
             a = dns.resolver.query(name,rr)
+            print("old a:",type(a))
             response_text = a.response.to_text()
+            print("old response_text:",response_text)
+
+            #return a
+
+            # New, with dnssec
+            request = dns.message.make_query(name,rr,want_dnssec=True)
+            response = dns.query.udp(request,nsaddr)
+            response_text = response.to_text()
+            from_text  = dns.message.from_text(response_text) # I want a dns.message response
+            a = from_text.answer
+            print("new response_text:",response_text)
+            print("new a:",type(a))
+            print(dir(a))
+            for j in a:
+                print("j",j)
+                print("j.rdclass",j.rdclass)
+                print("j.rdtype",j.rdtype)
+
+
             c.execute("insert into dns (testid,queryname,queryrr,answer) values (%s,%s,%s,%s)",
                       (T.testid,name,rr,response_text))
             return a
