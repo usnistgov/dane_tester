@@ -84,7 +84,7 @@ def get_pubkey(T,email):
     """Returns the DNS cert for email"""
     import re,codecs
     try:
-        msg = dbdns.query(T,email_to_dns(email), "TYPE61")
+        response = dbdns.query(T,email_to_dns(email), "TYPE61")
     except dns.resolver.NXDOMAIN:
         return None
     except dns.resolver.Timeout:
@@ -95,7 +95,7 @@ def get_pubkey(T,email):
     # I've been unable to parse it, so I convert it to RFC 3597-format text,
     # which I then parse. It's not that slow.
 
-    data = msg.response.answer[0][0].to_text()
+    data = response.answer[0][0].to_text()
     r = re.compile(r"\\# (\d+) (.*)")
     m = r.search(data)
     if m:

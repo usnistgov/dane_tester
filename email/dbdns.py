@@ -25,7 +25,6 @@ import dns.resolver
 import dns.rdatatype
 import dns.zone
 
-
 nsaddr = "8.8.8.8"              # default nameserver address
 
 class Dbdns:
@@ -33,9 +32,9 @@ class Dbdns:
         if response:
             self.response = response
             
-def query(T,name,rr,replay=False):
+def query(T,qname,rr,replay=False):
     """Perform a query of host/rr, store results in database, and get results from db and return.
-    @param name - string - what you will query
+    @param qname - string - what you will query
     @param rr   - string - the resource records that you want
     @param replay - boolean - whether to read from the database (True) or write to the data (False; default)
 
@@ -48,54 +47,38 @@ def query(T,name,rr,replay=False):
       A records: rdata.address
       AAAA records: rdata.address
       TLSA records: 
-    
+
+    Get the entire line: rdata.to_text()
     """
     c = T.conn.cursor()
     if T.rw and replay==False:
         try:
-            # Old, without dnssec
-            a = dns.resolver.query(name,rr)
-            print("old a:",type(a))
-            response_text = a.response.to_text()
-            print("old response_text:",response_text)
-
-            #return a
-
-            # New, with dnssec
-            request = dns.message.make_query(name,rr,want_dnssec=True)
+            request  = dns.message.make_query(qname,rr,want_dnssec=True)
             response = dns.query.udp(request,nsaddr)
             response_text = response.to_text()
-            from_text  = dns.message.from_text(response_text) # I want a dns.message response
-            a = from_text.answer
-            print("new response_text:",response_text)
-            print("new a:",type(a))
-            print(dir(a))
-            for j in a:
-                print("j",j)
-                print("j.rdclass",j.rdclass)
-                print("j.rdtype",j.rdtype)
-
 
             c.execute("insert into dns (testid,queryname,queryrr,answer) values (%s,%s,%s,%s)",
-                      (T.testid,name,rr,response_text))
-            return a
+                      (T.testid,qname,rr,response_text))
+
+            return dns.message.from_text(response_text)
         except dns.resolver.NXDOMAIN as e:
             c.execute("insert into dns (testid,queryname,queryrr,NXDOMAIN) values (%s,%s,%s,True)",
-                      (T.testid,name,rr))
+                      (T.testid,qname,rr))
             raise e
         except dns.resolver.Timeout as e:
             c.execute("insert into dns (testid,queryname,queryrr,Timeout) values (%s,%s,%s,True)",
-                      (T.testid,name,rr))
+                      (T.testid,qname,rr))
             raise e
     else:
+        # Replay
         c.execute("select answer,NXDOMAIN,Timeout from dns where testid=%s and queryname=%s and queryrr=%s",
-                  (T.testid,name,rr))
+                  (T.testid,qname,rr))
         (response_text,NXDOMAIN,Timeout) = c.fetchone()[0]
         if NXDOMAIN:
             raise dns.resolver.NXDOMAIN
         if Timeout:
             raise dns.resolver.Timeout
-        return Dbdns(response=dns.message.from_text(response_text))
+        return dns.message.from_text(response_text)
     assert 0
     
 
@@ -186,19 +169,21 @@ if __name__=="__main__":
         print("dig -t {} {}".format(args.t,name))
         print("TestID: {}".format(T.testid))
 
-        b = dbdns.query(T,name,args.t)
-        for part in range(len(b.answer)):
+        response = dbdns.query(T,name,args.t)
+        for part in range(len(response.answer)):
             print("ANSWER PART {}:".format(part))
-            for i in range(len(b.answer[part])):
-                print("RR {}: {} {}".format(i,b.answer[part][i],type(b.answer[part][i])))
+            for i in range(len(response.answer[part])):
+                print("RR {}: {} {}".format(i,response.answer[part][i],type(response.answer[part][i])))
         T.commit()
 
         print("\n\n\nReplay:")
-        c = dbdns.query(T,name,args.t,replay=True)
-        for part in range(len(b.answer)):
+        response = dbdns.query(T,name,args.t,replay=True)
+        for part in range(len(response.answer)):
             print("ANSWER PART {}:".format(part))
             for i in range(len(b.answer[part])):
-                print("RR {}: {} {}".format(i,b.answer[part][i],type(b.answer[part][i])))
+                print("RR {}: {} {}".format(i,
+                                            response.answer[part][i],
+                                            type(response.answer[part][i])))
 
     if args.mxdemo:
         print("MX hosts for dnspython.org:")
@@ -212,6 +197,6 @@ if __name__=="__main__":
         print("dbdns:")
         T = Tester()
         T.newtest(testname="dig")
-        a = dbdns.query(T,"dnspython.org","MX")
-        for x in a.response.answer[0]:
+        response = dbdns.query(T,"dnspython.org","MX")
+        for x in response.answer[0]:
             print("{} {}".format(x.preference,x.exchange))

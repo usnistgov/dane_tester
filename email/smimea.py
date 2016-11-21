@@ -76,7 +76,7 @@ def get_certdb(T,email):
     """Returns the DNS cert for email"""
     import re,codecs
     try:
-        msg = dbdns.query(T,email_to_dns(email), "TYPE53")
+        response = dbdns.query(T,email_to_dns(email), "TYPE53")
     except dns.resolver.NXDOMAIN:
         return None
     except dns.resolver.Timeout:
@@ -87,7 +87,8 @@ def get_certdb(T,email):
     # which I then parse. It's not that slow.
 
     r = re.compile(r"\\# (\d+) (.*)")
-    data = msg.response.answer[0][0].to_text()
+    data = response.answer[0][0].to_text()     # this was previously msg.response.answer
+
     m = r.search(data)
     if m:
         hexdata = codecs.decode(m.group(2).replace(" ",""),"hex")
