@@ -37,6 +37,7 @@ import getdns
 import pytest
 import os,os.path
 import subprocess
+import dbdns
 from subprocess import Popen,call,PIPE
 
 assert sys.version > '3'
@@ -824,10 +825,7 @@ def validate_remote_smtp(ipaddr,hostname):
 
 ################################################################
 ### DNS
-
-
-#extensions = {"return_both_v4_and_v6":getdns.EXTENSION_TRUE,
-#                       "dnssec_return_validation_chain" : getdns.EXTENSION_TRUE}
+### Migrating from getdns to dbdns
 
 extensions = {"dnssec_return_validation_chain" : getdns.EXTENSION_TRUE}
 
@@ -846,11 +844,6 @@ def tlsa_str(rdata):
                            rdata['matching_type'],hexdump(rdata['certificate_association_data']))
     return ret.upper()
 
-def ipv4_to_str(bin_addr):
-    """Convert a 4-byte array that's an IPv4 address to a printable string by
-    converting each byte to a string and joining them with periods...."""
-    return '.'.join(map(str, bin_addr))
-
 def hexdata(rdata):
     def hex2(f):
         return hex(f)[2:]
@@ -858,6 +851,7 @@ def hexdata(rdata):
 
 ctx = getdns.Context()
 def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
+    import ipaddress
     assert type(hostname)==str
     assert len(hostname)>0
     ## getdns bug workaround:
@@ -873,10 +867,15 @@ def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
             dstat = reply.get('dnssec_status')
             rdata = a['rdata']
             if a['type'] == getdns.RRTYPE_A == request_type:
-                ipv4 = ipv4_to_str(rdata['ipv4_address'])
+                ipv4_str = str(ipaddress.IPv4Address(bytes(rdata['ipv4_address'])))
                 ret.append( DaneTestResult(passed=SUCCESS,
-                                           what='DNS A lookup {} = {}'.format(hostname,ipv4),
-                                           dnssec=dstat,data=ipv4, rdata=rdata, key=ipv4) )
+                                           what='DNS A lookup {} = {}'.format(hostname,ipv4_str),
+                                           dnssec=dstat,data=ipv4_str, rdata=rdata, key=ipv4_str) )
+            if a['type'] == getdns.RRTYPE_AAAA == request_type:
+                ipv6_str = str(ipaddress.IPv6Address(bytes(rdata['ipv6_address'])))
+                ret.append( DaneTestResult(passed=SUCCESS,
+                                           what='DNS A lookup {} = {}'.format(hostname,ipv6_str),
+                                           dnssec=dstat,data=ipv6_str, rdata=rdata, key=ipv6_str))
             if a['type'] == getdns.RRTYPE_CNAME == request_type:
                 ret.append( DaneTestResult(passed=SUCCESS,
                                            what='DNS CNAME lookup {} = {}'.format(hostname,rdata['cname']),
@@ -890,6 +889,9 @@ def get_dns_ip(hostname,request_type=getdns.RRTYPE_A):
                                            dnssec=dstat,rdata=rdata,key=tlsa_str(rdata)))
     ret.sort(key=lambda x:x.key)
     return ret
+
+def get_dns_ipv6(hostname):
+    return get_dns_ip(hostname,request_type=getdns.RRTYPE_AAAA)
 
 def get_dns_mx(hostname):
     return get_dns_ip(hostname,request_type=getdns.RRTYPE_MX)

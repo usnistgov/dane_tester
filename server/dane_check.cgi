@@ -92,8 +92,8 @@ Or try some of these test points:<br>
 <p>Other DANE SMTP checkers:</p>
 <ul>
 <li><a href='https://dane.sys4.de/'>https://dane.sys4.de/</a> (SMTP only)</li>
-<li><a href='https://www.had-pilot.com/dane/danelaw.html'>
-   https://www.had-pilot.com/dane/danelaw.html</a> (HTTPS only).</li>
+<li><a href='https://www.had-pilot.com/dane/danelaw.html'> https://www.had-pilot.com/dane/danelaw.html</a> (HTTPS only).</li>
+<li><a href='https://www.huque.com/bin/danecheck'>https://www.huque.com/bin/danecheck</a> (SMTP, IMAP, POP3)</li>
 </ul>""")
    print(bottom)
 

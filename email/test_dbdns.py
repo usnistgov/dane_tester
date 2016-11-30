@@ -2,6 +2,7 @@
 #
 # Test for py.test to make sure that the dbdns connection works
 
+import sys; assert sys.version > '3'
 import pytest
 from tester import Tester
 import dbdns
@@ -17,7 +18,6 @@ def test_cname_read():
     for rset in response.answer:
         for rr in rset:
             if(rr.rdtype==dns.rdatatype.CNAME):
-                print(dir(rr))
                 print("cname for a.nitroba.org is {}".format(rr.target))
                 assert(str(rr.target)=='b.nitroba.org.')
                 count += 1
@@ -46,12 +46,43 @@ def test_two_A_responses():
     for rrset in response.answer:
         for rr in rrset:
             if rr.rdtype == dns.rdatatype.A:
-                print(rr.address)
+                print("IP address for {} is {}".format(qname,rr.address))
                 count +=1
     assert(count>=2)
     
+
+def test_dnssec_response_present():
+    qname = "dnsviz.net"
+    T = Tester()
+    T.newtest(testname="py.test")
+    response = dbdns.query(T,qname,dns.rdatatype.A)
+    count = 0
+    for rrset in response.answer:
+        for rr in rrset:
+            if rr.rdtype == dns.rdatatype.A:
+                dnssec = response.flags & dns.flags.AD
+                print("IP address for {} is {} DNSSEC: {}".format(qname,rr.address, dnssec))
+                if dnssec: count +=1
+    assert count>0
+
+def test_dnssec_response_notpresent():
+    qname = "www.google.com"
+    T = Tester()
+    T.newtest(testname="py.test")
+    response = dbdns.query(T,qname,dns.rdatatype.A)
+    count = 0
+    for rrset in response.answer:
+        for rr in rrset:
+            if rr.rdtype == dns.rdatatype.A:
+                dnssec = response.flags & dns.flags.AD
+                print("IP address for {} is {} DNSSEC: {}".format(qname,rr.address, dnssec))
+                if dnssec: count += 1
+    assert count==0
+
 
 if __name__=="__main__":
     test_cname_read()
     test_a_read()
     test_two_A_responses()
+    test_dnssec_response_present()
+    test_dnssec_response_notpresent()

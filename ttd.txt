@@ -1,10 +1,15 @@
 Things to do next:
 
 - modify server/ tester:
-  - upgrade from Python2 to Python3
-    - Replace M2Crypto with calls to OpenSSL command line utility
+  + upgrade from Python2 to Python3
+    + Replace M2Crypto with calls to OpenSSL command line utility
   - use new framework
-    - stop using getdns; use dbdns
+    + stop using getdns; use dbdns
+    + modify dbdns so that the objects returned are full-fledged results.
+    - make sure dbdns supports dnssec
+    - add tests so that dbdns verifies dnssec with and without
+    - modify getdns covers so that they work with dbdns
+    - create more tests for 
     - create a test instance object
     - Anonymous user, unless there is a login (for web)
 - Modify tester framework:

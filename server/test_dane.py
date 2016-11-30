@@ -15,12 +15,17 @@ def test_smtp_works():
     assert len(sys4_smtp)>0
 
 def test_get_tlsa():
-    n = get_dns_tlsa("www.had-pilot.com",443)
-    assert tlsa_str(n[0].rdata) == "1 0 1 E5024FB9FBF366850138836E22EAD22728F2E7950ACFE75971D0099571C5E4D0"
+    # Keeping this working has been challenging...
+    n = get_dns_tlsa("nohats.ca",443)
+    assert tlsa_str(n[0].rdata) == "3 0 1 323E3584BA6F986CF09F27CF260CAC42F5E5BD5E81DF705FD33AC59717110389"
 
 def test_get_dns_ip():
     n = get_dns_ip("www.had-pilot.com.")
-    assert n[0].data=="129.6.100.200"
+    assert n[0].data=="129.6.100.206"
+
+def test_get_dns_ipv6():
+    n = get_dns_ipv6("www.had-pilot.com.")
+    assert n[0].data=="2610:20:6005:100::206"
 
 def test_cname():
     # This works because Simson set up a cname for a.nitroba.org to point to b.nitroba.org
@@ -190,7 +195,6 @@ GEOKUhNxGbmLSVRrmfedg3RpYQFoZmN2ML8YANX3JWwE7lDpWSCRVo0z
 -----END CERTIFICATE-----
 """
 
-
 def test_pem_verify():
     certs = split_certs(google_chain)
     assert pem_verify(certs[-1],google_chain,google_cert)==True
@@ -208,8 +212,13 @@ def test_bad_sig_dane_verisignlabs_com():
 
 
 if __name__=="__main__":
-    tlsa_https_verify("good.dane.verisignlabs.com")
+    test_get_certificate_chain()
+    test_smtp_works()
+    test_get_tlsa()
+    test_get_dns_ip()
+    test_get_dns_ipv6()
+    test_cname()
+    test_mx()
+    test_pem_verify()
     test_good_dane_verisignlabs_com()
     test_bad_sig_dane_verisignlabs_com()
-    test_pem_verify()
-    test_smtp_works()
