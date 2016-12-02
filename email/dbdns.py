@@ -54,7 +54,6 @@ def query(T,qname,rr,replay=False):
     c = T.conn.cursor()
     if T.rw and replay==False:
         try:
-            print("nsaddr=",nsaddr)
             request  = dns.message.make_query(qname,rr,want_dnssec=True)
             response = dns.query.udp(request,nsaddr)
             response_text = response.to_text()

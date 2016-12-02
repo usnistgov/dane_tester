@@ -34,7 +34,6 @@
 
 import sys; assert sys.version > '3'
 
-#import getdns
 import pytest
 import os,os.path
 import subprocess
@@ -209,19 +208,22 @@ TEST_MX_PREEMPTION   = DaneTest(407,""" "Domains that want secure inbound mail d
 # Object to represent the outputs
 
 class DaneTestResult:
-    __slots__ = ['passed','dnssec','dnsrelied','hostname','ipaddr','test','what','data','rr','key']
-    def __init__(self,passed=None,test=None,dnssec=None,what='',data=None,
-                 rr=None,hostname=None,ipaddr=None,key=0):
+    __slots__ = ['passed','dnsrelied','hostname','ipaddr','test','what','data','response','rr','key']
+    def __init__(self,passed=None,test=None,what='',data=None,
+                 response=None,rr=None,hostname=None,ipaddr=None,key=0):
         self.passed = passed
-        self.dnssec = dnssec
-        self.dnsrelied = True   # by default, assume we rely on this DNS
+        self.dnsrelied = True           # by default, assume we rely on this DNS
         self.hostname = hostname
         self.ipaddr = ipaddr
         self.test   = test
         self.what   = what
         self.data   = data
-        self.rr     = rr
+        self.response = response # the entire response
+        self.rr     = rr        # the specific rr
         self.key    = key
+    def dnssec(self):
+        return bool(self.response.flags & dns.flags.AD) if self.response else None           # was query DNSSEC validated?
+
     def __repr__(self):
         if type(self.data)==str:
             count = self.data.count("\n")
@@ -232,7 +234,7 @@ class DaneTestResult:
         else:
             lines = ""
         return "<%s %s %s %s>" % ({True:"P",False:"F","":"n/a",PROGRESS:PROGRESS,INFO:INFO,WARNING:WARNING}[self.passed],
-                                  self.dnssec,self.what,lines)
+                                  self.dnssec(),self.what,lines)
 
 # Count the number of results in an array
 def count_passed(ret,v):
@@ -856,23 +858,28 @@ def dns_query(qname,request_type=dns.rdatatype.A):
             if rr.rdtype == dns.rdatatype.A == request_type:
                 ret.append( DaneTestResult(passed=SUCCESS, 
                                            what="DNS A lookup {} = {}".format(qname, rr.address), 
-                                           dnssec=response.flags & dns.flags.AD, rr=rr, 
+                                           response=response,
+                                           rr=rr, 
                                            data=rr.address,  key=rr.address))
             if rr.rdtype == dns.rdatatype.AAAA == request_type:
                 ret.append( DaneTestResult(passed=SUCCESS, 
                                            what='DNS AAAA lookup {} = {}'.format(qname, rr.address), 
-                                           dnssec=response.flags & dns.flags.AD,  data=rr.address,  rr=rr,  key=rr.address))
+                                           response=response,
+                                           rr=rr, data=rr.address,  key=rr.address))
             if rr.rdtype == dns.rdatatype.CNAME == request_type:
                 ret.append( DaneTestResult(passed=SUCCESS, 
                                            what='DNS CNAME lookup {} = {}'.format(qname, rr.target), 
-                                           dnssec=response.flags & dns.flags.AD, data=rr.target, rr=rr, key=rr.target))
+                                           response=response,
+                                           rr=rr, data=rr.target, key=rr.target))
             if rr.rdtype == dns.rdatatype.MX == request_type:
                 ret.append( DaneTestResult(passed=SUCCESS, 
                                            what='DNS MX lookup {} = {} {}'.format(qname, rr.preference, rr.exchange), 
-                                           dnssec=response.flags & dns.flags.AD, data=rr.exchange,  rr=rr, key=rr.preference))
+                                           response=response,
+                                           rr=rr, data=rr.exchange,  key=rr.preference))
             if rr.rdtype == dns.rdatatype.TLSA == request_type:
                 ret.append( DaneTestResult(passed=SUCCESS, what='DNS TLSA lookup {} = {}'.format(qname, tlsa_rr_str(rr)), 
-                                           dnssec=response.flags & dns.flags.AD,  rr=rr, key=tlsa_rr_str(rr)))
+                                           response=response,
+                                           rr=rr, key=tlsa_rr_str(rr)))
     ret.sort(key=lambda x:x.key)
     return ret
                 
@@ -881,7 +888,6 @@ def dns_query_ipv6(qname):
     return dns_query(qname,request_type=dns.rdatatype.AAAA)
 
 def dns_query_mx(qname):
-    print("dns_query_mx")
     return dns_query(qname,request_type=dns.rdatatype.MX)
 
 def dns_query_cname(qname):
@@ -914,7 +920,7 @@ def chase_dns_cname(hostname):
                                             what='Expanding CNAME {} to {}'.format(original_hostname,hostname))]
             return (hostname,results)
         for r in cname_results:
-            if not r.dnssec:
+            if not r.dnssec():
                 secure = False
         results += cname_results
         hostname = cname_results[0].data
@@ -936,15 +942,11 @@ def get_tlsa_records(retlist):
 # of IP addresses and verify the certificate of each.
 
 def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname=None,delivery_tlsa=[]):
-    print("tlsa_service_verify")
     ret = []
     ret += dns_query_tlsa(hostname,port)
 
-    print("after dns_query_tlsa, ret:",ret)
-
     tlsa_records = get_tlsa_records(ret)
 
-    print("tlsa_records:",tlsa_records)
     if delivery_tlsa:
         tlsa_records += delivery_tlsa
 
@@ -955,10 +957,9 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
                             test = TEST_TLSA_PRESENT,
                             hostname = hostname,
                             what = what) ]
-    print("after test, ret:",ret)
 
     if tlsa_records:
-        ret += [ DaneTestResult(passed = bool(tlsa_records[0].dnssec),
+        ret += [ DaneTestResult(passed = bool(tlsa_records[0].dnssec()),
                                 what = what,
                                 test = TEST_TLSA_DNSSEC,
                                 hostname = hostname) ]
@@ -1040,26 +1041,28 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
 def apply_dnssec_test(ret):
     valid = True
     for test in ret:
-        if test.dnsrelied and not test.dnssec:
+        if test.dnsrelied and test.dnssec()==False:
             valid = False
             break
-    ret += [ DaneTestResult(test=TEST_DNSSEC_ALL, passed=valid) ]
+    ret += [ DaneTestResult(test=TEST_DNSSEC_ALL,
+                            what="Was DNSSEC present for all tests on which DNSSEC was relied?",
+                            passed=valid) ]
     return ret
 
 
 def tlsa_https_verify(url):
-    print("tlsa_https_verify")
     from urllib.parse import urlparse
     ret  = []
     o    = urlparse(url)    # Find the host and port
     port = o.port if o.port else 443
     ret += tlsa_service_verify(desc="HTTP",hostname=o.hostname,port=port,protocol='https')
+
     apply_dnssec_test(ret)
 
     # Make sure that none of the DANE tests were a hard fail
     valid = count_passed(ret,True) > 0 and count_passed(ret,False)==0
     ret += [ DaneTestResult(test=TEST_TLSA_HTTP_NO_FAIL,
-                            what="Were any DANE HTTP tests a hard fail?",
+                            what="Did no required DANE HTTP tests have a hard fail?",
                             passed=valid) ]
     return ret
     
@@ -1134,7 +1137,7 @@ def tlsa_smtp_verify(destination_hostname):
     
 def print_test_results(results,format="text"):
     def dnssec(t):
-        return dnssec_status[t.dnssec]+" " if t.dnssec else ""
+        return "DNSSEC" if t.dnssec() else ""
 
     def passed(t):
         return {True:"PASSED: ",

@@ -220,10 +220,6 @@ def test_pem_verify():
 
 def test_good_dane_verisignlabs_com():
     ret = tlsa_https_verify("https://good.dane.verisignlabs.com/")
-    for r in ret:
-        print("r=",r.what,"passed=",r.passed)
-        print(r)
-        print("-----------------")
     assert ret[-1].passed == True
 
 def test_bad_sig_dane_verisignlabs_com():
