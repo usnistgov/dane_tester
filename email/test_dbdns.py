@@ -8,6 +8,15 @@ from tester import Tester
 import dbdns
 import dns.rdatatype
 
+def hexdump(s, separator=''):
+    if type(s)==str:
+        return separator.join("{:02X}".format(ord(x)) for x in s)
+    if type(s)==bytes:
+        return separator.join("{:02X}".format(x) for x in s)
+    if type(s)==memoryview:
+        return separator.join("{:02X}".format(x) for x in bytes(s))
+    raise RuntimeError("Unknown type for hexdump: {}".format(type(s)))
+
 def test_cname_read():
     # This test makes use of the fact that a.nitroba.org is set as a cname to b.nitroba.org
     qname = "a.nitroba.org"
@@ -31,7 +40,7 @@ def test_a_read():
     count = 0
     for rrset in response.answer:
         for rr in rrset:
-            if r.rdtype==dns.rdatatype.A:
+            if rr.rdtype==dns.rdatatype.A:
                 print("IP addr for {} is {}".format(qname,rr.address))
                 assert(rr.address=='8.8.8.8')
                 count += 1
@@ -80,9 +89,27 @@ def test_dnssec_response_notpresent():
     assert count==0
 
 
+def test_read_tlsa():
+    """Verify that a TLSA record can be read"""
+    qname = "_443._tcp.good.dane.verisignlabs.com"
+    T = Tester()
+    T.newtest(testname="py.test")
+    response = dbdns.query(T,qname,dns.rdatatype.TLSA)
+    count = 0
+    for rrset in response.answer:
+        for rr in rrset:
+            if rr.rdtype == dns.rdatatype.TLSA:
+                print("{}: {} {} {} {}".format(qname,rr.usage,rr.selector,rr.mtype,hexdump(rr.cert)))
+                count += 1
+    assert count>0
+
+
+
+
 if __name__=="__main__":
     test_cname_read()
     test_a_read()
     test_two_A_responses()
     test_dnssec_response_present()
     test_dnssec_response_notpresent()
+    test_read_tlsa()

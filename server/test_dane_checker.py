@@ -220,6 +220,10 @@ def test_pem_verify():
 
 def test_good_dane_verisignlabs_com():
     ret = tlsa_https_verify("https://good.dane.verisignlabs.com/")
+    for r in ret:
+        print("r=",r.what,"passed=",r.passed)
+        print(r)
+        print("-----------------")
     assert ret[-1].passed == True
 
 def test_bad_sig_dane_verisignlabs_com():
@@ -228,8 +232,9 @@ def test_bad_sig_dane_verisignlabs_com():
 
 
 if __name__=="__main__":
-    test_mx()
+    test_good_dane_verisignlabs_com()
     exit(0)
+    test_mx()
     test_get_tlsa()
     test_dns_query()
     test_get_certificate_chain()
@@ -239,5 +244,4 @@ if __name__=="__main__":
     test_dns_query_ipv6()
     test_cname()
     test_pem_verify()
-    test_good_dane_verisignlabs_com()
     test_bad_sig_dane_verisignlabs_com()

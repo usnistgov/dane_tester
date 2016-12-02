@@ -34,7 +34,7 @@
 
 import sys; assert sys.version > '3'
 
-import getdns
+#import getdns
 import pytest
 import os,os.path
 import subprocess
@@ -209,9 +209,9 @@ TEST_MX_PREEMPTION   = DaneTest(407,""" "Domains that want secure inbound mail d
 # Object to represent the outputs
 
 class DaneTestResult:
+    __slots__ = ['passed','dnssec','dnsrelied','hostname','ipaddr','test','what','data','rr','key']
     def __init__(self,passed=None,test=None,dnssec=None,what='',data=None,
-                 rdata=None,rr=None,
-                 hostname=None,ipaddr=None,key=0):
+                 rr=None,hostname=None,ipaddr=None,key=0):
         self.passed = passed
         self.dnssec = dnssec
         self.dnsrelied = True   # by default, assume we rely on this DNS
@@ -220,11 +220,19 @@ class DaneTestResult:
         self.test   = test
         self.what   = what
         self.data   = data
-        self.rdata  = rdata
         self.rr     = rr
         self.key    = key
     def __repr__(self):
-        return "%s %s %s %s" % (self.passed,self.dnssec,self.what,self.data)
+        if type(self.data)==str:
+            count = self.data.count("\n")
+            if count==0:
+                lines = self.data
+            else:
+                lines = "{} lines ".format(count)
+        else:
+            lines = ""
+        return "<%s %s %s %s>" % ({True:"P",False:"F","":"n/a",PROGRESS:PROGRESS,INFO:INFO,WARNING:WARNING}[self.passed],
+                                  self.dnssec,self.what,lines)
 
 # Count the number of results in an array
 def count_passed(ret,v):
@@ -544,12 +552,12 @@ def tlsa_match(mtype, cert_data, dns_data):
 # @param tlsa_rdata - the particular TLSA record being verified
 # @param hostname   - the hostname being verified
 
-def tlsa_verify(cert_chain,tlsa_rdata,hostnames,ipaddr, protocol):
+def tlsa_verify(cert_chain,tlsa_rr,hostnames,ipaddr, protocol):
     hostname0  = hostnames[0]
-    cert_usage = tlsa_rdata['certificate_usage']
-    selector   = tlsa_rdata['selector']
-    mtype      = tlsa_rdata['matching_type']
-    associated_data = tlsa_rdata['certificate_association_data']
+    cert_usage = tlsa_rr.usage
+    selector   = tlsa_rr.selector
+    mtype      = tlsa_rr.mtype
+    associated_data = tlsa_rr.cert
     ret = []
 
     ret += [ DaneTestResult(passed=PROGRESS,
@@ -590,7 +598,7 @@ def tlsa_verify(cert_chain,tlsa_rdata,hostnames,ipaddr, protocol):
                  
     usage_good    = False
     trust_anchors = ""
-    ct = bytes(tlsa_rdata['certificate_association_data'])
+    ct = bytes(tlsa_rr.cert)
 
     # NOTE: For certificate usage 2, selector 0, matching 0,
     # the certificate in the TLSA record should be added to the certificate chain
@@ -829,91 +837,6 @@ def tlsa_hostname(host,port):
 
 ################################################################
 ### DNS
-### getdns implementation
-
-extensions = {"dnssec_return_validation_chain" : getdns.EXTENSION_TRUE}
-
-
-dnssec_status = {getdns.DNSSEC_SECURE:"SECURE",
-                 getdns.DNSSEC_INDETERMINATE:"INDETERMINATE",
-                 getdns.DNSSEC_INSECURE:"INSECURE",
-                 getdns.DNSSEC_BOGUS:"BOGUS",
-                 None:""}
-
-
-def tlsa_str(rdata):
-    """Return a normalized (all caps TLSA string associated with a DNS response"""
-    ret = "%s %s %s %s" % (rdata['certificate_usage'],rdata['selector'],
-                           rdata['matching_type'],hexdump(rdata['certificate_association_data']))
-    return ret.upper()
-
-def hexdata(rdata):
-    def hex2(f):
-        return hex(f)[2:]
-    return "".join(map(hex2,map(ord,rdata)))
-
-ctx = getdns.Context()
-def get_dns_ip(qname,request_type=getdns.RRTYPE_A):
-    """Perform a DNS query and return a list of DaneTestResult objects"""
-    import ipaddress
-    assert type(qname)==str
-    assert len(qname)>0
-    ## getdns bug workaround:
-    ## If TLSA, do a A query first and ignore the results
-    ## Not sure why, but this seems required for the NIST DNS server
-    if request_type==getdns.RRTYPE_TLSA:
-        ctx.general(name=qname,request_type=getdns.RRTYPE_A,extensions=extensions)
-    ret = []
-    SUCCESS=""
-    results = ctx.general(name=qname,request_type=request_type,extensions=extensions)
-    for reply in results.replies_tree:
-        for a in reply['answer']:
-            dstat = reply.get('dnssec_status')
-            rdata = a['rdata']
-            if a['type'] == getdns.RRTYPE_A == request_type:
-                ipv4_str = str(ipaddress.IPv4Address(bytes(rdata['ipv4_address'])))
-                ret.append( DaneTestResult(passed=SUCCESS,
-                                           what='DNS A lookup {} = {}'.format(qname,ipv4_str),
-                                           dnssec=dstat,data=ipv4_str, rdata=rdata, key=ipv4_str) )
-            if a['type'] == getdns.RRTYPE_AAAA == request_type:
-                ipv6_str = str(ipaddress.IPv6Address(bytes(rdata['ipv6_address'])))
-                ret.append( DaneTestResult(passed=SUCCESS,
-                                           what='DNS AAAA lookup {} = {}'.format(qname,ipv6_str),
-                                           dnssec=dstat,data=ipv6_str, rdata=rdata, key=ipv6_str))
-            if a['type'] == getdns.RRTYPE_CNAME == request_type:
-                ret.append( DaneTestResult(passed=SUCCESS,
-                                           what='DNS CNAME lookup {} = {}'.format(qname,rdata['cname']),
-                                           dnssec=dstat,data=rdata['cname'],rdata=rdata,key=rdata['cname']))
-            if a['type'] == getdns.RRTYPE_MX == request_type:
-                ret.append( DaneTestResult(passed=SUCCESS,
-                                           what='DNS MX lookup {} = {} {}'.format(qname,rdata['preference'],rdata['exchange']),
-                                           dnssec=dstat,data=rdata['exchange'],rdata=rdata,key=rdata['preference']))
-            if a['type'] == getdns.RRTYPE_TLSA == request_type:
-                ret.append( DaneTestResult(passed=SUCCESS,what='DNS TLSA lookup {} = {}'.format(qname,tlsa_str(rdata)),
-                                           dnssec=dstat,rdata=rdata,key=tlsa_str(rdata)))
-    ret.sort(key=lambda x:x.key)
-    return ret
-
-def get_dns_ipv6(qname):
-    return get_dns_ip(qname,request_type=getdns.RRTYPE_AAAA)
-
-def get_dns_mx(qname):
-    return get_dns_ip(qname,request_type=getdns.RRTYPE_MX)
-
-def get_dns_cname(qname):
-    return get_dns_ip(qname,request_type=getdns.RRTYPE_CNAME)
-
-def get_dns_tlsa(host,port):
-    # See if the TLSA record is actually pointing to a CNAME
-    ret = []
-    tlsa_name = tlsa_hostname(host,port)
-    (tlsa_name,cname_ret) = chase_dns_cname(tlsa_name)
-    ret += cname_ret
-    ret += get_dns_ip(tlsa_name,request_type=getdns.RRTYPE_TLSA)
-    return ret
-
-################################################################
-### DNS
 ### dnspython implementation.
 
 def tlsa_rr_str(rr):
@@ -970,7 +893,7 @@ def dns_query_tlsa(host,port):
     tlsa_name = tlsa_hostname(host,port)
     (tlsa_name,cname_ret) = chase_dns_cname(tlsa_name)
     ret += cname_ret
-    ret += dns_query(tlsa_name,request_type=getdns.RRTYPE_TLSA)
+    ret += dns_query(tlsa_name,request_type=dns.rdatatype.TLSA)
     return ret
 
 ################################################################
@@ -983,7 +906,7 @@ def chase_dns_cname(hostname):
     depth = 0
     secure = True
     while depth < MAX_CNAME_DEPTH and hostname:
-        cname_results = get_dns_cname(hostname)
+        cname_results = dns_query_cname(hostname)
         if cname_results==[]:
             if depth>0:
                 results += [ DaneTestResult(passed=secure,
@@ -1002,7 +925,10 @@ def chase_dns_cname(hostname):
     return (None,results)
     
 def get_tlsa_records(retlist):
-    return list(filter(lambda r:"certificate_usage" in str(r.rdata),retlist))
+    """Return the TLSA records in the set of DaneTestResult()"""
+    for r in retlist:
+        assert type(r)==DaneTestResult
+    return list(filter(lambda e:e.rr.rdtype==dns.rdatatype.TLSA,retlist))
 
 
 #
@@ -1010,9 +936,15 @@ def get_tlsa_records(retlist):
 # of IP addresses and verify the certificate of each.
 
 def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname=None,delivery_tlsa=[]):
+    print("tlsa_service_verify")
     ret = []
-    ret += get_dns_tlsa(hostname,port)
+    ret += dns_query_tlsa(hostname,port)
+
+    print("after dns_query_tlsa, ret:",ret)
+
     tlsa_records = get_tlsa_records(ret)
+
+    print("tlsa_records:",tlsa_records)
     if delivery_tlsa:
         tlsa_records += delivery_tlsa
 
@@ -1023,8 +955,10 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
                             test = TEST_TLSA_PRESENT,
                             hostname = hostname,
                             what = what) ]
+    print("after test, ret:",ret)
+
     if tlsa_records:
-        ret += [ DaneTestResult(passed = (tlsa_records[0].dnssec==getdns.DNSSEC_SECURE),
+        ret += [ DaneTestResult(passed = bool(tlsa_records[0].dnssec),
                                 what = what,
                                 test = TEST_TLSA_DNSSEC,
                                 hostname = hostname) ]
@@ -1035,7 +969,7 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
     if not chased_hostname:
         return ret              # CNAME recursion failed
 
-    ip_results = get_dns_ip(chased_hostname)
+    ip_results = dns_query(chased_hostname)
 
     # Check each ip address against each tlsa record
     tlsa_verified_ip_addresses = 0
@@ -1068,7 +1002,7 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
         if delivery_hostname:
             hostnames.append(delivery_hostname)
         for tlsa_record in tlsa_records:
-            ret_t = tlsa_verify(cert_chain, tlsa_record.rdata, hostnames, ipaddr, protocol)
+            ret_t = tlsa_verify(cert_chain, tlsa_record.rr, hostnames, ipaddr, protocol)
             if find_first_test(ret_t,TEST_TLSA_CU_VALIDATES) and find_first_test(ret_t,TEST_TLSA_CU_VALIDATES).passed:
                 ret_tlsa_verified += ret_t
                 validating_tlsa_records += 1
@@ -1097,7 +1031,7 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
                             test=TEST_TLSA_ALL_IP,
                             hostname=hostname,
                             what="Validating TLSA records for {} out of {} IP addresses found for host {}"\
-                            .format(tlsa_verified_ip_addresses,len(ip_results),hostname)) ]
+                            .format(tlsa_verified_ip_addresses, len(ip_results), hostname)) ]
 
     # TK: We need to indicate that it works for ALL IP addresses.
     return ret
@@ -1106,25 +1040,22 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
 def apply_dnssec_test(ret):
     valid = True
     for test in ret:
-        if test.dnsrelied and (test.dnssec not in [None,getdns.DNSSEC_SECURE]):
+        if test.dnsrelied and not test.dnssec:
             valid = False
             break
-    ret += [ DaneTestResult(test=TEST_DNSSEC_ALL,
-                            passed=valid) ]
+    ret += [ DaneTestResult(test=TEST_DNSSEC_ALL, passed=valid) ]
+    return ret
 
 
 def tlsa_https_verify(url):
+    print("tlsa_https_verify")
     from urllib.parse import urlparse
-    ret = []
-
-    # Find the host and port
-    o = urlparse(url)
-    
-    port = o.port
-    if not port: port = 443
-
+    ret  = []
+    o    = urlparse(url)    # Find the host and port
+    port = o.port if o.port else 443
     ret += tlsa_service_verify(desc="HTTP",hostname=o.hostname,port=port,protocol='https')
     apply_dnssec_test(ret)
+
     # Make sure that none of the DANE tests were a hard fail
     valid = count_passed(ret,True) > 0 and count_passed(ret,False)==0
     ret += [ DaneTestResult(test=TEST_TLSA_HTTP_NO_FAIL,
@@ -1147,7 +1078,7 @@ def tlsa_smtp_verify(destination_hostname):
     # Get a list of hosts from either the MX list or the hostname
     ret = []
     delivery_tlsa = []
-    mx_data  = get_dns_mx(destination_hostname)
+    mx_data  = dns_query_mx(destination_hostname)
     if not mx_data:
         ret += [ DaneTestResult(what='no MX record for {}'.
                                 format(destination_hostname))]
@@ -1156,7 +1087,7 @@ def tlsa_smtp_verify(destination_hostname):
     
 
     # Get the TLSA record for the final destination
-    destination_tlsa_ret = get_dns_tlsa(destination_hostname,25)
+    destination_tlsa_ret = dns_query_tlsa(destination_hostname,25)
     delivery_tlsa_records   = get_tlsa_records(destination_tlsa_ret)
     ret += destination_tlsa_ret + mx_data
 
@@ -1164,7 +1095,7 @@ def tlsa_smtp_verify(destination_hostname):
     first = True
     mx_rets = []
     smtp_tlsa_status = None
-    for hostname in [h.rdata['exchange'] for h in mx_data]:
+    for hostname in [h.rr.exchange for h in mx_data]:
         this_ret       = tlsa_smtp_host_verify(hostname,destination_hostname,delivery_tlsa_records,'MX')
         all_tests_pass = True if count_passed(this_ret,True)>0 and count_passed(this_ret,False)==0 else False
         if first:
@@ -1352,10 +1283,10 @@ if __name__=="__main__":
         exit(0)
 
     if args.getdnstlsa:
-        n = get_dns_tlsa(args.getdnstlsa,443)
-        a = tlsa_str(n[0].rdata)
-        b = "1 0 1 E5024FB9FBF366850138836E22EAD22728F2E7950ACFE75971D0099571C5E4D0"
-        assert(a==b)
+        for rrset in dns_query_tlsa(args.getdnstlsa,443).answer:
+            for rr in rrset:
+                if rr.rdtype==dns.rdatatype.TLSA:
+                    print("{}: {} {} {} {}".format(args.getdnstlsa,rr.usage,rr.selector,rr.mtype,hexdump(rr.cert)))
         exit(0)
 
     def check(fn):

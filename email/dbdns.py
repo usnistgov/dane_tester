@@ -27,6 +27,7 @@ import dns.zone
 
 nsaddr = "8.8.8.8"              # default nameserver address
 
+
 class Dbdns:
     def __init__(self,response=None):
         if response:
@@ -41,18 +42,19 @@ def query(T,qname,rr,replay=False):
     Note returned object is type <dns.resolver.Answer>
     Answers are in ret.rrset (which is type dns.rrset.RRset).
     For each element in the set:
-      TXT records - rdata.strings
-      CNAME records - rdata.target
-      MX records: rdata.preference, rdata.exchange
-      A records: rdata.address
-      AAAA records: rdata.address
+      TXT records - rr.strings
+      CNAME records - rr.target
+      MX records: rr.preference, rr.exchange
+      A records: rr.address
+      AAAA records: rr.address
       TLSA records: 
 
-    Get the entire line: rdata.to_text()
+    Get the entire line: rr.to_text()
     """
     c = T.conn.cursor()
     if T.rw and replay==False:
         try:
+            print("nsaddr=",nsaddr)
             request  = dns.message.make_query(qname,rr,want_dnssec=True)
             response = dns.query.udp(request,nsaddr)
             response_text = response.to_text()
@@ -84,19 +86,19 @@ def query(T,qname,rr,replay=False):
 
 def test_query_MX():
     answers = query("dnspython.org","MX")
-    for rdata in answers:
-        print(rdata.exchange,rdata.preference)
+    for rr in answers:
+        print(rr.exchange,rr.preference)
     assert 0
     
 def test_query_A():
     answers = query("www.nist.gov","A")
-    for rdata in answers:
-        print(dir(rdata))
+    for rr in answers:
+        print(dir(rr))
     
 def test_query_SPF():
     answers = query("dnspython.org","TXT")
-    for rdata in answers:
-        print(dir(rdata))
+    for rr in answers:
+        print(dir(rr))
     
 
 def test_roundTrip():
