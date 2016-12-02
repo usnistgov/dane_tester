@@ -17,7 +17,7 @@ def test_cname_read():
     count = 0
     for rset in response.answer:
         for rr in rset:
-            if(rr.rdtype==dns.rdatatype.CNAME):
+            if rr.rdtype==dns.rdatatype.CNAME:
                 print("cname for a.nitroba.org is {}".format(rr.target))
                 assert(str(rr.target)=='b.nitroba.org.')
                 count += 1
@@ -31,7 +31,7 @@ def test_a_read():
     count = 0
     for rrset in response.answer:
         for rr in rrset:
-            if(rr.rdtype==dns.rdatatype.A):
+            if r.rdtype==dns.rdatatype.A:
                 print("IP addr for {} is {}".format(qname,rr.address))
                 assert(rr.address=='8.8.8.8')
                 count += 1

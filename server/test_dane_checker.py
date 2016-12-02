@@ -14,27 +14,46 @@ def test_smtp_works():
     sys4_smtp = get_service_certificate_chain("mail.sys4.de","mail.sys4.de",25,'smtp')
     assert len(sys4_smtp)>0
 
+#def test_get_tlsa():
+#    # Keeping this working has been challenging...
+#    n = get_dns_tlsa("nohats.ca",443)
+#    assert type(n[0])==DaneTestResult
+#    assert tlsa_str(n[0].rdata) == "3 0 1 323E3584BA6F986CF09F27CF260CAC42F5E5BD5E81DF705FD33AC59717110389"
+
 def test_get_tlsa():
     # Keeping this working has been challenging...
-    n = get_dns_tlsa("nohats.ca",443)
-    assert tlsa_str(n[0].rdata) == "3 0 1 323E3584BA6F986CF09F27CF260CAC42F5E5BD5E81DF705FD33AC59717110389"
+    n = dns_query_tlsa("nohats.ca",443)
+    assert type(n[0])==DaneTestResult
+    assert tlsa_rr_str(n[0].rr) == "3 0 1 323E3584BA6F986CF09F27CF260CAC42F5E5BD5E81DF705FD33AC59717110389"
 
-def test_get_dns_ip():
-    n = get_dns_ip("www.had-pilot.com.")
-    assert n[0].data=="129.6.100.206"
+def test_dns_query_ip():
+    n = dns_query("www.had-pilot.com.")
+    assert type(n[0])==DaneTestResult
+    assert str(n[0].data)=="129.6.100.206"
 
-def test_get_dns_ipv6():
-    n = get_dns_ipv6("www.had-pilot.com.")
-    assert n[0].data=="2610:20:6005:100::206"
+def test_dns_query():
+    n = dns_query("www.had-pilot.com.")
+    assert type(n[0])==DaneTestResult
+    assert str(n[0].data)=='129.6.100.206'
+
+def test_dns_query_ipv6():
+    n = dns_query_ipv6("www.had-pilot.com.")
+    assert type(n[0])==DaneTestResult
+    assert str(n[0].data)=="2610:20:6005:100::206"
 
 def test_cname():
     # This works because Simson set up a cname for a.nitroba.org to point to b.nitroba.org
-    n = get_dns_cname("a.nitroba.org.")
-    assert n[0].data=="b.nitroba.org."
+    n = dns_query_cname("a.nitroba.org.")
+    assert type(n[0])==DaneTestResult
+    assert str(n[0].data)=="b.nitroba.org."
 
 def test_mx():
-    n = get_dns_mx("nist.gov")
-    assert n[0].data=="nist-gov.mail.protection.outlook.com."
+    # Test the new DNS
+    n = dns_query_mx("nist.gov")
+    assert type(n[0])==DaneTestResult
+    assert str(n[0].data)=="nist-gov.mail.protection.outlook.com."
+
+
 
 
 #
@@ -201,9 +220,6 @@ def test_pem_verify():
 
 def test_good_dane_verisignlabs_com():
     ret = tlsa_https_verify("https://good.dane.verisignlabs.com/")
-    print("ret:",len(ret))
-    print(ret)
-    print(ret[-1].passed)
     assert ret[-1].passed == True
 
 def test_bad_sig_dane_verisignlabs_com():
@@ -212,13 +228,16 @@ def test_bad_sig_dane_verisignlabs_com():
 
 
 if __name__=="__main__":
+    test_mx()
+    exit(0)
+    test_get_tlsa()
+    test_dns_query()
     test_get_certificate_chain()
     test_smtp_works()
     test_get_tlsa()
-    test_get_dns_ip()
-    test_get_dns_ipv6()
+    test_dns_query_ip()
+    test_dns_query_ipv6()
     test_cname()
-    test_mx()
     test_pem_verify()
     test_good_dane_verisignlabs_com()
     test_bad_sig_dane_verisignlabs_com()
