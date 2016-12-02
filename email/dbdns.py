@@ -60,15 +60,17 @@ def query(T,qname,rr,replay=False):
 
             c.execute("insert into dns (testid,queryname,queryrr,answer) values (%s,%s,%s,%s)",
                       (T.testid,qname,rr,response_text))
-
+            T.conn.commit()
             return dns.message.from_text(response_text)
         except dns.resolver.NXDOMAIN as e:
             c.execute("insert into dns (testid,queryname,queryrr,NXDOMAIN) values (%s,%s,%s,True)",
                       (T.testid,qname,rr))
+            T.conn.commit()
             raise e
         except dns.resolver.Timeout as e:
             c.execute("insert into dns (testid,queryname,queryrr,Timeout) values (%s,%s,%s,True)",
                       (T.testid,qname,rr))
+            T.conn.commit()
             raise e
     else:
         # Replay
