@@ -72,4 +72,7 @@ Validated Certificate chain:
 [0] Authentication succeeded for all (1) peers.
 
 ================================================================
-For some reason, the certificates are showing up with the huque.com tester but not with my tester. There is a third certificate that is not being tested.
+
+For some reason, the certificates are showing up with the huque.com
+tester but not with my tester. There is a third certificate that is
+not being tested.

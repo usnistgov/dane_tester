@@ -52,6 +52,7 @@ INFO="INFO"
 WARNING="WARNING"
 PROGRESS="PROGRESS"
 
+# From RFC 6698
 cert_usage_str = {0:"CA constraint",
                   1:"Service certificate constraint",
                   2:"Trust anchor assertion",
@@ -66,36 +67,52 @@ mtype_str = {0:"No hash used",
 
 
 
-get_altnames_exe = './get_altnames'
-openssl_exe = 'openssl' 
-openssl_cafile = 'ca-bundle.crt'
+################################################################
+## 
+## OpenSSL Gateway
+##
+################################################################
+
+
+GET_ALTNAMES_EXE = './get_altnames'
+OPENSSL_EXE = 'openssl' 
+OPENSSL_CAFILE = 'ca-bundle.crt'
 BEGIN_PEM_CERTIFICATE="-----BEGIN CERTIFICATE-----"
 END_PEM_CERTIFICATE="-----END CERTIFICATE-----"
 
 
 # See if a better openssl exists; remove OpenSSL defaults
 if os.path.exists("/usr/local/ssl/bin/openssl"):
-    openssl_exe = "/usr/local/ssl/bin/openssl"
+    OPENSSL_EXE = "/usr/local/ssl/bin/openssl"
 os.environ["SSL_CERT_DIR"]="/nonexistant"
 os.environ["SSL_CERT_FILE"]="/nonexistant"
 
 def verify_package():
     """Returns True if package is properly installed"""
-    return os.path.exists(get_altnames_exe) and os.path.exists(openssl_exe)
+    return os.path.exists(GET_ALTNAMES_EXE) and os.path.exists(OPENSSL_EXE)
 
 def openssl_debug():
     return "OPENSSL_DEBUG" in os.environ
 
-################################################################
-# 
+def openssl_version():
+    res = subprocess.check_output([OPENSSL_EXE,'version'.encode('utf8')]).decode('utf8')
+    return res.strip().replace("OpenSSL ","")
+
+def test_openssl_version():
+    assert openssl_version() >= "1.0.2"
+
 # Use OpenSSL for a command on a certificate, take input from stdin, return output from stdout.
 # If anything goes to stderr, generate an errror
 OPENSSL_IGNORES = [b"writing RSA key\n"]
-def openssl_cmd(cmd,cert="",get_returncode=False,output=str):
+def openssl_cmd(cmd,cert=None,der=None,get_returncode=False,output=str):
     if openssl_debug():
         sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
     p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
-    (stdout,stderr) = p.communicate(cert.encode('utf8'))
+    assert not (cert and der)
+    if cert:
+        (stdout,stderr) = p.communicate(cert.encode('utf-8'))
+    if der:
+        (stdout,stderr) = p.communicate(der)
     if get_returncode:
         return p.returncode
     # ignore error on stderr that we can't seem to get rid of
@@ -112,9 +129,89 @@ def openssl_cmd(cmd,cert="",get_returncode=False,output=str):
         sys.stderr.write("RETURN CODE: {}\n".format(p.returncode))
         assert False
     if output==str:
-        return stdout.decode('utf8')
+        return stdout.decode('utf8',errors='ignore')
     return stdout
         
+
+def openssl_get_service_certificate_chain(ipaddr,hostname,port,protocol):
+    """"Returns a list of DaneTestResult objects for looking up a chain"""
+    # Note: This can't use openssl_cmd above because it is getting results from a remote system 
+    from subprocess import Popen,PIPE,STDOUT
+    cmd = None
+    inbuf = None
+    if protocol.lower()=="https":
+        if not port: port = 443
+        cmd = [OPENSSL_EXE,'s_client','-host',ipaddr,'-port',str(port),'-servername',hostname,'-showcerts']
+    if protocol.lower()=="smtp":
+        if not port: port = 25
+        inbuf = b"EHLO TEST\r\nHELO TEST\r\nQUIT\r\n"
+        cmd = [OPENSSL_EXE,'s_client','-host',ipaddr,'-port',str(port),'-starttls','smtp','-showcerts']
+    if not cmd:
+        raise RuntimeError("invalid protocol")
+    with timeout(seconds=MAX_TIMEOUT):
+        try:
+            multi_certs = ""
+            passed = False
+            def get_response(p):
+                "Get the response and convert to UNICODE"
+                response = b''
+                while True:
+                    line = p.stdout.readline()
+                    response += line
+                    if line[3:4]==b' ':
+                        return (response.decode('utf8'),line[0:3])
+
+            if openssl_debug():
+                sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
+            p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
+            (multi_certs,code) = get_response(p)
+            what="Fetching EE Certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
+            passed="END CERTIFICATE" in multi_certs
+            # Just QUIT; we will test QUIT conformance elsewhere.
+            p.stdin.write(b"QUIT\r\n")
+            (resp,code) = get_response(p)
+        except TimeoutError:
+            what="Timeout fetching certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
+        except IOError:
+            what="IOError fetching certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
+        return [ DaneTestResult(test=TEST_EECERT_HAVE,
+                                passed=passed,
+                                what=what,
+                                ipaddr=ipaddr,
+                                hostname=hostname,
+                                data=multi_certs) ]
+    return []
+
+def openssl_get_certificate_field(cert,field):
+    """Uses openssl's x509 feature to return a specified field of a certificate
+    We previously used asn1parse, but it had reliability problems"""
+    cmd = [OPENSSL_EXE,'x509','-text']
+    fields = openssl_cmd(cmd,cert).split("\n")
+    for i in range(0,len(fields)-1):
+        if field in fields[i]:
+            return fields[i+1].strip()
+    return None
+            
+def openssl_get_authority_key_identifier(cert):
+    line = openssl_get_certificate_field(cert,"X509v3 Authority Key Identifier")
+    line = line.replace("keyid:","").replace(":","")
+    return line
+
+def openssl_get_subject_key_identifier(cert):
+    line = openssl_get_certificate_field(cert,"X509v3 Subject Key Identifier")
+    if line:
+        line = line.replace("keyid:","").replace(":","")
+        return line
+    return None
+
+def get_cafile_certificate_by_subject_key_identifier(keyid):
+    """Search OPENSSL_CAFILE for a specific key by keyid"""
+    import codecs
+    for cert in split_certs(codecs.open(OPENSSL_CAFILE,mode="r",encoding='latin1',errors='ignore').read()):
+        if openssl_get_subject_key_identifier(cert)==keyid:
+            return cert
+    return None
+
 
 ################################################################
 # Implement a simple timeout
@@ -333,13 +430,6 @@ def test_hostname_match():
 ##
 ## Verify PEM certificate chain and end entity certificates in PEM format using OpenSSL
 ##
-def openssl_version():
-    res = subprocess.check_output([openssl_exe,'version'.encode('utf8')]).decode('utf8')
-    return res.strip().replace("OpenSSL ","")
-
-def test_openssl_version():
-    assert openssl_version() >= "1.0.2"
-
 def is_pem(cert):
     return (type(cert)==str) and (BEGIN_PEM_CERTIFICATE in cert) and (END_PEM_CERTIFICATE in cert)
 
@@ -359,14 +449,14 @@ def pem_verify(anchor_cert,cert_chain,ee_cert):
                 chainfile.write(cert_chain.encode('utf8'))
                 chainfile.flush()
 
-                cmd = [openssl_exe,'verify','-purpose','sslserver','-trusted_first','-partial_chain']
+                cmd = [OPENSSL_EXE,'verify','-purpose','sslserver','-trusted_first','-partial_chain']
                 cmd += ['-CApath','/etc/no-subdir']
                 if anchor_cert:
                     acfile.write(anchor_cert.encode('utf8'))
                     acfile.flush()
                     cmd += ['-CAfile',acfile.name]
                 else:
-                    cmd += ['-CAfile',openssl_cafile]
+                    cmd += ['-CAfile',OPENSSL_CAFILE]
 
                 cmd += ['-untrusted',chainfile.name,eefile.name]
                 try:
@@ -383,19 +473,20 @@ def pem_verify(anchor_cert,cert_chain,ee_cert):
 
 def der_to_pem(val):
     """Convert a hex representation of a certificate to PEM format"""
-    #from M2Crypto import X509
-    #val = val.replace(" ","").replace("\r","").replace("\n","").replace("\t","")
-    #x509 = X509.load_cert_string(val.decode("hex"),X509.FORMAT_DER)
-    #return x509.as_pem()
-    cmd = [openssl_exe,'x509','-inform','DER','-outform','PEM']
-    return Popen(cmd,stdout=PIPE,stdin=PIPE).communicate(input=val)[0]
+    cmd = [OPENSSL_EXE,'x509','-inform','DER','-outform','PEM']
+    return openssl_cmd(cmd,der=val)
+
+def pem_to_der(val):
+    """Convert a hex representation of a certificate to PEM format"""
+    cmd = [OPENSSL_EXE,'x509','-inform','PEM','-outform','DER']
+    return openssl_cmd(cmd,cert=val,output=bytes)
 
 # Uses external program to extract AltNames
 # cert must be in PEM format
 def cert_subject_alternative_names(cert):
     assert is_pem(cert)
-    assert os.path.exists(get_altnames_exe)
-    cmd = [get_altnames_exe,'/dev/stdin']
+    assert os.path.exists(GET_ALTNAMES_EXE)
+    cmd = [GET_ALTNAMES_EXE,'/dev/stdin']
     p = Popen(cmd,stdout=PIPE,stdin=PIPE)
     res = p.communicate(input=cert.encode('utf8'))[0]
     if p.returncode!=0: return [] # error condition
@@ -415,7 +506,7 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
                                 what="No EE Certificate presented") ]
 
     # Get the subject of the certificate
-    cmd = [openssl_exe,'x509','-noout','-subject']
+    cmd = [OPENSSL_EXE,'x509','-noout','-subject']
     #cn = Popen(cmd,stdin=PIPE,stdout=PIPE).communicate(certs[0])[0]
     cn = openssl_cmd(cmd,certs[0]).strip() # remove trailing newline
 
@@ -499,12 +590,12 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
 # TLSA Selector:
 # 0 - Full Certificate
 # 1 - Just the public key
-def tlsa_select(s, cert):
-    """Given a certificate object, return the component specified by the TLSA Selector"""
-    assert False                # this doesn't work anymore, since the "cert" object is M2Crypto
-    assert s in [0,1]
-    if s==0: return cert.as_der()
-    if s==1: return cert.get_pubkey().as_der()
+#def tlsa_select(s, cert):
+#    """Given a certificate object, return the component specified by the TLSA Selector"""
+#    assert False                # this doesn't work anymore, since the "cert" object is M2Crypto
+#    assert s in [0,1]
+#    if s==0: return cert.as_der()
+#    if s==1: return cert.get_pubkey().as_der()
 
 # DER = Binary DER (Distinguished Encoding Rules) encoded certificates. 
 # PEM = Privacy Enhanced Mail (a certificate encoding format)
@@ -517,11 +608,11 @@ def tlsa_cert_select(selector,pem_cert):
     assert selector in [0,1]
     assert "-----BEGIN CERTIFICATE-----" in pem_cert
     if selector==0:             # The full certificate, in DER
-        der = openssl_cmd([openssl_exe,'x509','-inform','pem','-outform','der'],pem_cert,output=bytes)
+        der = openssl_cmd([OPENSSL_EXE,'x509','-inform','pem','-outform','der'],pem_cert,output=bytes)
         return der
     if selector==1:             # Just the public key
-        pubkey_pem = openssl_cmd([openssl_exe,'x509','-pubkey'],pem_cert)
-        pubkey_der = openssl_cmd([openssl_exe,'rsa','-inform','pem','-pubin','-outform','der'],pubkey_pem,output=bytes)
+        pubkey_pem = openssl_cmd([OPENSSL_EXE,'x509','-pubkey'],pem_cert)
+        pubkey_der = openssl_cmd([OPENSSL_EXE,'rsa','-inform','pem','-pubin','-outform','der'],pubkey_pem,output=bytes)
         return pubkey_der
     
 
@@ -741,59 +832,20 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
 
 ################################################################
 def split_certs(multi_certs):
+    """Takes a long chain of certificates and returns an array of just the certificates"""
     cert_list = []
-    certs = multi_certs.split('-----END CERTIFICATE-----')
+    # Split the certificates
+    certs = multi_certs.split(END_PEM_CERTIFICATE)
     for cert in certs:
         if len(cert) == 0 or cert == '\n':
             continue
-        cert_list.append(cert + '-----END CERTIFICATE-----')
+        ncert = cert + END_PEM_CERTIFICATE
+        loc   = ncert.find(BEGIN_PEM_CERTIFICATE)
+        if loc>0:
+            ncert = ncert[loc:] # remove stuff before the BEGIN
+        cert_list.append(ncert)
     return cert_list[0:-1]
 
-def get_service_certificate_chain(ipaddr,hostname,port,protocol):
-    """"Returns a list of DaneTestResult objects for looking up a chain"""
-    from subprocess import Popen,PIPE,STDOUT
-    cmd = None
-    inbuf = None
-    if protocol.lower()=="https":
-        if not port: port = 443
-        cmd = [openssl_exe,'s_client','-host',ipaddr,'-port',str(port),'-servername',hostname,'-showcerts']
-    if protocol.lower()=="smtp":
-        if not port: port = 25
-        inbuf = b"EHLO TEST\r\nHELO TEST\r\nQUIT\r\n"
-        cmd = [openssl_exe,'s_client','-host',ipaddr,'-port',str(port),'-starttls','smtp','-showcerts']
-    if not cmd:
-        raise RuntimeError("invalid protocol")
-    with timeout(seconds=MAX_TIMEOUT):
-        try:
-            multi_certs = ""
-            passed = False
-            def get_response(p):
-                "Get the response and convert to UNICODE"
-                response = b''
-                while True:
-                    line = p.stdout.readline()
-                    response += line
-                    if line[3:4]==b' ':
-                        return (response.decode('utf8'),line[0:3])
-
-            p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
-            (multi_certs,code) = get_response(p)
-            what="Fetching EE Certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
-            passed="END CERTIFICATE" in multi_certs
-            # Just QUIT; we will test QUIT conformance elsewhere.
-            p.stdin.write(b"QUIT\r\n")
-            (resp,code) = get_response(p)
-        except TimeoutError:
-            what="Timeout fetching certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
-        except IOError:
-            what="IOError fetching certificate for {} from {} port {} via {}".format(hostname,ipaddr,port,protocol)
-        return [ DaneTestResult(test=TEST_EECERT_HAVE,
-                                passed=passed,
-                                what=what,
-                                ipaddr=ipaddr,
-                                hostname=hostname,
-                                data=multi_certs) ]
-    return []
 
         
 ################################################################
@@ -1020,7 +1072,7 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
                 continue
 
         # Get the certificate for the IP address
-        cert_results = get_service_certificate_chain(ipaddr,hostname,port,protocol)
+        cert_results = openssl_get_service_certificate_chain(ipaddr,hostname,port,protocol)
         ret += cert_results
         cert_chain = cert_results[0].data
 
@@ -1316,7 +1368,7 @@ if __name__=="__main__":
     
 
     if args.gethttpcert:
-        for r in get_service_certificate_chain(args.gethttpcert,args.gethttpcert,443,'https'):
+        for r in openssl_get_service_certificate_chain(args.gethttpcert,args.gethttpcert,443,'https'):
             print(r)
         exit(0)
 
