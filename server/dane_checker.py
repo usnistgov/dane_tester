@@ -52,6 +52,20 @@ INFO="INFO"
 WARNING="WARNING"
 PROGRESS="PROGRESS"
 
+cert_usage_str = {0:"CA constraint",
+                  1:"Service certificate constraint",
+                  2:"Trust anchor assertion",
+                  3:"Domain-issued certificate"}
+
+selector_str = {0:"Full certificate",
+                1:"SubjectPublicKeyInfo"}
+
+mtype_str = {0:"No hash used",
+             1:"SHA-256",
+             2:"SHA-512"}
+
+
+
 get_altnames_exe = './get_altnames'
 openssl_exe = 'openssl' 
 openssl_cafile = 'ca-bundle.crt'
@@ -159,6 +173,8 @@ class DaneTest:
         valid_tests[num] = self
 
 ## 100 series - DNS queries ##
+INFO_TEST              = DaneTest(0,"","")
+
 TEST_CNAME_NOERROR     = DaneTest(101,"""If at any stage of CNAME expansion an error is detected, the lookup of the original requested records MUST be considered to have failed.""","2.1.3") 
 TEST_CNAME_EXPANSION_SECURE      = DaneTest(102,"""if at
    any stage of recursive expansion an "insecure" CNAME record is
@@ -233,7 +249,7 @@ class DaneTestResult:
                 lines = "{} lines ".format(count)
         else:
             lines = ""
-        return "<%s %s %s %s>" % ({True:"P",False:"F","":"n/a",PROGRESS:PROGRESS,INFO:INFO,WARNING:WARNING}[self.passed],
+        return "<%s %s %s %s>" % ({True:"P",False:"F","":"n/a",PROGRESS:PROGRESS,INFO:INFO,WARNING:WARNING,None:"None"}[self.passed],
                                   self.dnssec(),self.what,lines)
 
 # Count the number of results in an array
@@ -401,7 +417,7 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
     # Get the subject of the certificate
     cmd = [openssl_exe,'x509','-noout','-subject']
     #cn = Popen(cmd,stdin=PIPE,stdout=PIPE).communicate(certs[0])[0]
-    cn = openssl_cmd(cmd,certs[0])
+    cn = openssl_cmd(cmd,certs[0]).strip() # remove trailing newline
 
     ret = []
     against = "TLSA-provided anchors"  if anchor_cert else "system anchors"
@@ -504,9 +520,6 @@ def tlsa_cert_select(selector,pem_cert):
         der = openssl_cmd([openssl_exe,'x509','-inform','pem','-outform','der'],pem_cert,output=bytes)
         return der
     if selector==1:             # Just the public key
-        #pubkey_hex = openssl_cmd([openssl_exe,'x509','-inform','pem','-modulus','-noout'],pem_cert,output=str)
-        #pubkey_hex = pubkey_hex.replace("Modulus=","").replace("\r","").replace("\n","")
-        #pubkey     = bytes.fromhex(pubkey_hex)
         pubkey_pem = openssl_cmd([openssl_exe,'x509','-pubkey'],pem_cert)
         pubkey_der = openssl_cmd([openssl_exe,'rsa','-inform','pem','-pubin','-outform','der'],pubkey_pem,output=bytes)
         return pubkey_der
@@ -527,8 +540,12 @@ def tlsa_match(mtype, cert_data, dns_data):
     if mtype == 2:
         comp_data = hashlib.sha512(cert_data).digest()
     matches = True if comp_data == dns_data else None
+    print("mtype=",mtype)
+    print("comp_data=",hexdump(comp_data))
+    print("dns_data=",hexdump(dns_data))
+    print("&*** matches=",matches)
     return [ DaneTestResult(passed=matches,
-                            what="TLSA ** mtype {}:  hex_data={} from_dns={}".format(mtype,hexdump(cert_data),hexdump(dns_data))) ]
+                            what="TLSA mtype {}:  hex_data={} from_dns={}".format(mtype,hexdump(cert_data),hexdump(dns_data))) ]
     
 
 
@@ -554,7 +571,7 @@ def tlsa_match(mtype, cert_data, dns_data):
 # @param tlsa_rdata - the particular TLSA record being verified
 # @param hostname   - the hostname being verified
 
-def tlsa_verify(cert_chain,tlsa_rr,hostnames,ipaddr, protocol):
+def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
     hostname0  = hostnames[0]
     cert_usage = tlsa_rr.usage
     selector   = tlsa_rr.selector
@@ -572,6 +589,14 @@ def tlsa_verify(cert_chain,tlsa_rr,hostnames,ipaddr, protocol):
                             ipaddr=ipaddr,
                             what="Checking TLSA Parameters: {} {} {}".format(cert_usage,selector,mtype)) ]
     if not tlsa_params_valid: return ret
+
+#    ret += [ DaneTestResult(passed=INFO, hostname=hostname0, ipaddr=ipaddr,
+#                            what="Certificate Usage {}: {}".format(cert_usage,cert_usage_str[cert_usage])) ]
+#    ret += [ DaneTestResult(passed=INFO, hostname=hostname0, ipaddr=ipaddr,
+#                            what="TLSA Selector {}: {}".format(selector,selector_str[selector])) ]
+#    ret += [ DaneTestResult(passed=INFO, hostname=hostname0, ipaddr=ipaddr,
+#                            what="TLSA Matching Type {}: {}".format(mtype,mtype_str[mtype])) ]
+                                                                   
 
     # Check for following recommendation
     if protocol=='smtp':
@@ -621,12 +646,16 @@ def tlsa_verify(cert_chain,tlsa_rr,hostnames,ipaddr, protocol):
     if cert_usage in [0, 2]: 
         ret_not_matching = []
         for count in range(len(certs)):
+            print("******* TRY CERT {}".format(count))
             cert = certs[count]         # certificate in PEM format, as returned by OpenSSL command line
             cert_name = "EE certificate" if count==0 else "Chain certificate {}".format(count)
             #cert_obj = M2Crypto.X509.load_cert_string(cert)
             #cert_data = tlsa_select(selector, cert_obj)
             cert_data = tlsa_cert_select(selector, cert)
+            print("*****cert_data:",cert_data)
             tm = tlsa_match(mtype, cert_data, ct)
+
+            print("******* tm=",tm)
             if tm[0].passed:
                 ret += [ DaneTestResult(test=TEST_TLSA_CU02_TP_FOUND,
                                         passed=True,
@@ -681,9 +710,13 @@ def tlsa_verify(cert_chain,tlsa_rr,hostnames,ipaddr, protocol):
     # Cert usage 0 must validate against system trust anchors
     if cert_usage==0:
         r = cert_verify(None,cert_chain,hostnames,ipaddr,cert_usage)
+        print("********** r=",r)
+        print("********** count_passed(r,False)=",count_passed(r,False))
+        print("********** usage_good=",usage_good)
         ret += r
         if count_passed(r,False) > 0:
             usage_good = False
+
 
     # Cert usage 0, 1 and 2 must verify against specified trust anchor
     if cert_usage in [0, 1, 2]:
@@ -934,7 +967,7 @@ def get_tlsa_records(retlist):
     """Return the TLSA records in the set of DaneTestResult()"""
     for r in retlist:
         assert type(r)==DaneTestResult
-    return list(filter(lambda e:e.rr.rdtype==dns.rdatatype.TLSA,retlist))
+    return list(filter(lambda e:e.rr and e.rr.rdtype==dns.rdatatype.TLSA,retlist))
 
 
 #
@@ -1004,6 +1037,8 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
             hostnames.append(delivery_hostname)
         for tlsa_record in tlsa_records:
             ret_t = tlsa_verify(cert_chain, tlsa_record.rr, hostnames, ipaddr, protocol)
+            print("*** find_first_test:",find_first_test(ret_t,TEST_TLSA_CU_VALIDATES))
+
             if find_first_test(ret_t,TEST_TLSA_CU_VALIDATES) and find_first_test(ret_t,TEST_TLSA_CU_VALIDATES).passed:
                 ret_tlsa_verified += ret_t
                 validating_tlsa_records += 1
@@ -1188,7 +1223,7 @@ def print_test_results(results,format="text"):
                 num = ""
                 desc = ""
             desc += "<br>" if len(desc)>0 and len(result.what)>0 else ""
-            desc += "<b>" + dnssec(result) + "</b>" + "<i>" + result.what + "</i>"
+            desc += "<b>" + dnssec(result) + " </b>" + "<i>" + result.what + "</i>"
 
             def fixnone(x):
                 return x if x!=None else ""

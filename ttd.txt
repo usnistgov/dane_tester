@@ -21,3 +21,55 @@ Things to do next:
   - Be able to receive sigened meail
   - Check certs
   - Have numbered tests
+
+
+test against:
+ https://www.huque.com/dane/testsite/
+
+ Right now it doesn't validate against https://good-pkixta.dane.huque.com/
+
+https://www.huque.com/bin/danecheck - does verify
+CA Constraint, SubjectPublicKey Info, SHA-256
+TLSA records found: 1
+TLSA: 0 1 1 563b3caf8cfef34c2335caf560a7a95906e8488462eb75ac59784830df9e5b2b
+
+Connecting to IPv4 address: 104.236.200.251 port 443
+TLSv1.2 handshake succeeded.
+Cipher: TLSv1.2 ECDHE-RSA-AES256-GCM-SHA384
+Peer Certificate chain:
+ 0 Subject CN: locutus.huque.com
+   Issuer  CN: Let's Encrypt Authority X3
+ 1 Subject CN: Let's Encrypt Authority X3
+   Issuer  CN: DST Root CA X3
+ SAN dNSName: bad-pkixta.dane.huque.com
+ SAN dNSName: badhash.dane.huque.com
+ SAN dNSName: badparam.dane.huque.com
+ SAN dNSName: badsig.dane.huque.com
+ SAN dNSName: dane.huque.com
+ SAN dNSName: expiredsig.dane.huque.com
+ SAN dNSName: good-pkixta.dane.huque.com
+ SAN dNSName: good.dane.huque.com
+ SAN dNSName: locutus.huque.com
+DANE TLSA 0 1 1 [563b3caf8cfe...] matched TA certificate at depth 2
+Verified peername: good-pkixta.dane.huque.com
+Validated Certificate chain:
+ 0 Subject CN: locutus.huque.com
+   Issuer  CN: Let's Encrypt Authority X3
+ 1 Subject CN: Let's Encrypt Authority X3
+   Issuer  CN: DST Root CA X3
+ 2 Subject CN: DST Root CA X3
+   Issuer  CN: DST Root CA X3
+ SAN dNSName: bad-pkixta.dane.huque.com
+ SAN dNSName: badhash.dane.huque.com
+ SAN dNSName: badparam.dane.huque.com
+ SAN dNSName: badsig.dane.huque.com
+ SAN dNSName: dane.huque.com
+ SAN dNSName: expiredsig.dane.huque.com
+ SAN dNSName: good-pkixta.dane.huque.com
+ SAN dNSName: good.dane.huque.com
+ SAN dNSName: locutus.huque.com
+
+[0] Authentication succeeded for all (1) peers.
+
+================================================================
+For some reason, the certificates are showing up with the huque.com tester but not with my tester. There is a third certificate that is not being tested.
