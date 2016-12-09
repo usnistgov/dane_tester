@@ -108,11 +108,12 @@ def openssl_cmd(cmd,cert=None,der=None,get_returncode=False,output=str,ignore_er
     if openssl_debug():
         sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
     p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
-    assert not (cert and der)
     if cert:
         (stdout,stderr) = p.communicate(cert.encode('utf-8'))
-    if der:
+    elif der:
         (stdout,stderr) = p.communicate(der)
+    else:
+        raise RuntimeError("Must specify cert or der")
     if get_returncode:
         return p.returncode
     # ignore error on stderr that we can't seem to get rid of
@@ -296,6 +297,7 @@ TEST_SMTP_STARTTLS   = DaneTest(202,"""Any connection to the MTA MUST employ TLS
 TEST_SMTP_TLS        = DaneTest(203,"Any connection to the MTA MUST employ TLS authentication (SMTP Server must enter TLS mode)","2.2")
 TEST_SMTP_QUIT       = DaneTest(204,"Any connection to the MTA MUST employ TLS authentication (SMTP Server must work after TLS entered)","2.2")
 TEST_EECERT_HAVE     = DaneTest(205,"Server must have End Entity Certificate")
+TEST_TLSA_CU0_FOUND       = DaneTest(206,"Certificate Usage 0 specifies a CA certificate, or the public key of such a certificate, that MUST be found in any of the PKIX certification paths for the end entity certificate given by the server in TLS","2.1.1")
 
 ## 300 series - Certificate verification
 TEST_SMTP_CU         = DaneTest(301,"TLSA records for port 25 SMTP service used by client MTAs SHOULD "\
@@ -359,8 +361,8 @@ class DaneTestResult:
                                   self.dnssec(),self.what,lines)
 
 # Count the number of results in an array
-def count_passed(ret,v):
-    return len(list(filter(lambda a:a.passed==v,ret)))
+def count_passed(ret,val=None):
+    return len(list(filter(lambda a:a.passed==val,ret)))
 
 def find_result(ret,what):
     for r in ret:
@@ -469,12 +471,7 @@ def pem_verify(anchor_cert,cert_chain,ee_cert):
 
                 cmd += ['-untrusted',chainfile.name,eefile.name]
                 try:
-                    returncode = openssl_cmd(cmd,get_returncode=True)
-                    #p = Popen(cmd,stdout=PIPE)
-                    #res = p.communicate()[0]
-                    #if openssl_debug:sys.stderr.write("return code={} RES: {}\n".format(p.returncode,res))
-                    #if p.returncode==0:
-                    #    return True
+                    returncode = openssl_cmd(cmd,cert="\n",get_returncode=True)
                     if returncode==0:
                         return True
                 except subprocess.CalledProcessError:
@@ -516,7 +513,6 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
 
     # Get the subject of the certificate
     cmd = [OPENSSL_EXE,'x509','-noout','-subject']
-    #cn = Popen(cmd,stdin=PIPE,stdout=PIPE).communicate(certs[0])[0]
     cn = openssl_cmd(cmd,certs[0]).strip() # remove trailing newline
 
     ret = []
@@ -721,12 +717,17 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
     if len(certs)==0:           # nothing to verify???
         return ret
 
-
     trust_anchor  = None
 
     if cert_usage == 0:
         # Cert usage 0 specifies a CA certificate. This should only be used for HTTP
-        cert = get_cafile_certificate_by_tlsa_rr(tlsa_rr)
+        trust_anchor = get_cafile_certificate_by_tlsa_rr(tlsa_rr)
+        ret += [ DaneTestResult(test=TEST_TLSA_CU0_FOUND,
+                                passed=True if trust_anchor else False,
+                                hostname=hostname0,
+                                ipaddr=ipaddr,
+                                what="Searching for CA certiciate in CAFile against TLSA record") ]
+        usage_good = True if trust_anchor else False
 
     if cert_usage == 2:
         # Cert usage 2 specifies a trust anchor in the chain.
@@ -786,12 +787,9 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
     
     # Cert usage 0 must validate against system trust anchors
     if cert_usage==0:
-        r = cert_verify(None,cert_chain,hostnames,ipaddr,cert_usage)
-        print("********** r=",r)
-        print("********** count_passed(r,False)=",count_passed(r,False))
-        print("********** usage_good=",usage_good)
+        r = cert_verify(trust_anchor,cert_chain,hostnames,ipaddr,cert_usage)
         ret += r
-        if count_passed(r,False) > 0:
+        if count_passed(r,val=False) > 0:
             usage_good = False
 
 
@@ -799,7 +797,7 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
     if cert_usage in [0, 1, 2]:
         r = cert_verify(trust_anchor,cert_chain,hostnames,ipaddr,cert_usage)
         ret += r
-        if count_passed(r,False) > 0:
+        if count_passed(r,val=False) > 0:
             usage_good = False
 
     # If usage is still good, say so. Otherwise leave a blank line...
@@ -1075,7 +1073,6 @@ def tlsa_service_verify(desc="",hostname="",port=0,protocol="",delivery_hostname
             hostnames.append(delivery_hostname)
         for tlsa_record in tlsa_records:
             ret_t = tlsa_verify(cert_chain, tlsa_record.rr, hostnames, ipaddr, protocol)
-            print("*** find_first_test:",find_first_test(ret_t,TEST_TLSA_CU_VALIDATES))
 
             if find_first_test(ret_t,TEST_TLSA_CU_VALIDATES) and find_first_test(ret_t,TEST_TLSA_CU_VALIDATES).passed:
                 ret_tlsa_verified += ret_t
@@ -1133,7 +1130,7 @@ def tlsa_https_verify(url):
     apply_dnssec_test(ret)
 
     # Make sure that none of the DANE tests were a hard fail
-    valid = count_passed(ret,True) > 0 and count_passed(ret,False)==0
+    valid = count_passed(ret,val=True) > 0 and count_passed(ret,val=False)==0
     ret += [ DaneTestResult(test=TEST_TLSA_HTTP_NO_FAIL,
                             what="Did no required DANE HTTP tests have a hard fail?",
                             passed=valid) ]
@@ -1173,7 +1170,7 @@ def tlsa_smtp_verify(destination_hostname):
     smtp_tlsa_status = None
     for hostname in [h.rr.exchange for h in mx_data]:
         this_ret       = tlsa_smtp_host_verify(hostname,destination_hostname,delivery_tlsa_records,'MX')
-        all_tests_pass = True if count_passed(this_ret,True)>0 and count_passed(this_ret,False)==0 else False
+        all_tests_pass = True if count_passed(this_ret,val=True)>0 and count_passed(this_ret,val=False)==0 else False
         if first:
             # If this is the first host and TEST_SMTP_CONNECT succeded,
             # make sure it is DANE protected.
