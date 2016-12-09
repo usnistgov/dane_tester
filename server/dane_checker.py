@@ -104,7 +104,7 @@ def test_openssl_version():
 # Use OpenSSL for a command on a certificate, take input from stdin, return output from stdout.
 # If anything goes to stderr, generate an errror
 OPENSSL_IGNORES = [b"writing RSA key\n"]
-def openssl_cmd(cmd,cert=None,der=None,get_returncode=False,output=str):
+def openssl_cmd(cmd,cert=None,der=None,get_returncode=False,output=str,ignore_error=False):
     if openssl_debug():
         sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
     p = Popen(cmd,stdin=PIPE,stdout=PIPE,stderr=PIPE)
@@ -118,16 +118,17 @@ def openssl_cmd(cmd,cert=None,der=None,get_returncode=False,output=str):
     # ignore error on stderr that we can't seem to get rid of
     if stderr in OPENSSL_IGNORES: stderr=""               
     if len(stderr)>0 or p.returncode!=0:
-        sys.stderr.write("**** OPENSSL ERROR ****\n")
-        sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
-        sys.stderr.write("INPUT:\n")
-        sys.stderr.write(cert+"\n")
-        sys.stderr.write("STDOUT:\n")
-        sys.stderr.write(stdout.decode('latin1')+"\n")
-        sys.stderr.write("STDERR:\n")
-        sys.stderr.write(stderr.decode('latin1')+"\n")
-        sys.stderr.write("RETURN CODE: {}\n".format(p.returncode))
-        assert False
+        if not ignore_error:
+            sys.stderr.write("**** OPENSSL ERROR (LEN={}  CODE={})****\n".format(len(stderr),p.returncode))
+            sys.stderr.write("OPENSSL CMD: {}\n".format(" ".join(cmd)))
+            sys.stderr.write("INPUT:\n")
+            sys.stderr.write(cert+"\n")
+            sys.stderr.write("STDOUT:\n")
+            sys.stderr.write(stdout.decode('latin1')+"\n")
+            sys.stderr.write("STDERR:\n")
+            sys.stderr.write(stderr.decode('latin1')+"\n")
+            sys.stderr.write("RETURN CODE: {}\n".format(p.returncode))
+            assert False
     if output==str:
         return stdout.decode('utf8',errors='ignore')
     return stdout
@@ -209,6 +210,14 @@ def get_cafile_certificate_by_subject_key_identifier(keyid):
     import codecs
     for cert in split_certs(codecs.open(OPENSSL_CAFILE,mode="r",encoding='latin1',errors='ignore').read()):
         if openssl_get_subject_key_identifier(cert)==keyid:
+            return cert
+    return None
+
+def get_cafile_certificate_by_tlsa_rr(tlsa_rr):
+    import codecs
+    for cert in split_certs(codecs.open(OPENSSL_CAFILE,mode="r",encoding='latin1',errors='ignore').read()):
+        tm = tlsa_match(tlsa_rr,cert)
+        if tm[0].passed:
             return cert
     return None
 
@@ -586,17 +595,6 @@ def cert_verify(anchor_cert,cert_chain,hostnames,ipaddr,cert_usage):
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# 
-# TLSA Selector:
-# 0 - Full Certificate
-# 1 - Just the public key
-#def tlsa_select(s, cert):
-#    """Given a certificate object, return the component specified by the TLSA Selector"""
-#    assert False                # this doesn't work anymore, since the "cert" object is M2Crypto
-#    assert s in [0,1]
-#    if s==0: return cert.as_der()
-#    if s==1: return cert.get_pubkey().as_der()
-
 # DER = Binary DER (Distinguished Encoding Rules) encoded certificates. 
 # PEM = Privacy Enhanced Mail (a certificate encoding format)
 
@@ -611,34 +609,31 @@ def tlsa_cert_select(selector,pem_cert):
         der = openssl_cmd([OPENSSL_EXE,'x509','-inform','pem','-outform','der'],pem_cert,output=bytes)
         return der
     if selector==1:             # Just the public key
-        pubkey_pem = openssl_cmd([OPENSSL_EXE,'x509','-pubkey'],pem_cert)
-        pubkey_der = openssl_cmd([OPENSSL_EXE,'rsa','-inform','pem','-pubin','-outform','der'],pubkey_pem,output=bytes)
+        pubkey_pem = openssl_cmd([OPENSSL_EXE,'x509','-pubkey'],pem_cert,ignore_error=True)
+        pubkey_der = openssl_cmd([OPENSSL_EXE,'rsa','-inform','pem','-pubin','-outform','der'],pubkey_pem,output=bytes,ignore_error=True)
         return pubkey_der
     
-
-
 # matching type:
 # 0 - raw certificate in DNS, in binary
 # 1 - SHA256 is in the DNS
 # 2 - SHA512 is in the DNS
-
-def tlsa_match(mtype, cert_data, dns_data):
+                        
+def tlsa_match(tlsa_rr, cert=None):
+    """Returns a DaneTestResult that indicates if the TLSA matches the provided certificate or not"""
+    mtype = tlsa_rr.mtype
     import hashlib
     assert mtype in [0,1,2]
-    comp_data = cert_data       # data to compare
+    cert_data = tlsa_cert_select(tlsa_rr.selector,cert)
+    if mtype == 0:
+        comp_data = cert_data       # tlsa_rr contains the actual certificate
     if mtype == 1:
         comp_data = hashlib.sha256(cert_data).digest()
     if mtype == 2:
         comp_data = hashlib.sha512(cert_data).digest()
-    matches = True if comp_data == dns_data else None
-    print("mtype=",mtype)
-    print("comp_data=",hexdump(comp_data))
-    print("dns_data=",hexdump(dns_data))
-    print("&*** matches=",matches)
+    matches = True if comp_data == tlsa_rr.cert else None
     return [ DaneTestResult(passed=matches,
-                            what="TLSA mtype {}:  hex_data={} from_dns={}".format(mtype,hexdump(cert_data),hexdump(dns_data))) ]
+                            what="TLSA mtype {}:  hex_data={} from_dns={}".format(mtype,hexdump(cert_data),hexdump(tlsa_rr.cert))) ]
     
-
 
 # CU 0 - Directly specifies the CA certificate or public key used to validate the certificate provided by the End Entity (EE)
 # There must be a valid chain from the EE to the CU 0 trust anchor and the CU 0 trust anchor must be a recognized CA.
@@ -681,14 +676,15 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
                             what="Checking TLSA Parameters: {} {} {}".format(cert_usage,selector,mtype)) ]
     if not tlsa_params_valid: return ret
 
-#    ret += [ DaneTestResult(passed=INFO, hostname=hostname0, ipaddr=ipaddr,
-#                            what="Certificate Usage {}: {}".format(cert_usage,cert_usage_str[cert_usage])) ]
-#    ret += [ DaneTestResult(passed=INFO, hostname=hostname0, ipaddr=ipaddr,
-#                            what="TLSA Selector {}: {}".format(selector,selector_str[selector])) ]
-#    ret += [ DaneTestResult(passed=INFO, hostname=hostname0, ipaddr=ipaddr,
-#                            what="TLSA Matching Type {}: {}".format(mtype,mtype_str[mtype])) ]
+    verbose = False
+    if verbose:
+        ret += [ DaneTestResult(passed=INFO, hostname=hostname0, ipaddr=ipaddr,
+                                what="Certificate Usage {}: {}".format(cert_usage,cert_usage_str[cert_usage])) ]
+        ret += [ DaneTestResult(passed=INFO, hostname=hostname0, ipaddr=ipaddr,
+                                what="TLSA Selector {}: {}".format(selector,selector_str[selector])) ]
+        ret += [ DaneTestResult(passed=INFO, hostname=hostname0, ipaddr=ipaddr,
+                                what="TLSA Matching Type {}: {}".format(mtype,mtype_str[mtype])) ]
                                                                    
-
     # Check for following recommendation
     if protocol=='smtp':
         if (cert_usage==3 and selector==1 and mtype==1) or (cert_usage==2 and selector==0 and mtype==1):
@@ -715,38 +711,32 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
         if not cu_valid: return ret
                  
     usage_good    = False
-    trust_anchors = ""
-    ct = bytes(tlsa_rr.cert)
 
     # NOTE: For certificate usage 2, selector 0, matching 0,
     # the certificate in the TLSA record should be added to the certificate chain
     if cert_usage==2 and selector==0 and mtype==0:
-        #from M2Crypto import X509
-        #der = ct.replace(" ","").decode("hex")
-        #x509 = X509.load_cert_string(der,X509.FORMAT_DER)
-        #cert_chain += x509.as_pem()
-        cert_chain += der_to_pem(ct)
+        cert_chain += der_to_pem(bytes(tlsa_rr.cert))
 
     certs = split_certs(cert_chain)
     if len(certs)==0:           # nothing to verify???
         return ret
 
 
-    # Cert usages 0 and 2 specify trust anchors in the chain.
-    # Examine the chain and extract the trust anchors
-    if cert_usage in [0, 2]: 
+    trust_anchor  = None
+
+    if cert_usage == 0:
+        # Cert usage 0 specifies a CA certificate. This should only be used for HTTP
+        cert = get_cafile_certificate_by_tlsa_rr(tlsa_rr)
+
+    if cert_usage == 2:
+        # Cert usage 2 specifies a trust anchor in the chain.
+        # Examine the chain and extract the trust anchors
         ret_not_matching = []
         for count in range(len(certs)):
-            print("******* TRY CERT {}".format(count))
             cert = certs[count]         # certificate in PEM format, as returned by OpenSSL command line
             cert_name = "EE certificate" if count==0 else "Chain certificate {}".format(count)
-            #cert_obj = M2Crypto.X509.load_cert_string(cert)
-            #cert_data = tlsa_select(selector, cert_obj)
-            cert_data = tlsa_cert_select(selector, cert)
-            print("*****cert_data:",cert_data)
-            tm = tlsa_match(mtype, cert_data, ct)
+            tm = tlsa_match(tlsa_rr, cert=cert)
 
-            print("******* tm=",tm)
             if tm[0].passed:
                 ret += [ DaneTestResult(test=TEST_TLSA_CU02_TP_FOUND,
                                         passed=True,
@@ -758,7 +748,7 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
                                         hostname=hostname0,
                                         ipaddr=ipaddr,
                                         what="Checking if matching certificate is leaf certificate") ]
-                trust_anchors += cert
+                trust_anchor  = cert
                 usage_good    = True
             else:
                 ret_not_matching += tm
@@ -767,7 +757,7 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
                                                      hostname=hostname0,
                                                      ipaddr=ipaddr,
                                                      what="Checking EE certificate {} against TLSA usage {}".format(cert_name,cert_usage)) ]
-        if not trust_anchors:
+        if not trust_anchor:
             # No matching certs. This is an error condition
             ret += ret_not_matching
             ret += [ DaneTestResult(passed=None,
@@ -779,11 +769,7 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
 
     # Cert usages 1 and 3 specify the EE certificate
     if cert_usage in [1,3]:
-        #eecert = M2Crypto.X509.load_cert_string(certs[0])
-        #cert_data = tlsa_select(selector, eecert)
-        cert_data = tlsa_cert_select(selector, certs[0])
-
-        tm = tlsa_match(mtype, cert_data, ct)
+        tm = tlsa_match(tlsa_rr, cert=certs[0])
         if tm[0].passed:
             # next line commented out so we do not print the whole matching certificate
             # ret += tm
@@ -809,9 +795,9 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
             usage_good = False
 
 
-    # Cert usage 0, 1 and 2 must verify against specified trust anchor
+    # Cert usage 0, 1 and 2 must verify against the specified trust anchor
     if cert_usage in [0, 1, 2]:
-        r = cert_verify(trust_anchors,cert_chain,hostnames,ipaddr,cert_usage)
+        r = cert_verify(trust_anchor,cert_chain,hostnames,ipaddr,cert_usage)
         ret += r
         if count_passed(r,False) > 0:
             usage_good = False
