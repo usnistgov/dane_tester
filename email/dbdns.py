@@ -144,11 +144,11 @@ if __name__=="__main__":
     if args.list:
         T = Tester(rw=False)
         c = T.conn.cursor()
-        c.execute("select testid,modified,queryname,queryrr,length(answer) from dns order by dnsid")
+        c.execute("select dns.testid,dns.modified,dns.queryname,dns.queryrr,tests.userid,length(dns.answer) from dns left join tests on dns.testid=tests.testid order by dnsid")
         print(" testID  Timestamp            Query Name      RR    Len(answer)")
         for row in c:
             when = str(row[1])
-            print("{:8n} {:s}   {:15s} {:4s} len={:5n} ".format(row[0],when,row[2],row[3],row[4]))
+            print("{:8n} {:s}   {:15s} {:4s} {} len={:5n} ".format(row[0],when,row[2],row[3],row[4],row[5]))
     
     if args.dump:
         T = Tester(rw=False)
