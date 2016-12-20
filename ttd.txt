@@ -10,7 +10,6 @@ Things to do next:
     + add tests so that dbdns verifies dnssec with and without
     + modify getdns covers so that they work with dbdns
     + create more tests for 
-
     - Anonymous user, unless there is a login (for web)
 - Modify tester framework:
   - have numbered test steps
@@ -23,10 +22,15 @@ Things to do next:
   - Have numbered tests
 
 
-test against:
- https://www.huque.com/dane/testsite/
+test against good sites:
+ + https://www.huque.com/dane/testsite/
+ + https://good-pkixta.dane.huque.com/
 
- Right now it doesn't validate against https://good-pkixta.dane.huque.com/
+bad sites:
+ + https://badhash.dane.huque.com/
+ + https://badparam.dane.huque.com/
+ + https://badsig.dane.huque.com/
+ + https://expiredsig.dane.huque.com/
 
 https://www.huque.com/bin/danecheck - does verify
 CA Constraint, SubjectPublicKey Info, SHA-256
