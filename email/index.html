@@ -150,7 +150,10 @@
 
         <div class="col-md-4">
           <h2>Calculate</h2>
-          <p>Enter an email address and a key to calculate DANE TLSA RRs</p>
+          <h3>Generating OPENPGPKEY Records</h3>
+          <p>Based on <a href='https://tools.ietf.org/html/rfc7929'>RFC 7929</a>:</p>
+          
+          <p>Enter an email address and an ascii-armored PGP public key to calculate DANE TLSA RRs</p>
 
           <form class="calculateForm" method=GET action="history.cgi">
             <label for="email">Email</label> <input type="text" id="email" name="email" size=30/><br/>
