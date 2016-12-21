@@ -10,7 +10,6 @@ This repository contains support for:
 
 # NIST Software Disclaimer
 
-<sub><sup>
 NIST-developed software is provided by NIST as a public service. You
 may use, copy and distribute copies of the software in any medium,
 provided that you keep intact this entire notice. You may improve,
@@ -41,4 +40,3 @@ interruption of operation. This software is not intended to be used in
 any situation where a failure could cause risk of injury or damage to
 property. The software developed by NIST employees is not subject to
 copyright protection within the United States.
-</sub></sup>

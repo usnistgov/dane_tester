@@ -35,9 +35,11 @@ class Dbdns:
             
 def query(T,qname,rr,replay=False):
     """Perform a query of host/rr, store results in database, and get results from db and return.
-    @param qname - string - what you will query
-    @param rr   - string - the resource records that you want
+    @param qname  - string - what you will query
+    @param rr     - string - the resource records that you want
     @param replay - boolean - whether to read from the database (True) or write to the data (False; default)
+
+    Note - qname may be a <DNS name> object, so we need to take the str()
 
     Note returned object is type <dns.resolver.Answer>
     Answers are in ret.rrset (which is type dns.rrset.RRset).
@@ -59,17 +61,17 @@ def query(T,qname,rr,replay=False):
             response_text = response.to_text()
 
             c.execute("insert into dns (testid,queryname,queryrr,answer) values (%s,%s,%s,%s)",
-                      (T.testid,qname,rr,response_text))
+                      (T.testid,str(qname),rr,response_text))
             T.conn.commit()
             return dns.message.from_text(response_text)
         except dns.resolver.NXDOMAIN as e:
             c.execute("insert into dns (testid,queryname,queryrr,NXDOMAIN) values (%s,%s,%s,True)",
-                      (T.testid,qname,rr))
+                      (T.testid,str(qname),rr))
             T.conn.commit()
             raise e
         except dns.resolver.Timeout as e:
             c.execute("insert into dns (testid,queryname,queryrr,Timeout) values (%s,%s,%s,True)",
-                      (T.testid,qname,rr))
+                      (T.testid,str(qname),rr))
             T.conn.commit()
             raise e
     else:
@@ -142,11 +144,11 @@ if __name__=="__main__":
     if args.list:
         T = Tester(rw=False)
         c = T.conn.cursor()
-        c.execute("select testid,modified,queryname,queryrr,length(answer) from dns order by dnsid")
+        c.execute("select dns.testid,dns.modified,dns.queryname,dns.queryrr,tests.userid,length(dns.answer) from dns left join tests on dns.testid=tests.testid order by dnsid")
         print(" testID  Timestamp            Query Name      RR    Len(answer)")
         for row in c:
             when = str(row[1])
-            print("{:8n} {:s}   {:15s} {:4s} len={:5n} ".format(row[0],when,row[2],row[3],row[4]))
+            print("{:8n} {:s}   {:15s} {:4s} {} len={:5n} ".format(row[0],when,row[2],row[3],row[4],row[5]))
     
     if args.dump:
         T = Tester(rw=False)
