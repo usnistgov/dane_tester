@@ -42,7 +42,9 @@ import dbmaint
 
 class Tester:
     def __init__(self,testid=None,rw=True):
-        """Create a new Tester object. Specify either testname or testid"""
+        """Create a new Tester object. Specify either testname or testid.
+
+        @param testid - Current testid. If None, create a new one."""
         self.rw     = rw          # .rw means we are writing
         self.testid = testid
         self.conn   = None        # make sure it's set

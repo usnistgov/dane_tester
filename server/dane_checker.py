@@ -357,7 +357,10 @@ class DaneTestResult:
                 lines = "{} lines ".format(count)
         else:
             lines = ""
-        return "<%s %s %s %s>" % ({True:"P",False:"F","":"n/a",PROGRESS:PROGRESS,INFO:INFO,WARNING:WARNING,None:"None"}[self.passed],
+        return "<%s %s %s %s>" % ({True:"P",False:"F","":"n/a",
+                                   PROGRESS:PROGRESS,
+                                   INFO:INFO,WARNING:WARNING,
+                                   None:"None"}[self.passed],
                                   self.dnssec(),self.what,lines)
 
 # Count the number of results in an array
