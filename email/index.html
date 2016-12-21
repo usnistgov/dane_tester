@@ -132,6 +132,7 @@
             <label for="email">Email</label> <input type="text" id="email" name="email" size=30/><br/>
             <label for="hash">Hash</label> <input type="text" id="hash" name="hash" size=20/> (optional)<br/>
             <br/>
+        <p><i><small>Note: Providing the optional hash will cause your lookups to be logged under your account, so that you can audit them later.</small></i></p>
             <input type="submit" value="Lookup" ><br/>
           </form>
         </div>
@@ -151,11 +152,11 @@
         <div class="col-md-4">
           <h2>Calculate</h2>
           <h3>Generating OPENPGPKEY Records</h3>
-          <p>Based on <a href='https://tools.ietf.org/html/rfc7929'>RFC 7929</a>:</p>
+          <p>Based on <a href='https://tools.ietf.org/html/rfc7929'>RFC 7929</a> and <a href="https://tools.ietf.org/wg/dane/draft-ietf-dane-smime/">draft-ietf-dane-smime</a>:</p>
           
-          <p>Enter an email address and an ascii-armored PGP public key to calculate DANE TLSA RRs</p>
+          <p>Enter an email address and <i>either</i> an ascii-armored PGP public key or upload your S/MIME certificate to calculate the appropriate DANE RRs</p>
 
-          <form class="statusForm" method=GET action="genkey.cgi">
+          <form class="statusForm" method=GET action="keygen.cgi">
             <label for="email">Email</label> <input type="text" id="email" name="email" size=30/><br/>
             <label for="pgpKey">PGP Public Key:</label><br/>
             <textarea rows="4" cols="50" name="pgpKey"> </textarea>
@@ -167,7 +168,7 @@
 
 
       <div class="container">
-          <span id="form-lookup-status"></span>
+          <span id="status-area"></span>
       </div>
 
      <hr>
@@ -229,10 +230,10 @@ $(document).ready(function(){
     
     // A status form puts the results in the status section
     $(".statusForm").submit(function(event) {
-        var status = $("#form-lookup-status");
+        var status = $("#status-area");
         status.text("");               // clear the staus
         $.ajax({                       // create an AJAX call...
-            data: $(this).serialize(), // get the form data
+            data: $(this).serialize(), // send the form data (all fields)
             type: $(this).attr('method'),
             url: $(this).attr('action'),
             success: function(response) {
@@ -241,22 +242,6 @@ $(document).ready(function(){
         });
         return false; // cancel original event to prevent form submitting
     });
-
-    $(".calculateForm").submit( function(event) {
-        var status = $("#form-lookup-status");
-        status.text("Converting...");
-        return false;
-        $.ajax({
-            data: $(this).serialize(),
-            type: $(this).attr('method'),
-            url: $(this).attr('action'),
-            success: function(response) {
-                status.html(response);
-            }
-        });            
-        return false;
-    });
-
 });
     </script>
   </body>

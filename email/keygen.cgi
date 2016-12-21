@@ -59,33 +59,54 @@ def gen_pgp_key(email,pgpKey):
    hasher = hashlib.sha256()
    hasher.update(emailpart.encode('ascii'))
    hexpart = hasher.hexdigest()[0:28]
-   print("{}._openpgpkey.{}. IN OPENPGPKEY {}".format(hexpart,domainpart,keyblob_base64.decode('ascii')))
-   print("{}._openpgpkey.{}. IN TYPE61 \# {} {}".format(hexpart,domainpart,len(keyblob_base64),hexdump(keyblob_base64)))
+   return "{}._openpgpkey.{}. IN OPENPGPKEY {}\n".format(hexpart,domainpart,keyblob_base64.decode('ascii')) + \
+      "{}._openpgpkey.{}. IN TYPE61 \# {} {}".format(hexpart,domainpart,len(keyblob_base64),hexdump(keyblob_base64))
    
 
 if __name__=="__main__":
+   import os
+
+   if "SCRIPT_FILENAME" not in os.environ:
+      print("*** LOCAL TESTING MODE ***")
+      print("Enter email:"); sys.stdout.flush()
+      email = sys.stdin.readline()
+      print("Enter PGP key:"); sys.stdout.flush()
+      pgpKey = ""
+      while True:
+         line = sys.stdin.readline()
+         if not line: break
+         pgpKey += line
+      email = email.strip()
+      pgpKey = pgpKey.strip() + "\n"
+      print(gen_pgp_key(email,pgpKey))
+      exit(0)
+
+   import cgitb; cgitb.enable()
    print("Content-Type: text/html")    # HTML is following
    print()                             # blank line, end of headers
    form = cgi.FieldStorage()
 
-   if 'email' in form and 'pgpKey' in form:
-      T = Tester()
-      args = {}
-      email = form['email'].value
-      pgpKey  = form['pgpKey'].value
-      print("PGP Records:")
-      print(gen_pgp_key(email,pgpKey))
+   if 'email' not in form:
+      print("Please provide an email address")
       exit(0)
 
-   print("Enter email:"); sys.stdout.flush()
-   email = sys.stdin.readline()
-   print("Enter PGP key:"); sys.stdout.flush()
-   pgpKey = ""
-   while True:
-      line = sys.stdin.readline()
-      if not line: break
-      pgpKey += line
-   email = email.strip()
-   pgpKey = pgpKey.strip() + "\n"
-   print(gen_pgp_key(email,pgpKey))
+   if 'pgpKey' not in form:
+      print("Please provide a Pgp Public Key address")
+      exit(0)
+
+   T = Tester()
+   args = {}
+   email = form['email'].value.strip()
+   pgpKey  = form['pgpKey'].value.strip() + "\n"
+
+   #print("<pre>\n",pgpKey,"\n</pre>\n");exit(0);
+
+   res = gen_pgp_key(email,pgpKey)
+   
+   if not res.startswith("Error"):
+      print("<p><i>Add one of these records to your DNS:</i></p>")
+   for line in res.split("\n"):
+      print("<pre>\n{}\n</pre>\n".format(line))
    exit(0)
+
+
