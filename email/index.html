@@ -155,7 +155,7 @@
           
           <p>Enter an email address and an ascii-armored PGP public key to calculate DANE TLSA RRs</p>
 
-          <form class="calculateForm" method=GET action="history.cgi">
+          <form class="statusForm" method=GET action="genkey.cgi">
             <label for="email">Email</label> <input type="text" id="email" name="email" size=30/><br/>
             <label for="pgpKey">PGP Public Key:</label><br/>
             <textarea rows="4" cols="50" name="pgpKey"> </textarea>
@@ -243,9 +243,18 @@ $(document).ready(function(){
     });
 
     $(".calculateForm").submit( function(event) {
-            var status = $("#form-lookup-status");
-            status.text("Hello");
-            return false;
+        var status = $("#form-lookup-status");
+        status.text("Converting...");
+        return false;
+        $.ajax({
+            data: $(this).serialize(),
+            type: $(this).attr('method'),
+            url: $(this).attr('action'),
+            success: function(response) {
+                status.html(response);
+            }
+        });            
+        return false;
     });
 
 });
