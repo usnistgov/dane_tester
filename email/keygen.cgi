@@ -64,47 +64,63 @@ def gen_pgp_key(email,pgpKey):
    
 
 if __name__=="__main__":
-   import os
+    import os
 
-   if "SCRIPT_FILENAME" not in os.environ:
-      print("*** LOCAL TESTING MODE ***")
-      print("Enter email:"); sys.stdout.flush()
-      email = sys.stdin.readline()
-      print("Enter PGP key:"); sys.stdout.flush()
-      pgpKey = ""
-      while True:
-         line = sys.stdin.readline()
-         if not line: break
-         pgpKey += line
-      email = email.strip()
-      pgpKey = pgpKey.strip() + "\n"
-      print(gen_pgp_key(email,pgpKey))
-      exit(0)
+    if "SCRIPT_FILENAME" not in os.environ:
+        print("*** LOCAL TESTING MODE ***")
+        print("Enter email:"); sys.stdout.flush()
+        email = sys.stdin.readline()
+        print("Enter PGP key:"); sys.stdout.flush()
+        pgpKey = ""
+        while True:
+            line = sys.stdin.readline()
+            if not line: break
+            pgpKey += line
+        email = email.strip()
+        pgpKey = pgpKey.strip() + "\n"
+        print(gen_pgp_key(email,pgpKey))
+        exit(0)
 
-   import cgitb; cgitb.enable()
-   print("Content-Type: text/html")    # HTML is following
-   print()                             # blank line, end of headers
-   form = cgi.FieldStorage()
+    print("Content-Type: text/html")    # HTML is following
+    print()                             # blank line, end of headers
+    import cgitb; cgitb.enable()
+    form = cgi.FieldStorage()
+    
+    print(dir(form),file=sys.stderr)
 
-   if 'email' not in form:
-      print("Please provide an email address")
-      exit(0)
+    print("file in form: {}".format('file' in form),file=sys.stderr)
+    if 'file' in form:
+        fileitem = form['file']
+        data = fileitem.file.read()
+        print("LEN DATA: {}".format(len(data)),file=sys.stderr)
+        fout = open("/tmp/x","wb")
+        fout.write(data)
+        fout.close()
+        print("DONE",file=sys.stderr)
+        print("Uploaded {} bytes".format(len(data)))
+        exit(0);
 
-   if 'pgpKey' not in form:
-      print("Please provide a Pgp Public Key address")
-      exit(0)
 
-   T = Tester()
-   args = {}
-   email = form['email'].value.strip()
-   pgpKey  = form['pgpKey'].value.strip() + "\n"
+    #
+    if 'email' not in form:
+        print("Please provide an email address")
+        exit(0)
 
-   res = gen_pgp_key(email,pgpKey)
-   
-   if not res.startswith("Error"):
-      print("<p><i>Add one of these records to your DNS:</i></p>")
-   for line in res.split("\n"):
-      print("<pre>\n{}\n</pre>\n".format(line))
-   exit(0)
+    if 'pgpKey' not in form:
+        print("Please provide a Pgp Public Key address")
+        exit(0)
+
+    T = Tester()
+    args = {}
+    email = form['email'].value.strip()
+    pgpKey  = form['pgpKey'].value.strip() + "\n"
+    
+    res = gen_pgp_key(email,pgpKey)
+    
+    if not res.startswith("Error"):
+        print("<p><i>Add one of these records to your DNS:</i></p>")
+    for line in res.split("\n"):
+        print("<pre>\n{}\n</pre>\n".format(line))
+    exit(0)
 
 
