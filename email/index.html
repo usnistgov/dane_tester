@@ -25,6 +25,9 @@
       <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
 
+<style>
+</style>
+
   </head>
 
   <body>
@@ -60,7 +63,7 @@
     <div class="jumbotron">
       <div class="container">
         <h1>Email Tester</h1>
-          <p>To register, send an email message to <a href='mailto:register@dane-test.had.dnsops.gov'>dane-test.had.dnsops.gov</a></p>
+          <p>To register, send an email message to <a href='mailto:register@dane-test.had.dnsops.gov'>register@dane-test.had.dnsops.gov</a></p>
         <!-- <p><a class="btn btn-primary btn-lg" href="#"
         role="button">Learn more »</a></p> -->
       </div>
@@ -118,7 +121,6 @@
           </form>
           <p></p>
 
-
           <p><a class="btn btn-default viewDetails" href="#" role="button" form='form3'>View details »</a></p>
         </div>
       </div> <!-- row -->
@@ -150,9 +152,9 @@
         </div>
 
         <div class="col-md-4">
-          <h2>Calculate</h2>
-          <h3>Generating OPENPGPKEY Records</h3>
-          <p>Based on <a href='https://tools.ietf.org/html/rfc7929'>RFC 7929</a> and <a href="https://tools.ietf.org/wg/dane/draft-ietf-dane-smime/">draft-ietf-dane-smime</a>:</p>
+          <h2>Generate</h2>
+          <h3>OPENPGPKEY </h3>
+          <p>Based on <a href='https://tools.ietf.org/html/rfc7929'>RFC 7929</a>:</p>
           
           <p>Enter an email address and <i>either</i> an ascii-armored PGP public key or upload your S/MIME certificate to calculate the appropriate DANE RRs</p>
 
@@ -161,7 +163,8 @@
             <label for="pgpKey">PGP Public Key:</label><br/>
             <textarea rows="4" cols="50" name="pgpKey"> </textarea>
             <br/>
-            <input type="submit" value="Lookup" ><br/>
+            <label for=certificate'>Or upload your S/MIME certificate:<br/>
+            <input type="submit" value="Generate" ><br/>
           </form>
         </div>
       </div> <!-- row -->
@@ -173,6 +176,15 @@
 
      <hr>
 
+            <a href="#openModal">OPEN</a>
+
+            <div id="openModal" class="modalDialog">
+                <div>
+                    <a href="#close"  class="close">X</a>
+                    <h2>MODAL</h2>
+
+                </div>
+            </div>
     <footer>
         <p id='author'> <a href='https://www.nist.gov/itl/antd/'>Advanced Network Technologies Division</a><br/>
                         <a href='https://www.nist.gov/'>National Institute of Standards and Technology</a><br/>

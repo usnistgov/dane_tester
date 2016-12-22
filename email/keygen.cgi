@@ -99,8 +99,6 @@ if __name__=="__main__":
    email = form['email'].value.strip()
    pgpKey  = form['pgpKey'].value.strip() + "\n"
 
-   #print("<pre>\n",pgpKey,"\n</pre>\n");exit(0);
-
    res = gen_pgp_key(email,pgpKey)
    
    if not res.startswith("Error"):

@@ -42,11 +42,7 @@ Here is the message you sent:
 template2 = \
 """To: %TO%
 From: %FROM%
-<<<<<<< HEAD
 Subject: Re: email address registration
-=======
-Subject: Re: register
->>>>>>> 4af1389e3cc91c3d99665d7770a94fd30aba8a64
 
 Dear %TO%,
 

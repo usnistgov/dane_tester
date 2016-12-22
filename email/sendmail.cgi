@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8; mode: python; -*-
 #
+#
+# sendmail.cgi: Can queue both S/MIME and OpenPGP messages.
 import cgitb;cgitb.enable()
 from mako.template import Template
 from tester import Tester
@@ -19,11 +21,26 @@ if __name__=="__main__":
    print("Content-Type: text/html")    # HTML is following
    print()                             # blank line, end of headers
    form = cgi.FieldStorage()
+   
+   if 'email' not in form:
+      print("<p>Please provide an email address</p>")
+      
+   if 'hash' not in form:
+      print("<p>Please provide your hash. If you do not have one, "\
+            "you must <a href='mailto:register@dane-test.had.dnsops.gov?subject=register&body=Thanks!'>register</a></p>")
+
    if 'email' in form and 'hash' in form:
       T = Tester()
       args = {}
       email = form['email'].value
+      
+      import re
+      if not re.match(r"[^@]+@[^@]+\.[^@]+",email):
+         print("Please provide a valid email address");
+         exit(0)
+
       hash  = form['hash'].value
+
       T.login(email,hash)
 
       result = ""
@@ -45,5 +62,5 @@ if __name__=="__main__":
             result += "<p>Message #{} mode '{}' queued.<p/>\n".format(T.testid,sigmode)
       print(result)             # send to caller
       exit(0)
-   print("required args not provided")
+   print("<p>No email message will be sent.</p>")
    exit(0)
