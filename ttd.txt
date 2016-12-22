@@ -11,16 +11,19 @@ Things to do next:
     + modify getdns covers so that they work with dbdns
     + create more tests for 
     - Anonymous user, unless there is a login (for web)
+    - Show tests done today
+
 - Modify tester framework:
   - have numbered test steps
 
 - modify email/ tester:
-  - Add explicit tests to email tester
   - Web pages for creating TLSA RRs
+    + generation of OpenPGPKEY records
+    - generation of SMIMEA records
+  - Add explicit tests to email tester
   - Be able to receive sigened meail
   - Check certs
   - Have numbered tests
-
 
 test against good sites:
  + https://www.huque.com/dane/testsite/
