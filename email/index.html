@@ -127,8 +127,7 @@
       <div class="row">
         <div class="col-md-4">
           <h2>Lookup</h2>
-          <p>Enter an email address and we will look up SMIMEA and
-          OPENPGPKEY records.</p>
+          <p>Enter an email address and we will look up SMIMEA and OPENPGPKEY records.</p>
 
           <form class="statusForm" method=GET action="lookup_email.cgi">
             <label for="email">Email</label> <input type="text" id="email" name="email" size=30/><br/>
@@ -153,99 +152,111 @@
 
         <div class="col-md-4">
           <h2>Generate</h2>
-          <h3>OPENPGPKEY </h3>
-          <p>Based on <a href='https://tools.ietf.org/html/rfc7929'>RFC 7929</a>:</p>
+          <div>
+            <h3>SMIMEA</h3>
+            <p>Based
+            on <a href='https://tools.ietf.org/html/draft-ietf-dane-smime-14'>draft-ietf-dane-smime-14</a>
+            Network Working Group Internet-Draft:</p>
           
-          <p>Enter an email address and an ascii-armored PGP public key to calculate the appropriate DANE RRs:</p>
+            <p>Please provide a SMIME certificate, by either clicking
+            on the box below or dragging in a certificate, and we will
+            calculate the appropriate DANE RRs</p>
 
-          <form class="statusForm" method=GET action="keygen.cgi">
-            <label for="email">Email:</label> <input type="text" id="email" name="email" size=30/><br/>
-            <label for="pgpKey">PGP Public Key:</label><br/>
-            <textarea rows="4" cols="50" name="pgpKey"> </textarea>
-            <br/>
-            <input type="submit" value="Generate" ><br/>
-          </form>
-          <h3>SMIMEA</h3>
-          <p>Based on <a href='https://tools.ietf.org/html/draft-ietf-dane-smime-14'>draft-ietf-dane-smime-14</a>
-          Network Working Group Internet-Draft:</p>
-          
-          <p>Please provide a SMIME certificate, by either clicking on
-          the box below or dragging in a certificate, and we will
-          calculate the appropriate DANE RRs</p>
-          
-<!-- see http://www.dropzonejs.com/bootstrap.html -->
-    <div id="actions" class="row">
-      <div class="col-lg-7">
-        <!-- The fileinput-button span is used to style the file input
-        field as button -->
-        <span class="btn btn-success fileinput-button">
-            <span>Add files...</span>
-        </span>
-        <br/>
+            <form id="smimea-params">
+              <select id="certificate-usage">
+                <option value="0">0 CA constraint</option>
+                <option value="1">1 Service certificate constraint</option>
+                <option value="2">2 Trust anchor assertion</option>
+                <option value="3" SELECTED>3 Domain-issued certificate</option>
+              </select></br>
+              <select id="tlsa-selector">
+                <option value="0" SELECTED>0 Full Certificate</option>
+                <option value="1">1 SubjectPublicKeyInfo</option>
+              </select></br>
+              <select id="tlsa-match">
+                <option value="0" SELECTED>0 No hash used</option>
+                <option value="1">1 SHA-256</option>
+                <option value="2">2 SHA-512</option>
+              </select></br>
+            </form>
 
-        <button type="submit" class="btn btn-primary start">
-            <span>Start upload</span>
-        </button>
-        <br/>
+            <!-- see http://www.dropzonejs.com/bootstrap.html -->
+            <div id="actions" class="row">
+              <div class="col-lg-7">
+                <!-- The fileinput-button span is used to style the file input
+                field as button -->
+                <span class="btn btn-success fileinput-button">
+                    <span>Add certificate...</span>
+                </span>
 
-        <button type="reset" class="btn btn-warning cancel">
-            <span>Cancel upload</span>
-        </button>
-        <br/>
-      </div>
+                <!-- other class="btn btn-primary" -->
+                <button type="submit" class="start">
+                    <span>Generate</span>
+                </button>
+                <br/>
+              </div>
 
-      <div class="col-lg-5">
-        <!-- The global file processing state -->
-        <span class="fileupload-process">
-          <div id="total-progress" class="progress progress-striped
-          active" role="progressbar" aria-valuemin="0"
-          aria-valuemax="100" aria-valuenow="0">
-            <div class="progress-bar progress-bar-success"
-          style="width:0%;" data-dz-uploadprogress></div>
-          </div>
-        </span>
-      </div>
-    </div>
-
-   <div class="table">
-     <span id="upload-status-area"></span>
-   </div>
-
-    <!-- area to hold the list of uploaded files; is this overkill? -->
-    <div class="table table-striped files" id="previews">
-      <div id="template" class="file-row">
-        <!-- This is used as the file preview template -->
-        <div>
-            <span class="preview"><img data-dz-thumbnail /></span>
-        </div>
-        <div>
-            <p class="name" data-dz-name></p>
-            <strong class="error text-danger"
-            data-dz-errormessage></strong>
-        </div>
-        <div>
-            <p class="size" data-dz-size></p>
-            <div class="progress progress-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-              <div class="progress-bar progress-bar-success" style="width:0%;" data-dz-uploadprogress></div>
+              <div class="col-lg-5">
+                <!-- The global file processing state -->
+                <span class="fileupload-process">
+                  <div id="total-progress" class="progress progress-striped
+                  active" role="progressbar" aria-valuemin="0"
+                  aria-valuemax="100" aria-valuenow="0">
+                    <div class="progress-bar progress-bar-success"
+                  style="width:0%;" data-dz-uploadprogress></div>
+                  </div>
+                </span>
+              </div>
             </div>
-        </div>
-        <div>
-          <button class="btn btn-primary start">
-            <i class="glyphicon glyphicon-upload"></i>
-            <span>Start</span>
-          </button>
-          <button data-dz-remove class="btn btn-warning cancel">
-            <i class="glyphicon glyphicon-ban-circle"></i>
-            <span>Cancel</span>
-          </button>
-          <button data-dz-remove class="btn btn-danger delete">
-            <i class="glyphicon glyphicon-trash"></i>
-            <span>Delete</span>
-          </button>
-        </div>
-      </div>
-    </div>
 
+             <div class="table">
+               <span id="upload-status-area"></span>
+             </div>
+
+              <!-- area to hold the list of uploaded files; is this overkill? -->
+              <div class="table table-striped files" id="previews">
+                <div id="template" class="file-row">
+                  <!-- This is used as the file preview template -->
+                  <div>
+                      <span class="preview"><img data-dz-thumbnail /></span>
+                  </div>
+                  <div>
+                      <p class="name" data-dz-name></p>
+                      <strong class="error text-danger"
+                      data-dz-errormessage></strong>
+                  </div>
+                  <div>
+                      <p class="size" data-dz-size></p>
+                      <div class="progress progress-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <div class="progress-bar progress-bar-success" style="width:0%;" data-dz-uploadprogress></div>
+                      </div>
+                  </div>
+                  <div>
+                    <button class="btn btn-primary start"> <i class="glyphicon glyphicon-upload"></i>
+                      <span>Start</span>
+                    </button>
+                    <button data-dz-remove class="btn btn-danger delete">
+                      <i class="glyphicon glyphicon-trash"></i>
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+          </div>
+          <div>
+            <h3>OPENPGPKEY </h3>
+            <p>Based on <a href='https://tools.ietf.org/html/rfc7929'>RFC 7929</a>:</p>
+            <p>Enter an email address and an ascii-armored PGP public
+              key to calculate the appropriate DANE RRs:</p>
+            <form class="statusForm" method=GET action="keygen.cgi">
+              <label for="email">Email:</label> <input type="text" id="email" name="email" size=30/><br/>
+              <label for="pgpKey">PGP Public Key:</label><br/>
+              <textarea rows="4" cols="50" name="pgpKey"> </textarea>
+              <br/>
+              <input type="submit" value="Generate" ><br/>
+            </form>
+          </div>
+          
 <!-- ================================================================ -->
 
 
@@ -335,9 +346,9 @@ previewNode.parentNode.removeChild(previewNode);
 
 var myDropzone = new Dropzone(document.body, { // Make the whole body a dropzone
   url: "keygen.cgi", // Set the url for the upload
-  thumbnailWidth: 80,
-  thumbnailHeight: 80,
-  parallelUploads: 20,
+//  thumbnailWidth: 80,
+//  thumbnailHeight: 80,
+  parallelUploads: 1,
   previewTemplate: previewTemplate,
   autoQueue: false, // Make sure the files aren't queued until manually added
   previewsContainer: "#previews", // Define the container to display the previews
@@ -358,7 +369,11 @@ myDropzone.on("totaluploadprogress", function(progress) {
   document.querySelector("#total-progress .progress-bar").style.width = progress + "%";
 });
 
-myDropzone.on("sending", function(file) {
+myDropzone.on("sending", function(file, xhr, formData) {
+  // add the form data
+  formData.append("sel", "FOOBAR");
+  
+
   // Show the total progress bar when upload starts
   document.querySelector("#total-progress").style.opacity = "1";
   // And disable the start button
@@ -376,9 +391,6 @@ myDropzone.on("queuecomplete", function(progress) {
 // `clickable` has already been specified.
 document.querySelector("#actions .start").onclick = function() {
   myDropzone.enqueueFiles(myDropzone.getFilesWithStatus(Dropzone.ADDED));
-};
-document.querySelector("#actions .cancel").onclick = function() {
-  myDropzone.removeAllFiles(true);
 };
 
 
