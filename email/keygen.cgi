@@ -93,8 +93,9 @@ if __name__=="__main__":
     
     if 'file' in form:
         # File upload. 
-        sel = form["sel"].value if "sel" in form else "XXX"
-        print("sel=",sel)
+        usage = form["usage"].value if "usage" in form else "XXX"
+        selector = form["selector"].value if "selector" in form else "XXX"
+        match = form["match"].value if "match" in form else "XXX"
         data = form['file'].file.read()
         #print("LEN DATA: {}".format(len(data)),file=sys.stderr)
         #fout = open("/tmp/x","wb")

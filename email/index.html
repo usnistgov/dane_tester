@@ -371,8 +371,9 @@ myDropzone.on("totaluploadprogress", function(progress) {
 
 myDropzone.on("sending", function(file, xhr, formData) {
   // add the form data
-  formData.append("sel", "FOOBAR");
-  
+  formData.append("usage", $("#certificate-usage").val());
+  formData.append("selector", $("#tlsa-selector").val());
+  formData.append("match", $("#tlsa-match").val());
 
   // Show the total progress bar when upload starts
   document.querySelector("#total-progress").style.opacity = "1";
