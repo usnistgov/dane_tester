@@ -27,9 +27,7 @@
 
 <style>
 </style>
-
-  <script src="dropzone.js"></script>
-  </head>
+</head>
 
   <body>
     <nav class="navbar navbar-inverse navbar-fixed-top">
@@ -162,107 +160,45 @@
             on the box below or dragging in a certificate, and we will
             calculate the appropriate DANE RRs</p>
 
-            <form id="smimea-params">
-              <select id="certificate-usage">
+            <form method="POST" class="statusForm" id="smimea-params" enctype="multipart/form-data">
+              <input type="hidden" name="mode" value="SMIMEA" id="type">
+              <label for="email">Email:</label> <input type="text" id="smimea-email" name="email" size=30><br/>
+              <select id="certificate-usage" name="usage">
                 <option value="0">0 CA constraint</option>
                 <option value="1">1 Service certificate constraint</option>
                 <option value="2">2 Trust anchor assertion</option>
                 <option value="3" SELECTED>3 Domain-issued certificate</option>
               </select></br>
-              <select id="tlsa-selector">
+              <select id="tlsa-selector" name="selector">
                 <option value="0" SELECTED>0 Full Certificate</option>
                 <option value="1">1 SubjectPublicKeyInfo</option>
               </select></br>
-              <select id="tlsa-match">
+              <select id="tlsa-match" name="match">
                 <option value="0" SELECTED>0 No hash used</option>
                 <option value="1">1 SHA-256</option>
                 <option value="2">2 SHA-512</option>
               </select></br>
+              <label for="file">Certificate:</label>
+              <input type="file" name="cert">
+              <input type="submit" value="Generate"> <br/>
             </form>
-
-            <!-- see http://www.dropzonejs.com/bootstrap.html -->
-            <div id="actions" class="row">
-              <div class="col-lg-7">
-                <!-- The fileinput-button span is used to style the file input
-                field as button -->
-                <span class="btn btn-success fileinput-button">
-                    <span>Add certificate...</span>
-                </span>
-
-                <!-- other class="btn btn-primary" -->
-                <button type="submit" class="start">
-                    <span>Generate</span>
-                </button>
-                <br/>
-              </div>
-
-              <div class="col-lg-5">
-                <!-- The global file processing state -->
-                <span class="fileupload-process">
-                  <div id="total-progress" class="progress progress-striped
-                  active" role="progressbar" aria-valuemin="0"
-                  aria-valuemax="100" aria-valuenow="0">
-                    <div class="progress-bar progress-bar-success"
-                  style="width:0%;" data-dz-uploadprogress></div>
-                  </div>
-                </span>
-              </div>
-            </div>
-
-             <div class="table">
-               <span id="upload-status-area"></span>
-             </div>
-
-              <!-- area to hold the list of uploaded files; is this overkill? -->
-              <div class="table table-striped files" id="previews">
-                <div id="template" class="file-row">
-                  <!-- This is used as the file preview template -->
-                  <div>
-                      <span class="preview"><img data-dz-thumbnail /></span>
-                  </div>
-                  <div>
-                      <p class="name" data-dz-name></p>
-                      <strong class="error text-danger"
-                      data-dz-errormessage></strong>
-                  </div>
-                  <div>
-                      <p class="size" data-dz-size></p>
-                      <div class="progress progress-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                        <div class="progress-bar progress-bar-success" style="width:0%;" data-dz-uploadprogress></div>
-                      </div>
-                  </div>
-                  <div>
-                    <button class="btn btn-primary start"> <i class="glyphicon glyphicon-upload"></i>
-                      <span>Start</span>
-                    </button>
-                    <button data-dz-remove class="btn btn-danger delete">
-                      <i class="glyphicon glyphicon-trash"></i>
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
           </div>
           <div>
             <h3>OPENPGPKEY </h3>
             <p>Based on <a href='https://tools.ietf.org/html/rfc7929'>RFC 7929</a>:</p>
             <p>Enter an email address and an ascii-armored PGP public
               key to calculate the appropriate DANE RRs:</p>
-            <form class="statusForm" method=GET action="keygen.cgi">
-              <label for="email">Email:</label> <input type="text" id="email" name="email" size=30/><br/>
+            <form class="statusForm" method=POST action="keygen.cgi" id="openpgpkey-params">
+              <input type="hidden" name="mode" value="OPENPGPKEY">
+              <label for="email">Email:</label> <input type="text" id="openpgpkey-email" name="email" size=30/><br/>
               <label for="pgpKey">PGP Public Key:</label><br/>
               <textarea rows="4" cols="50" name="pgpKey"> </textarea>
               <br/>
               <input type="submit" value="Generate" ><br/>
             </form>
           </div>
-          
-<!-- ================================================================ -->
-
-
         </div>
       </div> <!-- row -->
-
 
       <div class="container">
           <span id="status-area"></span>
@@ -275,7 +211,6 @@
         </p> 
     </footer>
     </div> <!-- /container -->
-
 
     <!-- Bootstrap core JavaScript
     ================================================== -->
@@ -338,62 +273,6 @@ $(document).ready(function(){
         return false; // cancel original event to prevent form submitting
     });
 });
-
-var previewNode = document.querySelector("#template");
-previewNode.id = "";
-var previewTemplate = previewNode.parentNode.innerHTML;
-previewNode.parentNode.removeChild(previewNode);
-
-var myDropzone = new Dropzone(document.body, { // Make the whole body a dropzone
-  url: "keygen.cgi", // Set the url for the upload
-//  thumbnailWidth: 80,
-//  thumbnailHeight: 80,
-  parallelUploads: 1,
-  previewTemplate: previewTemplate,
-  autoQueue: false, // Make sure the files aren't queued until manually added
-  previewsContainer: "#previews", // Define the container to display the previews
-  clickable: ".fileinput-button", // Define the element that should be used as click trigger to select files.
-  success: function(fileobject,response) {
-      $("#upload-status-area").html(response);
-  }
-});
-
-myDropzone.on("addedfile", function(file) {
-  // Hookup the start button
-  file.previewElement.querySelector(".start").onclick = function() {
-  myDropzone.enqueueFile(file); };
-});
-
-// Update the total progress bar
-myDropzone.on("totaluploadprogress", function(progress) {
-  document.querySelector("#total-progress .progress-bar").style.width = progress + "%";
-});
-
-myDropzone.on("sending", function(file, xhr, formData) {
-  // add the form data
-  formData.append("usage", $("#certificate-usage").val());
-  formData.append("selector", $("#tlsa-selector").val());
-  formData.append("match", $("#tlsa-match").val());
-
-  // Show the total progress bar when upload starts
-  document.querySelector("#total-progress").style.opacity = "1";
-  // And disable the start button
-  file.previewElement.querySelector(".start").setAttribute("disabled", "disabled");
-});
-
-// Hide the total progress bar when nothing's uploading anymore
-myDropzone.on("queuecomplete", function(progress) {
-  document.querySelector("#total-progress").style.opacity = "0";
-  myDropzone.removeAllFiles(true); // added by SLG
-});
-
-// Setup the buttons for all transfers
-// The "add files" button doesn't need to be setup because the config
-// `clickable` has already been specified.
-document.querySelector("#actions .start").onclick = function() {
-  myDropzone.enqueueFiles(myDropzone.getFilesWithStatus(Dropzone.ADDED));
-};
-
 
     </script>
   </body>

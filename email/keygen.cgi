@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8; mode: python; -*-
 #
-import cgitb;cgitb.enable()
+import sys
+assert sys.version > '3'
+
+#import cgitb;cgitb.enable()
 from mako.template import Template
 from tester import Tester
 import dbmaint
 import tester
 import cgi
-import sys
-
-assert sys.version > '3'
+from subprocess import Popen,PIPE,STDOUT
+import re,base64,hashlib
 
 # Force output to be encoded in UTF8
 # http://stackoverflow.com/questions/14860034/python-cgi-utf-8-doesnt-work
@@ -19,6 +21,7 @@ import codecs; sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 # Create a GPG public key record
 # See https://tools.ietf.org/html/rfc7929
 
+openssl_exe = '/usr/bin/openssl'
 gpg_exe = '/usr/bin/gpg'
 
 def hexdump(s, separator=''):
@@ -32,8 +35,6 @@ def hexdump(s, separator=''):
 
 def gen_pgp_rr(email,pgpKey):
     """Given an email address and a pgpKey that's ASCII armored, turn it into RRs"""
-    from subprocess import Popen,PIPE,STDOUT
-    import re,base64,hashlib
     #
     # Import the key
     #
@@ -64,15 +65,53 @@ def gen_pgp_rr(email,pgpKey):
         "{}._openpgpkey.{}. IN TYPE61 \# {} {}".format(hexpart,domainpart,len(keyblob_base64),hexdump(keyblob_base64))
    
 
-def gen_smimea_rr(sel,usage,match,cert):
+def gen_smimea_rr(usage,selector,match,email,cert):
+    if usage==0: return "Error: CA Constraint currently not implemented"
+    if usage==1: return "Error: Service Certificate Constraint currently not implemented"
+    if usage==2: return "Error: Trust anchor assertion currently not implemented"
     
-    return "{}._smimecert.{}. TLSA {} {} {} {}".format(hexpart,sel,usage,match,hexdump(certblob_base64))
+    (cert_data ,stderr) = Popen([openssl_exe,'x509','-inform','der','-outform','der'],stdin=PIPE,stdout=PIPE,stderr=PIPE).communicate(cert)
+    if stderr:
+        return "Error: Key in invalid format ({})".format(stderr)
+        
+    if selector==1:             # Just the public key
+        (pubkey_pem,pubkey_err) = Popen([openssl_exe,'x509','-pubkey','-inform','der'],stdin=PIPE,stdout=PIPE,stderr=PIPE).\
+                                  communicate(cert_data )
+        (pubkey_der,pubkey_err) = Popen([openssl_exe,'rsa','-inform','pem','-pubin','-outform','der'],stdin=PIPE,stdout=PIPE,stderr=PIPE).\
+                                  communicate(pubkey_pem)
+        cert_data  = pubkey_der
+
+    comp_data = cert_data
+    # Compute the matches
+    if match == 0:
+        print("aa",file=sys.stderr)
+        comp_data = cert_data       # tlsa_rr contains the actual certificate
+    if match == 1:
+        print("bb",file=sys.stderr)
+        comp_data = hashlib.sha256(cert_data).digest()
+    if match == 2:
+        print("bb",file=sys.stderr)
+        comp_data = hashlib.sha512(cert_data).digest()
+
+    (emailpart,domainpart) = email.split('@')
+    hasher = hashlib.sha256()
+    hasher.update(emailpart.encode('ascii'))
+    hexpart = hasher.hexdigest()[0:28]
+    ret = "{}._smimecert.{}. TLSA {} {} {} {}".format(hexpart,domainpart,usage,selector,match,hexdump(comp_data))
+    print("ret=",ret,file=sys.stderr)
+    return ret
+    
 
 if __name__=="__main__":
     import os
 
     if "SCRIPT_FILENAME" not in os.environ:
         print("*** LOCAL TESTING MODE ***")
+        if len(sys.argv)==3:
+            res = gen_smimea_rr(3,0,0,sys.argv[1],open(sys.argv[2],"rb").read())
+            print('res=',res)
+            exit(0)
+
         print("Enter email:"); sys.stdout.flush()
         email = sys.stdin.readline()
         print("Enter PGP key:"); sys.stdout.flush()
@@ -91,40 +130,40 @@ if __name__=="__main__":
     import cgitb; cgitb.enable()
     form = cgi.FieldStorage()
     
-    if 'file' in form:
-        # File upload. 
+    if 'mode' not in form:
+        print("No key type specified")
+        exit(0)
+
+    res = "Error: Unknown key type '{}'".format(form['mode'].value)
+    if form['mode'].value=='SMIMEA':
+        # File upload; must be the PGP
         usage = form["usage"].value if "usage" in form else "XXX"
         selector = form["selector"].value if "selector" in form else "XXX"
         match = form["match"].value if "match" in form else "XXX"
-        data = form['file'].file.read()
-        #print("LEN DATA: {}".format(len(data)),file=sys.stderr)
-        #fout = open("/tmp/x","wb")
-        #fout.write(data)
-        #fout.close()
-        #print("DONE",file=sys.stderr)
-        print("Uploaded {} bytes".format(len(data)))
-        exit(0);
+        email = form["email"].value if "email" in form else "XXX"
+        cert = form['cert'].file.read()
+        res = gen_smimea_rr(usage,selector,match,email,cert)
 
+    if form['mode'].value=='OPENPGPKEY':
+        if 'email' not in form:
+            print("Please provide an email address")
+            exit(0)
 
-    #
-    if 'email' not in form:
-        print("Please provide an email address")
-        exit(0)
+        if 'pgpKey' not in form:
+            print("Please provide a Pgp Public Key address")
+            exit(0)
 
-    if 'pgpKey' not in form:
-        print("Please provide a Pgp Public Key address")
-        exit(0)
+        email   = form['email'].value.strip()
+        pgpKey  = form['pgpKey'].value.strip() + "\n"
+        res     = gen_pgp_rr(email,pgpKey)
 
-    T = Tester()
-    args = {}
-    email = form['email'].value.strip()
-    pgpKey  = form['pgpKey'].value.strip() + "\n"
-    
-    res = gen_pgp_rr(email,pgpKey)
-    
+    lines = res.split("\n")
     if not res.startswith("Error"):
-        print("<p><i>Add one of these records to your DNS:</i></p>")
-    for line in res.split("\n"):
+        if len(lines)>1:
+            print("<p><i>Add one of these records to your DNS:</i></p>")
+        else:
+            print("<p><i>Add this record to your DNS:</i></p>")
+    for line in lines:
         print("<pre>\n{}\n</pre>\n".format(line))
     exit(0)
 

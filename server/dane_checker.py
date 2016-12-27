@@ -625,10 +625,12 @@ def tlsa_match(tlsa_rr, cert=None):
     cert_data = tlsa_cert_select(tlsa_rr.selector,cert)
     if mtype == 0:
         comp_data = cert_data       # tlsa_rr contains the actual certificate
-    if mtype == 1:
+    elif mtype == 1:
         comp_data = hashlib.sha256(cert_data).digest()
-    if mtype == 2:
+    elif mtype == 2:
         comp_data = hashlib.sha512(cert_data).digest()
+    else:
+        raise RuntimeError("Invalid value for mtype=={}".format(mtype))
     matches = True if comp_data == tlsa_rr.cert else None
     return [ DaneTestResult(passed=matches,
                             what="TLSA mtype {}:  hex_data={} from_dns={}".format(mtype,hexdump(cert_data),hexdump(tlsa_rr.cert))) ]
@@ -697,8 +699,6 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
                                 what="Checking TLSA Parameters against Internet-Draft Recommendation: {} {} {}"
                                 .format(cert_usage,selector,mtype)) ]
                                 
-
-
     # Cert Usage 0-1 SHOULD NOT be used with SMTP
     if protocol=='smtp':
         cu_valid = cert_usage not in [0,1]
@@ -770,7 +770,6 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
                                     ipaddr=ipaddr,
                                     what="Checked all server chain certificates against TLSA record") ]
 
-
     # Cert usages 1 and 3 specify the EE certificate
     if cert_usage in [1,3]:
         tm = tlsa_match(tlsa_rr, cert=certs[0])
@@ -794,7 +793,6 @@ def tlsa_verify(cert_chain, tlsa_rr, hostnames, ipaddr, protocol):
         ret += r
         if count_passed(r,val=False) > 0:
             usage_good = False
-
 
     # Cert usage 0, 1 and 2 must verify against the specified trust anchor
     if cert_usage in [0, 1, 2]:
