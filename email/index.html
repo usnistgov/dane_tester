@@ -160,7 +160,8 @@
             on the box below or dragging in a certificate, and we will
             calculate the appropriate DANE RRs</p>
 
-            <form method="POST" class="statusForm" id="smimea-params" enctype="multipart/form-data">
+            <!-- You can't use class="statusForm" with POST -->
+            <form method="POST" id="smimea-params" action='keygen.cgi' enctype="multipart/form-data">
               <input type="hidden" name="mode" value="SMIMEA" id="type">
               <label for="email">Email:</label> <input type="text" id="smimea-email" name="email" size=30><br/>
               <select id="certificate-usage" name="usage">

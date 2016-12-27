@@ -11,11 +11,13 @@ import dbmaint
 import tester
 import cgi
 from subprocess import Popen,PIPE,STDOUT
-import re,base64,hashlib
+import re,base64,hashlib,os
 
 # Force output to be encoded in UTF8
 # http://stackoverflow.com/questions/14860034/python-cgi-utf-8-doesnt-work
 import codecs; sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
+
+os.environ['GNUPGHOME'] = '/var/www/gpg'
 
 #
 # Create a GPG public key record
@@ -43,7 +45,7 @@ def gen_pgp_rr(email,pgpKey):
     stderr_out = stderr.decode('utf-8')
     m = keyfind.search(stderr.decode('utf-8'))
     if not m:
-        return "Error: Key Format Invalid"
+        return "Error: Key Format Invalid (error: {})".format(str(stderr))
     if email not in stderr_out:
         return "Error: Key '{}' not in public key".format(email)
 
@@ -55,7 +57,7 @@ def gen_pgp_rr(email,pgpKey):
                             stdin=PIPE,stdout=PIPE,stderr=PIPE).communicate()
     keyblob_base64 = base64.b64encode(stdout)
     if stderr:
-        return "Error: Export failed"
+        return "Error: Export failed (error: {})".format(str(stderr))
 
     (emailpart,domainpart) = email.split('@')
     hasher = hashlib.sha256()
