@@ -609,7 +609,7 @@ def tlsa_cert_select(selector,pem_cert):
         return der
     if selector==1:             # Just the public key
         pubkey_pem = openssl_cmd([OPENSSL_EXE,'x509','-pubkey'],pem_cert,ignore_error=True)
-        pubkey_der = openssl_cmd([OPENSSL_EXE,'rsa','-inform','pem','-pubin','-outform','der'],pubkey_pem,output=bytes,ignore_error=True)
+        pubkey_der = openssl_cmd([OPENSSL_EXE,'pkey','-inform','pem','-pubin','-outform','der'],pubkey_pem,output=bytes,ignore_error=True)
         return pubkey_der
     
 # matching type:
